@@ -6,7 +6,6 @@ import { CAPABILITIES } from "./detect.js";
 
 export interface ClaudeAdapterDeps {
   readonly processRunner: ProcessRunner;
-  readonly maxRetries?: number;
   readonly bin?: string;
 }
 
@@ -55,10 +54,12 @@ export function createClaudeAdapter(deps: ClaudeAdapterDeps): AgentRunner {
           try {
             data = JSON.parse(parsed.result);
           } catch {
-            return err({ kind: "AdapterSpawn", adapter: "claude", cause: "result was not valid JSON for the schema" });
+            return err({ kind: "AdapterSpawn", adapter: "claude", cause: "result was not valid JSON for the requested schema" });
           }
-        } else {
+        } else if (parsed.result !== undefined && typeof parsed.result === "object") {
           data = parsed.result;
+        } else {
+          return err({ kind: "AdapterSpawn", adapter: "claude", cause: "schema requested but no structured_output or JSON result present" });
         }
       }
 

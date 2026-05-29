@@ -28,6 +28,18 @@ describe("claude adapter", () => {
     expect(argv).toContain("--json-schema");
   });
 
+  it("returns AdapterSpawn when a schema is requested but the result carries no structured output", async () => {
+    const noStructured = JSON.stringify({ type: "result", is_error: false, usage: { input_tokens: 1, output_tokens: 1 } });
+    const fake = createFakeProcessRunner({ claude: { stdout: noStructured, code: 0 } });
+    const adapter = createClaudeAdapter({ processRunner: fake });
+    const res = await adapter.run(
+      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
+      { runId: "r", seq: 0 },
+    );
+    expect(res.isErr()).toBe(true);
+    expect(res._unsafeUnwrapErr().kind).toBe("AdapterSpawn");
+  });
+
   it("returns an AdapterSpawn error on non-zero exit", async () => {
     const fake = createFakeProcessRunner({ claude: { stdout: "", stderr: "boom", code: 1 } });
     const adapter = createClaudeAdapter({ processRunner: fake });
