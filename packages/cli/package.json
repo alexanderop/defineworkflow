@@ -1,0 +1,26 @@
+{
+  "name": "@workflow/cli",
+  "version": "0.0.0",
+  "type": "module",
+  "bin": { "workflow": "./dist/cli.js" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "scripts": {
+    "build": "tsup src/index.ts src/cli.ts --format esm --dts --clean --external react --external ink",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@workflow/core": "workspace:*",
+    "@workflow/schema": "workspace:*",
+    "@workflow/adapters": "workspace:*",
+    "@workflow/ui": "workspace:*",
+    "neverthrow": "^8.1.0"
+  },
+  "devDependencies": {
+    "zod": "^4.0.0"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "^0.40.0"
+  }
+}

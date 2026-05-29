@@ -56,6 +56,32 @@ importers:
         specifier: ^0.40.0
         version: 0.40.1
 
+  packages/cli:
+    dependencies:
+      '@workflow/adapters':
+        specifier: workspace:*
+        version: link:../adapters
+      '@workflow/core':
+        specifier: workspace:*
+        version: link:../core
+      '@workflow/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@workflow/ui':
+        specifier: workspace:*
+        version: link:../ui
+      neverthrow:
+        specifier: ^8.1.0
+        version: 8.2.0
+    devDependencies:
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
+    optionalDependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.40.0
+        version: 0.40.1
+
   packages/core:
     dependencies:
       '@workflow/schema':
