@@ -57,3 +57,54 @@ describe("runtime.agent", () => {
     await expect(rt.agent("p", { label: "a" })).rejects.toThrow();
   });
 });
+
+describe("runtime stop/pause hooks", () => {
+  it("an already-aborted signal rejects agent() without invoking the runner", async () => {
+    const events: WorkflowEvent[] = [];
+    const runner = createScriptedRunner({ a: { text: "x" } });
+    const controller = new AbortController();
+    controller.abort();
+    const rt = createRuntime({
+      runner,
+      semaphore: createSemaphore(8),
+      journal: createJournal(),
+      maxAgents: 1000,
+      budgetTotal: null,
+      args: {},
+      cwd: "/tmp",
+      runId: "r1",
+      emit: (e) => events.push(e),
+      now: () => 0,
+      signal: controller.signal,
+    });
+    await expect(rt.agent("p", { label: "a" })).rejects.toThrow();
+    expect(runner.callCount()).toBe(0);
+    expect(events.map((e) => e.type)).toContain("agent-failed");
+  });
+
+  it("awaits the gate before starting the agent (pause)", async () => {
+    const events: WorkflowEvent[] = [];
+    const runner = createScriptedRunner({ a: { text: "x" } });
+    let release!: () => void;
+    const gatePromise = new Promise<void>((r) => (release = r));
+    const rt = createRuntime({
+      runner,
+      semaphore: createSemaphore(8),
+      journal: createJournal(),
+      maxAgents: 1000,
+      budgetTotal: null,
+      args: {},
+      cwd: "/tmp",
+      runId: "r1",
+      emit: (e) => events.push(e),
+      now: () => 0,
+      gate: () => gatePromise,
+    });
+    const pending = rt.agent("p", { label: "a" });
+    await Promise.resolve();
+    expect(events.map((e) => e.type)).not.toContain("agent-started");
+    release();
+    await pending;
+    expect(events.map((e) => e.type)).toContain("agent-started");
+  });
+});

@@ -34,6 +34,10 @@ export interface RuntimeDeps {
   readonly emit: (event: WorkflowEvent) => void;
   readonly now: () => number;
   readonly resolveWorkflow?: (name: string, args?: unknown) => Promise<LoadedWorkflow>;
+  /** Run-scoped stop: when aborted, in-flight adapter processes are killed and new agent() calls short-circuit. */
+  readonly signal?: AbortSignal | undefined;
+  /** Pause gate: awaited before each agent acquires the semaphore (resolves immediately when not paused). */
+  readonly gate?: (() => Promise<void>) | undefined;
 }
 
 export interface Runtime {
@@ -60,6 +64,13 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     const key = `${mySeq}:${phase}:${label}`;
 
     deps.emit({ type: "agent-queued", key, label, phase, prompt, at: deps.now() });
+
+    // Run-scoped stop: a fired signal short-circuits before any work is scheduled.
+    if (deps.signal?.aborted) {
+      const e: WorkflowError = { kind: "AdapterSpawn", adapter: "run", cause: "run stopped" };
+      deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
+      throw new WorkflowThrow(e);
+    }
 
     // Resume: journal hit returns cached result without spawning.
     const cached = deps.journal.lookup(mySeq);
@@ -97,16 +108,23 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       jsonSchema = converted.value;
     }
 
+    // Pause gate: hold here while paused, then re-check stop (a pause may have spanned a stop).
+    if (deps.gate) await deps.gate();
+    if (deps.signal?.aborted) {
+      const e: WorkflowError = { kind: "AdapterSpawn", adapter: "run", cause: "run stopped" };
+      deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
+      throw new WorkflowThrow(e);
+    }
+
     const release = await deps.semaphore.acquire();
     deps.emit({ type: "agent-started", key, at: deps.now() });
     try {
-      // Signal wired for Plan 2 stop/restart; never aborted in Plan 1.
-      const controller = new AbortController();
+      // Run-scoped stop drives the adapter's AbortSignal; falls back to a private controller.
       const request: AgentRequest = {
         prompt,
         label,
         cwd: deps.cwd,
-        signal: controller.signal,
+        signal: deps.signal ?? new AbortController().signal,
         ...(jsonSchema ? { schema: jsonSchema } : {}),
         ...(opts.model ? { model: opts.model } : {}),
         ...(opts.agentType ? { agentType: opts.agentType } : {}),
