@@ -12,7 +12,7 @@ export type WorkflowError =
 /** Thrown across the sandbox boundary only; carries a typed WorkflowError. */
 export class WorkflowThrow extends Error {
   constructor(readonly workflowError: WorkflowError) {
-    super(`${workflowError.kind}`);
+    super("cause" in workflowError ? `${workflowError.kind}: ${workflowError.cause}` : `${workflowError.kind}`);
     this.name = "WorkflowThrow";
   }
 }

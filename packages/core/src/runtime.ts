@@ -17,6 +17,11 @@ export interface AgentOptions {
   readonly isolation?: "worktree";
 }
 
+export interface LoadedWorkflow {
+  readonly meta: { readonly name: string; readonly description: string; readonly phases?: readonly unknown[] };
+  run(runtime: Runtime, args?: unknown): Promise<unknown>;
+}
+
 export interface RuntimeDeps {
   readonly runner: AgentRunner;
   readonly semaphore: Semaphore;
@@ -28,6 +33,7 @@ export interface RuntimeDeps {
   readonly runId: string;
   readonly emit: (event: WorkflowEvent) => void;
   readonly now: () => number;
+  readonly resolveWorkflow?: (name: string, args?: unknown) => Promise<LoadedWorkflow>;
 }
 
 export interface Runtime {
@@ -38,6 +44,7 @@ export interface Runtime {
   pipeline(items: readonly unknown[], ...stages: ReadonlyArray<(prev: unknown, item: unknown, index: number) => Promise<unknown>>): Promise<Array<unknown | null>>;
   phase(title: string): void;
   log(message: string): void;
+  workflow(name: string, args?: unknown): Promise<unknown>;
 }
 
 export function createRuntime(deps: RuntimeDeps): Runtime {
@@ -161,5 +168,25 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     deps.emit({ type: "log", message, at: deps.now() });
   };
 
-  return { args: deps.args, budget, agent, parallel, pipeline, phase, log };
+  const workflow = async (name: string, childArgs?: unknown): Promise<unknown> => {
+    if (!deps.resolveWorkflow) {
+      throw new WorkflowThrow({ kind: "AdapterSpawn", adapter: "workflow", cause: "no workflow resolver configured" });
+    }
+    const loaded = await deps.resolveWorkflow(name, childArgs);
+    const childRuntime: Runtime = {
+      args: childArgs,
+      budget,
+      agent,
+      parallel,
+      pipeline,
+      phase,
+      log,
+      workflow: async () => {
+        throw new WorkflowThrow({ kind: "AdapterSpawn", adapter: "workflow", cause: "workflow() nesting is one level only" });
+      },
+    };
+    return loaded.run(childRuntime, childArgs);
+  };
+
+  return { args: deps.args, budget, agent, parallel, pipeline, phase, log, workflow };
 }
