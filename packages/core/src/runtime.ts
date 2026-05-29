@@ -59,7 +59,7 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     const label = opts.label ?? `agent-${mySeq}`;
     const key = `${mySeq}:${phase}:${label}`;
 
-    deps.emit({ type: "agent-queued", key, label, phase, at: deps.now() });
+    deps.emit({ type: "agent-queued", key, label, phase, prompt, at: deps.now() });
 
     // Resume: journal hit returns cached result without spawning.
     const cached = deps.journal.lookup(mySeq);

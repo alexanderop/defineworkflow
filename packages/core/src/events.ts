@@ -14,7 +14,7 @@ export interface AgentUsage {
 export type WorkflowEvent =
   | { readonly type: "run-started"; readonly runId: string; readonly name: string; readonly at: number }
   | { readonly type: "phase-started"; readonly phase: string; readonly at: number }
-  | { readonly type: "agent-queued"; readonly key: string; readonly label: string; readonly phase: string; readonly at: number }
+  | { readonly type: "agent-queued"; readonly key: string; readonly label: string; readonly phase: string; readonly prompt?: string; readonly at: number }
   | { readonly type: "agent-started"; readonly key: string; readonly at: number }
   | { readonly type: "agent-tool"; readonly key: string; readonly tool: ToolEvent; readonly at: number }
   | { readonly type: "agent-finished"; readonly key: string; readonly usage: AgentUsage; readonly cached: boolean; readonly at: number }
@@ -28,6 +28,8 @@ export interface AgentState {
   readonly key: string;
   readonly label: string;
   readonly phase: string;
+  readonly prompt: string;
+  readonly resultText: string;
   readonly status: AgentStatus;
   readonly tokens: number;
   readonly tools: readonly ToolEvent[];
@@ -86,6 +88,8 @@ export function reduce(state: RunState, event: WorkflowEvent): RunState {
         key: event.key,
         label: event.label,
         phase: event.phase,
+        prompt: event.prompt ?? "",
+        resultText: "",
         status: "queued",
         tokens: 0,
         tools: [],

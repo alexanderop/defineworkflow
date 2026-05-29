@@ -22,4 +22,12 @@ describe("event reducer", () => {
     reduce(s0, { type: "phase-started", phase: "X", at: 0 });
     expect(s0.phases.size).toBe(0);
   });
+
+  it("stores the prompt from agent-queued on the agent state", () => {
+    const events: WorkflowEvent[] = [
+      { type: "agent-queued", key: "0", label: "a", phase: "Search", prompt: "Search the web for X", at: 0 },
+    ];
+    const state = events.reduce(reduce, initialRunState());
+    expect(state.agents.get("0")?.prompt).toBe("Search the web for X");
+  });
 });
