@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runInSandbox } from "./sandbox.js";
+import { runInSandbox, extractMeta } from "./sandbox.js";
 
 describe("sandbox", () => {
   it("extracts meta and returns the script's return value", async () => {
@@ -36,5 +36,20 @@ describe("sandbox", () => {
     expect(result.meta.name).toBe("n");
     expect(result.meta.description).toBe("do a; then b");
     expect(result.returnValue).toBe(2);
+  });
+});
+
+describe("extractMeta", () => {
+  it("reads meta without executing agent calls", () => {
+    const src = `export const meta = { name: "demo", description: "d", phases: [{ title: "A" }] } as const
+const x = await agent("should never run");
+return x;`;
+    const meta = extractMeta(src);
+    expect(meta.name).toBe("demo");
+    expect(meta.phases).toEqual([{ title: "A" }]);
+  });
+
+  it("throws when meta is missing", () => {
+    expect(() => extractMeta(`const y = 1; export {};`)).toThrow(/must export `const meta`/);
   });
 });

@@ -42,18 +42,72 @@ function makeBannedDate(): typeof Date {
   return Banned;
 }
 
+const bannedMath = {
+  ...Math,
+  random: () => {
+    throw new Error("SandboxViolation: Math.random() is not allowed in a workflow");
+  },
+};
+
+/**
+ * Read the script's `meta` without running its body to completion.
+ * `meta` is assigned synchronously at the top of the transformed script, so injecting
+ * sentinel-throwing primitives aborts execution at the first `agent()`/`parallel()`/…
+ * call while `__meta` is already captured. Used by the CLI consent flow, which must show
+ * `meta.name` + phases before deciding to run.
+ */
+export function extractMeta(source: string): SandboxResult["meta"] {
+  const js = transformScript(source);
+  const sentinel = Symbol("meta-probe");
+  const stop = (): never => {
+    throw sentinel;
+  };
+  const sandbox: Record<string, unknown> = {
+    agent: stop,
+    parallel: stop,
+    pipeline: stop,
+    workflow: stop,
+    phase: () => {},
+    log: () => {},
+    args: {},
+    budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
+    Math: bannedMath,
+    Date: makeBannedDate(),
+    __meta: undefined,
+    Promise,
+    JSON,
+    Array,
+    Object,
+    String,
+    Number,
+    Boolean,
+    Error,
+    console,
+  };
+  const context = vm.createContext(sandbox);
+  // The body runs inside an async IIFE, so a sentinel thrown at the first primitive call
+  // surfaces as a rejected promise rather than a sync throw. `meta` is already assigned
+  // synchronously by then; swallow both the sync and async rejection paths.
+  try {
+    const ran = new vm.Script(js, { filename: "workflow-meta.js" }).runInContext(context) as unknown;
+    if (ran && typeof (ran as PromiseLike<unknown>).then === "function") {
+      (ran as PromiseLike<unknown>).then(undefined, () => {});
+    }
+  } catch {
+    // Sync throw before the body returned a promise — meta is still captured below.
+  }
+  const meta = sandbox.__meta as SandboxResult["meta"] | undefined;
+  if (!meta) {
+    throw new Error("SandboxViolation: workflow script must export `const meta`");
+  }
+  return meta;
+}
+
 export async function runInSandbox(
   source: string,
   globals: Record<string, unknown>,
 ): Promise<SandboxResult> {
   const js = transformScript(source);
-
-  const bannedMath = {
-    ...Math,
-    random: () => {
-      throw new Error("SandboxViolation: Math.random() is not allowed in a workflow");
-    },
-  };
 
   const sandbox: Record<string, unknown> = {
     ...globals,

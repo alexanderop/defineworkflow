@@ -4,7 +4,7 @@ export * from "./events.js";
 export { createBudget, type Budget } from "./budget.js";
 export { createSemaphore, type Semaphore } from "./semaphore.js";
 export { createJournal, type Journal, type JournalEntry } from "./journal.js";
-export { runInSandbox, transformScript, type SandboxResult } from "./sandbox.js";
+export { runInSandbox, extractMeta, transformScript, type SandboxResult } from "./sandbox.js";
 export {
   createRuntime,
   type Runtime,
