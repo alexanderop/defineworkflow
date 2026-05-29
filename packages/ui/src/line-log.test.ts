@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import type { WorkflowEvent } from "@workflow/core";
 import { lineLogLine } from "./line-log.js";
 
 describe("lineLogLine", () => {

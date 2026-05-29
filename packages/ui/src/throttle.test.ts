@@ -19,7 +19,12 @@ function fakeDeps() {
   };
   const advance = (ms: number) => {
     clock += ms;
-    for (const t of [...timers]) if (t.at <= clock) { timers.splice(timers.indexOf(t), 1); t.fn(); }
+    const due = timers.filter((t) => t.at <= clock);
+    for (const t of due) {
+      const i = timers.indexOf(t);
+      if (i >= 0) timers.splice(i, 1);
+      t.fn();
+    }
   };
   return { deps, advance, setClock: (n: number) => (clock = n) };
 }
