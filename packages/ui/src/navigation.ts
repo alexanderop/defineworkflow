@@ -26,20 +26,22 @@ export const initialNav: NavState = { focus: "phases", phaseIndex: 0, agentIndex
 
 const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n));
 
+// Move the selection cursor by `delta` within the focused column, clamping to
+// its bounds. Changing the phase resets the agent selection and detail scroll.
+function move(state: NavState, ctx: NavCtx, delta: number): NavState {
+  if (state.focus === "phases")
+    return { ...state, phaseIndex: clamp(state.phaseIndex + delta, 0, Math.max(0, ctx.phaseCount - 1)), agentIndex: 0, scroll: 0 };
+  if (state.focus === "agents")
+    return { ...state, agentIndex: clamp(state.agentIndex + delta, 0, Math.max(0, ctx.agentCount - 1)), scroll: 0 };
+  return state;
+}
+
 export function navReducer(state: NavState, action: NavAction, ctx: NavCtx): NavState {
   switch (action.type) {
     case "up":
-      if (state.focus === "phases")
-        return { ...state, phaseIndex: clamp(state.phaseIndex - 1, 0, Math.max(0, ctx.phaseCount - 1)), agentIndex: 0, scroll: 0 };
-      if (state.focus === "agents")
-        return { ...state, agentIndex: clamp(state.agentIndex - 1, 0, Math.max(0, ctx.agentCount - 1)), scroll: 0 };
-      return state;
+      return move(state, ctx, -1);
     case "down":
-      if (state.focus === "phases")
-        return { ...state, phaseIndex: clamp(state.phaseIndex + 1, 0, Math.max(0, ctx.phaseCount - 1)), agentIndex: 0, scroll: 0 };
-      if (state.focus === "agents")
-        return { ...state, agentIndex: clamp(state.agentIndex + 1, 0, Math.max(0, ctx.agentCount - 1)), scroll: 0 };
-      return state;
+      return move(state, ctx, +1);
     case "right":
       if (state.focus === "phases") return { ...state, focus: "agents" };
       if (state.focus === "agents") return { ...state, focus: "detail" };

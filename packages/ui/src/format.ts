@@ -2,6 +2,10 @@ import type { AgentStatus } from "@workflow/core";
 
 export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 
+export function spinnerFrame(frame: number): string {
+  return SPINNER_FRAMES[frame % SPINNER_FRAMES.length] ?? SPINNER_FRAMES[0];
+}
+
 export function formatTokens(n: number): string {
   if (n < 1000) return String(n);
   const k = n / 1000;
@@ -25,6 +29,6 @@ export function statusGlyph(status: AgentStatus, frame = 0): string {
     case "queued":
       return "▱";
     case "running":
-      return SPINNER_FRAMES[frame % SPINNER_FRAMES.length] ?? SPINNER_FRAMES[0];
+      return spinnerFrame(frame);
   }
 }

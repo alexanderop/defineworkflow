@@ -33,7 +33,7 @@ export function startUi(opts: StartUiOptions): UiHandle {
     return { unmount: unsub };
   }
 
-  let events: WorkflowEvent[] = [...initial];
+  const events: WorkflowEvent[] = [...initial];
   const instance = render(createElement(App, { events, adapter: opts.adapter, onAction: opts.onAction }));
   const rerenderNow = (): void => {
     instance.rerender(createElement(App, { events: [...events], adapter: opts.adapter, onAction: opts.onAction }));
@@ -44,7 +44,8 @@ export function startUi(opts: StartUiOptions): UiHandle {
     clearTimer: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
   });
   const unsub = opts.subscribe((e) => {
-    events = [...events, e];
+    // Append in place (O(1)); rerenderNow snapshots a fresh array for React.
+    events.push(e);
     throttled.call();
   });
   return {
