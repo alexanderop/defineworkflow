@@ -11,10 +11,12 @@
     "lint": "oxlint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "WORKFLOW_E2E=1 vitest run --project e2e"
+    "test:e2e": "WORKFLOW_E2E=1 vitest run --project e2e",
+    "prepare": "lefthook install"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "lefthook": "^1.10.0",
     "oxlint": "^0.11.0",
     "tsup": "^8.3.0",
     "turbo": "^2.2.0",
