@@ -48,6 +48,7 @@ function fakeDeps(overrides: Partial<AppDeps> = {}): { deps: AppDeps; out: () =>
     print: (t) => {
       out += t;
     },
+    bundledDir: "/bundled",
     startUi,
     consentIO: { question: async () => "n", write: () => {} },
     persistConsent: () => {},

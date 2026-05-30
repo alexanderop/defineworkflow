@@ -7,6 +7,7 @@ export interface WorkflowResolverDeps {
   readonly homeDir: string;
   readonly cwd: string;
   readonly readTextFile: (path: string) => string | undefined;
+  readonly bundledDir?: string | undefined;
 }
 
 /** Build the nested-workflow resolver the core runtime calls for `workflow("name")`. */
@@ -18,6 +19,7 @@ export function buildWorkflowResolver(
       homeDir: deps.homeDir,
       cwd: deps.cwd,
       readFile: deps.readTextFile,
+      bundledDir: deps.bundledDir,
     });
     if (!resolved) {
       throw new WorkflowThrow({

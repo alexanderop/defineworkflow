@@ -96,7 +96,7 @@ export async function runForeground(deps: AppDeps, params: ExecuteParams): Promi
     signal: controller.signal,
     control,
     gate,
-    resolveWorkflow: buildWorkflowResolver({ homeDir: deps.homeDir, cwd: deps.cwd, readTextFile: deps.readTextFile }),
+    resolveWorkflow: buildWorkflowResolver({ homeDir: deps.homeDir, cwd: deps.cwd, readTextFile: deps.readTextFile, bundledDir: deps.bundledDir }),
     resolveRunner,
     makeIsolatedCwd,
   });
@@ -136,7 +136,7 @@ export async function runHeadless(deps: AppDeps, params: ExecuteParams, controll
     emit: (event) => deps.registry.appendEvent(params.runId, event),
     now: deps.now,
     signal: controller.signal,
-    resolveWorkflow: buildWorkflowResolver({ homeDir: deps.homeDir, cwd: deps.cwd, readTextFile: deps.readTextFile }),
+    resolveWorkflow: buildWorkflowResolver({ homeDir: deps.homeDir, cwd: deps.cwd, readTextFile: deps.readTextFile, bundledDir: deps.bundledDir }),
     resolveRunner,
     makeIsolatedCwd,
   });
