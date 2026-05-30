@@ -15,7 +15,9 @@ export function DetailPane({ agent, scroll, rows, focused }: DetailPaneProps) {
   return (
     <Box flexDirection="column" flexGrow={1} borderStyle="round" borderColor={focused ? "cyan" : "gray"} paddingX={1}>
       {visible.map((line, i) => (
-        <Text key={scroll + i}>{line === "" ? " " : line}</Text>
+        <Text key={scroll + i} wrap="truncate">
+          {line === "" ? " " : line}
+        </Text>
       ))}
     </Box>
   );

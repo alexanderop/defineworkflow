@@ -17,6 +17,13 @@ describe("AgentsColumn", () => {
     expect(frame).toContain("angle-1");
   });
 
+  it("shows a not-started hint when the selected phase has no agents yet", () => {
+    const { lastFrame } = render(<AgentsColumn agents={[]} selectedIndex={0} focused phaseTitle="Curate" frame={0} />);
+    const frame = lastFrame() ?? "";
+    expect(frame).toContain("AGENTS (Curate)");
+    expect(frame).toContain("not started yet");
+  });
+
   it("virtualizes: renders at most maxVisible rows, windowed around the selection", () => {
     const agents = Array.from({ length: 100 }, (_, i) => agent(`a${i}`, "queued"));
     const { lastFrame } = render(

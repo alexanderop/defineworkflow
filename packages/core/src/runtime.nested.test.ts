@@ -21,7 +21,7 @@ describe("nested workflow()", () => {
       resolveWorkflow: async (name) => {
         expect(name).toBe("kid-flow");
         return {
-          meta: { name: "kid-flow", description: "", phases: [] },
+          meta: { name: "kid-flow", description: "", harness: "raw-api", phases: [] },
           run: async (childRt) => {
             return childRt.agent("hi", { label: "child" });
           },
@@ -46,7 +46,7 @@ describe("nested workflow()", () => {
       emit: () => {},
       now: () => 0,
       resolveWorkflow: async () => ({
-        meta: { name: "x", description: "", phases: [] },
+        meta: { name: "x", description: "", harness: "raw-api", phases: [] },
         run: async (childRt) => childRt.workflow("again"),
       }),
     });

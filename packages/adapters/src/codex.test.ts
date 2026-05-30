@@ -38,6 +38,9 @@ describe("codex adapter", () => {
     expect(argv).toContain("--output-schema");
     expect(argv).toContain("-o");
     expect(argv).toContain("--skip-git-repo-check");
+    // YOLO: bypass the sandbox so headless agents get network/web access.
+    expect(argv).toContain("--dangerously-bypass-approvals-and-sandbox");
+    expect(argv).not.toContain("--full-auto");
   });
 
   it("returns AdapterSpawn on non-zero exit", async () => {

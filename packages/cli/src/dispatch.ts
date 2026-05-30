@@ -13,7 +13,7 @@ import { resolveSavedWorkflow } from "./resolve.js";
 export const USAGE = `workflow — deterministic multi-agent workflow runner
 
 Usage:
-  workflow run <script> [--args '{...}'] [--adapter <id>] [--detach] [--yes]
+  workflow run <script> [--args '{...}'] [--detach] [--yes]
   workflow watch <id>            attach the UI to a running/finished run
   workflow list                  list runs (status, tokens, elapsed)
   workflow resume <id>           replay the journal, run the rest live
@@ -35,7 +35,6 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
       strict: false,
       options: {
         args: { type: "string" },
-        adapter: { type: "string" },
         model: { type: "string" },
         detach: { type: "boolean" },
         yes: { type: "boolean" },
@@ -57,7 +56,6 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
 
   const runFlags = {
     argsJson: str(values["args"]),
-    adapter: str(values["adapter"]),
     detach: values["detach"] === true,
     yes: values["yes"] === true,
   };

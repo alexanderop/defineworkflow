@@ -44,7 +44,10 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
       const created: string[] = [];
       const outPath = await fileStore.writeTemp("codex-out.txt", "");
       created.push(outPath);
-      const args = ["exec", "--skip-git-repo-check", "-C", req.cwd, "--full-auto", "-o", outPath];
+      // YOLO mode: `--full-auto` sandboxes execution (no network), which blocks
+      // web research. Bypass approvals and the sandbox so headless agents get full
+      // access — the workflow run is already gated by the CLI consent prompt.
+      const args = ["exec", "--skip-git-repo-check", "-C", req.cwd, "--dangerously-bypass-approvals-and-sandbox", "-o", outPath];
       if (req.schema) {
         const schemaPath = await fileStore.writeTemp("codex-schema.json", JSON.stringify(req.schema));
         created.push(schemaPath);

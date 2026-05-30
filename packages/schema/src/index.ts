@@ -1,6 +1,14 @@
 import { z } from "zod";
 import { ok, err, type Result } from "neverthrow";
 
+/**
+ * Re-export the exact zod instance this package uses for `toJsonSchema`/`validate`.
+ * The sandbox injects this as the `z` global so a workflow-built schema is guaranteed
+ * to share one zod instance with the converter (`z.toJSONSchema` reads schema internals,
+ * so a version mismatch would silently break conversion).
+ */
+export { z };
+
 export type JsonSchema = Record<string, unknown>;
 
 export type SchemaError =

@@ -15,5 +15,9 @@ export function formatError(error: WorkflowError): string {
       return `BudgetExhausted: spent ${error.spent} of ${error.total}`;
     case "AgentCapExceeded":
       return `AgentCapExceeded: cap ${error.cap}`;
+    case "HarnessNotDeclared":
+      return error.found === undefined
+        ? `HarnessNotDeclared: meta.harness is required — declare one of "claude" | "codex" | "copilot" | "raw-api"`
+        : `HarnessNotDeclared: unknown harness ${JSON.stringify(error.found)} — use one of "claude" | "codex" | "copilot" | "raw-api"`;
   }
 }

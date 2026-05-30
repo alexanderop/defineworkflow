@@ -54,7 +54,12 @@ function fakeDeps(overrides: Partial<AppDeps> = {}): { deps: AppDeps; out: () =>
   return { deps: { ...base, ...overrides }, out: () => out };
 }
 
-const HELLO = `export const meta = { name: "hello", description: "say hi", phases: [{ title: "Greet" }] } as const
+const HELLO = `export const meta = { name: "hello", description: "say hi", harness: "raw-api", phases: [{ title: "Greet" }] } as const
+phase("Greet");
+const msg = await agent("say hi", { label: "greeter" });
+return { msg };`;
+
+const HELLO_NO_HARNESS = `export const meta = { name: "hello", description: "say hi", phases: [{ title: "Greet" }] } as const
 phase("Greet");
 const msg = await agent("say hi", { label: "greeter" });
 return { msg };`;
@@ -95,6 +100,13 @@ describe("dispatch routing", () => {
     const { deps } = fakeDeps({ _files: { "/h.ts": HELLO } } as Partial<AppDeps>);
     const code = await dispatch(["run", "/h.ts", "--args", "{bad", "--yes"], deps);
     expect(code).toBe(1);
+  });
+
+  it("run errors when meta.harness is not declared", async () => {
+    const { deps, out } = fakeDeps({ _files: { "/h.ts": HELLO_NO_HARNESS } } as Partial<AppDeps>);
+    const code = await dispatch(["run", "/h.ts", "--yes"], deps);
+    expect(code).toBe(1);
+    expect(out()).toContain("HarnessNotDeclared");
   });
 });
 

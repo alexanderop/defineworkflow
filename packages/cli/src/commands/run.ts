@@ -2,7 +2,7 @@ import type { AdapterId } from "@workflow/adapters";
 import type { AppDeps } from "../app.js";
 import { loadMeta } from "../loader.js";
 import { decideConsent, promptConsent } from "../consent.js";
-import { selectAdapterId, buildRunner } from "../adapter-select.js";
+import { resolveHarness, buildRunner } from "../adapter-select.js";
 import { genRunId } from "../run-id.js";
 import type { RunMeta } from "../registry.js";
 import { runForeground } from "../execute.js";
@@ -11,7 +11,6 @@ import { formatError } from "../format-error.js";
 export interface RunArgs {
   readonly script: string;
   readonly argsJson?: string | undefined;
-  readonly adapter?: string | undefined;
   readonly detach: boolean;
   readonly yes: boolean;
 }
@@ -63,13 +62,12 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
     if (consent.remember) deps.persistConsent(deps.cwd, meta.name);
   }
 
-  const metaDefault = (meta as Record<string, unknown>)["defaultAdapter"];
-  const adapter: AdapterId = selectAdapterId({
-    metaDefault: typeof metaDefault === "string" ? metaDefault : undefined,
-    cliFlag: args.adapter,
-    configDefault: deps.config.defaultAdapter,
-    detected: deps.detected,
-  });
+  const harnessResult = resolveHarness(meta.harness);
+  if (harnessResult.isErr()) {
+    deps.print(`error: ${formatError(harnessResult.error)}\n`);
+    return 1;
+  }
+  const adapter: AdapterId = harnessResult.value;
   const runnerResult = buildRunner(adapter, deps.config, { processRunner: deps.processRunner, complete: deps.complete });
   if (runnerResult.isErr()) {
     deps.print(`error: ${formatError(runnerResult.error)}\n`);

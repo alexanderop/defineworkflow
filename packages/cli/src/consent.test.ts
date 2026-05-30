@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { decideConsent, promptConsent, type ConsentIO } from "./consent.js";
 
-const meta = { name: "demo", description: "d", phases: [{ title: "A" }, { title: "B" }] };
+const meta = { name: "demo", description: "d", harness: "claude" as const, phases: [{ title: "A" }, { title: "B" }] };
 
 describe("decideConsent", () => {
   const base = { config: {}, project: "/proj", name: "demo" };
@@ -69,5 +69,11 @@ describe("promptConsent", () => {
     expect(output()).toContain("demo");
     expect(output()).toContain("A");
     expect(output()).toContain("B");
+  });
+
+  it("shows the declared harness before prompting", async () => {
+    const { io, output } = scriptedIO(["y"]);
+    await promptConsent(meta, "src", io);
+    expect(output()).toContain("harness: claude");
   });
 });

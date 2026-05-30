@@ -4,6 +4,17 @@ import type { AgentUsage, ToolEvent } from "./events.js";
 
 export type JsonSchema = Record<string, unknown>;
 
+/** The coding harness a workflow runs on. Declared in `meta.harness` (required). */
+export type HarnessId = "claude" | "codex" | "copilot" | "raw-api";
+
+/** A workflow's static metadata, declared via `export const meta = { … }`. */
+export interface WorkflowMeta {
+  readonly name: string;
+  readonly description: string;
+  readonly harness: HarnessId;
+  readonly phases?: readonly unknown[];
+}
+
 export interface AgentRequest {
   readonly prompt: string;
   readonly schema?: JsonSchema;

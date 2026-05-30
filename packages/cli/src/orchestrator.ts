@@ -44,6 +44,14 @@ export async function runWorkflow(deps: RunWorkflowDeps): Promise<Result<RunResu
   const loaded = loadWorkflow(deps.source);
   deps.emit({ type: "run-started", runId: deps.runId, name: loaded.meta.name, at: deps.now() });
 
+  // Seed the declared phases so the UI shows the full pipeline upfront, in order —
+  // not just the phases the script has reached. A long `await` (e.g. parallel research)
+  // otherwise leaves later `phase()` calls unrun, so the PHASES pane would show only one.
+  for (const p of loaded.meta.phases ?? []) {
+    const title = typeof p === "object" && p !== null && "title" in p ? String((p as { title: unknown }).title) : "";
+    if (title) deps.emit({ type: "phase-started", phase: title, at: deps.now() });
+  }
+
   const runtime = createRuntime({
     runner: deps.runner,
     semaphore: createSemaphore(deps.concurrency),

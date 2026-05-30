@@ -17,18 +17,18 @@ const project = "/proj/.workflow/config.json";
 describe("loadConfig", () => {
   it("returns defaults when no files exist", () => {
     const cfg = loadConfig(deps({}));
-    expect(cfg.defaultAdapter).toBeUndefined();
+    expect(cfg.concurrency).toBeUndefined();
     expect(cfg.disableWorkflows).toBe(false);
   });
 
   it("project config overrides personal (project wins)", () => {
     const cfg = loadConfig(
       deps({
-        [personal]: JSON.stringify({ defaultAdapter: "claude", concurrency: 4 }),
-        [project]: JSON.stringify({ defaultAdapter: "codex" }),
+        [personal]: JSON.stringify({ maxAgents: 8, concurrency: 4 }),
+        [project]: JSON.stringify({ maxAgents: 2 }),
       }),
     );
-    expect(cfg.defaultAdapter).toBe("codex");
+    expect(cfg.maxAgents).toBe(2);
     expect(cfg.concurrency).toBe(4); // inherited from personal
   });
 
@@ -49,7 +49,7 @@ describe("loadConfig", () => {
 
   it("ignores malformed JSON gracefully", () => {
     const cfg = loadConfig(deps({ [personal]: "{not json" }));
-    expect(cfg.defaultAdapter).toBeUndefined();
+    expect(cfg.concurrency).toBeUndefined();
   });
 });
 
