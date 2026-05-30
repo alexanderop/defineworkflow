@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "./brand.js";
 import { createScriptedRunner } from "./scripted-runner.js";
 import type { AgentRequest, RunCtx } from "./types.js";
 
@@ -12,7 +13,7 @@ const agentRequest = (o: Partial<AgentRequest> = {}): AgentRequest => ({
   signal: new AbortController().signal,
   ...o,
 });
-const runCtx = (o: Partial<RunCtx> = {}): RunCtx => ({ runId: "r1", seq: 0, ...o });
+const runCtx = (o: Partial<RunCtx> = {}): RunCtx => ({ runId: "r1" as RunId, seq: 0, ...o });
 
 describe("ScriptedRunner", () => {
   it("returns canned results matched by label, with default usage", async () => {

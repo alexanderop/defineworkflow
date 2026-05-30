@@ -5,7 +5,7 @@ import { loadMeta } from "../loader.js";
 import { decideConsent, promptConsent } from "../consent.js";
 import { resolveHarness, buildRunner } from "../adapter-select.js";
 import { genRunId } from "../run-id.js";
-import type { RunMeta } from "../registry.js";
+import type { RunMeta, ScriptHash } from "../registry.js";
 import { runForeground } from "../execute.js";
 import { formatError } from "../format-error.js";
 import { parseAnswers } from "../ask-user.js";
@@ -49,7 +49,7 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
   try {
     meta = loadMeta(source);
   } catch (e) {
-    deps.ui.print(`error: ${(e as Error).message}\n`);
+    deps.ui.print(`error: ${e instanceof Error ? e.message : String(e)}\n`);
     return 1;
   }
 
@@ -110,7 +110,8 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
     startedAt: deps.clock.now(),
     endedAt: null,
     pid: args.detach ? null : deps.clock.pid(),
-    scriptHash: deps.clock.hash(source),
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- brand mint: the sha256 hex digest is the ScriptHash
+    scriptHash: deps.clock.hash(source) as ScriptHash,
     ...(Object.keys(answers).length > 0 ? { answers } : {}),
   };
   deps.registry.init(meta0, source);

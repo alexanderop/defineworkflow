@@ -1,5 +1,5 @@
 import { assertNever, createControlRegistry, initialRunState, reduce, selectRunReport } from "@workflow/core";
-import type { AgentRunner, JournalEntry, QuestionRequest, RunReportStatus, WorkflowEvent } from "@workflow/core";
+import type { AgentRunner, JournalEntry, QuestionRequest, RunId, RunReportStatus, WorkflowEvent } from "@workflow/core";
 import { renderReportText } from "@workflow/ui";
 import type { AppDeps } from "./app.js";
 import { buildRunnerMap } from "./adapter-select.js";
@@ -16,7 +16,7 @@ import { createHeadlessAskUser, type AnswerMap } from "./ask-user.js";
 type RunDeps = Pick<AppDeps, "registry" | "config" | "clock" | "env" | "io" | "adapters" | "ui">;
 
 export interface ExecuteParams {
-  readonly runId: string;
+  readonly runId: RunId;
   readonly source: string;
   readonly args: unknown;
   readonly runner: AgentRunner;

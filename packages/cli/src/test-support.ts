@@ -1,4 +1,5 @@
 import { startUi } from "@workflow/ui";
+import type { RunId } from "@workflow/core";
 import type {
   AdapterDeps,
   AppDeps,
@@ -9,12 +10,12 @@ import type {
   ProcessControl,
   UiDeps,
 } from "./app.js";
-import { createRegistry, type RegistryFs, type RunMeta } from "./registry.js";
+import { createRegistry, type RegistryFs, type RunMeta, type ScriptHash } from "./registry.js";
 import type { WorkflowConfig } from "./config.js";
 
 /** Deterministic RunMeta factory — fixed defaults, shallow override. */
 export const runMeta = (o: Partial<RunMeta> = {}): RunMeta => ({
-  runId: "r1",
+  runId: "r1" as RunId,
   name: "wf",
   scriptPath: null,
   args: {},
@@ -23,7 +24,7 @@ export const runMeta = (o: Partial<RunMeta> = {}): RunMeta => ({
   startedAt: 0,
   endedAt: null,
   pid: null,
-  scriptHash: "h",
+  scriptHash: "h" as ScriptHash,
   ...o,
 });
 

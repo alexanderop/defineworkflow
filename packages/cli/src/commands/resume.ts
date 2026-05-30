@@ -36,7 +36,8 @@ export async function resumeCommand(
 
   deps.registry.updateMeta(runId, { status: "running", endedAt: null, pid: deps.clock.pid() });
   return runForeground(deps, {
-    runId,
+    // Use the persisted branded RunId, not the raw argv string.
+    runId: meta.runId,
     source,
     args: meta.args,
     runner: runnerResult.value,

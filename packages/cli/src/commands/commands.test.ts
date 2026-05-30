@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import { ok, err } from "neverthrow";
 import type { Result } from "neverthrow";
 import type { AgentRunner, AgentRequest, AgentResult, RunCtx, WorkflowError } from "@workflow/core";
@@ -154,10 +155,10 @@ return r;`;
         },
       },
     });
-    deps.registry.init(runMeta({ runId: "r1", name: "t" }), SOURCE);
+    deps.registry.init(runMeta({ runId: "r1" as RunId, name: "t" }), SOURCE);
 
     const runner = createControllableRunner();
-    const p = runForeground(deps, { runId: "r1", source: SOURCE, args: {}, runner, adapter: "codex", seed: [] });
+    const p = runForeground(deps, { runId: "r1" as RunId, source: SOURCE, args: {}, runner, adapter: "codex", seed: [] });
     await flush();
 
     expect(runner.callCount("a")).toBe(1);
@@ -188,10 +189,10 @@ return v;`;
         },
       },
     });
-    deps.registry.init(runMeta({ runId: "r2", name: "t" }), SOURCE2);
+    deps.registry.init(runMeta({ runId: "r2" as RunId, name: "t" }), SOURCE2);
 
     const runner = createControllableRunner();
-    const p = runForeground(deps, { runId: "r2", source: SOURCE2, args: {}, runner, adapter: "codex", seed: [] });
+    const p = runForeground(deps, { runId: "r2" as RunId, source: SOURCE2, args: {}, runner, adapter: "codex", seed: [] });
     await flush();
 
     expect(runner.callCount("a")).toBe(1);

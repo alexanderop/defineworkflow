@@ -13,6 +13,9 @@ import type { WorkflowConfig } from "./config.js";
 
 const KNOWN: readonly AdapterId[] = ["claude", "codex", "copilot", "raw-api"];
 
+const isAdapterId = (v: unknown): v is AdapterId =>
+  typeof v === "string" && KNOWN.some((k) => k === v);
+
 /**
  * The coding harness is declared in `meta.harness` and is the single source of
  * truth for the run default — there is no auto-detect or CLI/config override. A
@@ -21,8 +24,8 @@ const KNOWN: readonly AdapterId[] = ["claude", "codex", "copilot", "raw-api"];
  * resolved separately via {@link buildRunnerMap}.
  */
 export function resolveHarness(harness: unknown): Result<AdapterId, WorkflowError> {
-  if (typeof harness === "string" && (KNOWN as readonly string[]).includes(harness)) {
-    return ok(harness as AdapterId);
+  if (isAdapterId(harness)) {
+    return ok(harness);
   }
   return err({ kind: "HarnessNotDeclared", found: typeof harness === "string" ? harness : undefined });
 }
@@ -68,14 +71,14 @@ export function buildRunnerMap(
   cfg: WorkflowConfig,
   deps: BuildRunnerDeps,
 ): RunnerMap {
-  const cache = new Map<string, AgentRunner>();
+  const cache = new Map<AdapterId, AgentRunner>();
   const candidates: readonly AdapterId[] = [...new Set<AdapterId>([...detected, "raw-api"])];
   for (const id of candidates) {
     const result = buildRunner(id, cfg, deps);
     if (result.isOk()) cache.set(id, result.value);
   }
   return {
-    resolveRunner: (id) => cache.get(id),
-    ids: [...cache.keys()] as AdapterId[],
+    resolveRunner: (id) => (isAdapterId(id) ? cache.get(id) : undefined),
+    ids: [...cache.keys()],
   };
 }

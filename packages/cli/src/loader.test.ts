@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import { createRuntime, createScriptedRunner, createJournal, createSemaphore } from "@workflow/core";
 import { loadMeta, loadWorkflow } from "./loader.js";
 
@@ -29,7 +30,7 @@ describe("loadWorkflow", () => {
       budgetTotal: null,
       args: { topic: "vue" },
       cwd: "/tmp",
-      runId: "r1",
+      runId: "r1" as RunId,
       emit: () => {},
       now: () => 0,
     });
@@ -61,7 +62,7 @@ export default defineWorkflow({
       budgetTotal: null,
       args: null,
       cwd: "/tmp",
-      runId: "r-define",
+      runId: "r-define" as RunId,
       emit: () => {},
       now: () => 0,
     });
@@ -82,7 +83,7 @@ return { ans };`);
       budgetTotal: null,
       args: null,
       cwd: "/tmp",
-      runId: "rq",
+      runId: "rq" as RunId,
       emit: () => {},
       now: () => 0,
       askUser: async (req) => `chose ${req.key}`,
@@ -111,7 +112,7 @@ export default defineWorkflow({
       budgetTotal: null,
       args: null,
       cwd: "/tmp",
-      runId: "rq2",
+      runId: "rq2" as RunId,
       emit: () => {},
       now: () => 0,
       askUser: async (req) => `picked ${req.key}`,
@@ -136,7 +137,7 @@ return res;`;
       budgetTotal: null,
       args: null,
       cwd: "/tmp",
-      runId: "r2",
+      runId: "r2" as RunId,
       emit: () => {},
       now: () => 0,
     });
@@ -160,7 +161,7 @@ return await agent("do it", { label: "a", schema: Out });`;
       budgetTotal: null,
       args: null,
       cwd: "/tmp",
-      runId: "r3",
+      runId: "r3" as RunId,
       emit: () => {},
       now: () => 0,
     });

@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import type { ScriptHash } from "./registry.js";
+import type { RunId } from "@workflow/core";
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
@@ -59,8 +61,8 @@ d("real-CLI e2e per installed adapter (costs tokens; WORKFLOW_E2E=1)", () => {
 
       const root = fs.mkdtempSync(path.join(os.tmpdir(), "wf-e2e-"));
       const registry = createRegistry({ root, fs: nodeRegistryFs() });
-      const runId = `${id}-e2e`;
-      const meta: RunMeta = { runId, name: "e2e", scriptPath: null, args: {}, adapter: id, status: "running", startedAt: 0, endedAt: null, pid: null, scriptHash: "h" };
+      const runId = `${id}-e2e` as RunId;
+      const meta: RunMeta = { runId, name: "e2e", scriptPath: null, args: {}, adapter: id, status: "running", startedAt: 0, endedAt: null, pid: null, scriptHash: "h" as ScriptHash };
       registry.init(meta, "");
 
       let calls = 0;

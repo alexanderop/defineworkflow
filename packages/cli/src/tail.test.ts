@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import type { WorkflowEvent } from "@workflow/core";
 import { subscribeToRun, type TailDeps } from "./tail.js";
 
@@ -20,7 +21,7 @@ function fakeTail(store: WorkflowEvent[]) {
 
 describe("subscribeToRun", () => {
   it("snapshots initial events and delivers only newly-appended ones", () => {
-    const store: WorkflowEvent[] = [{ type: "run-started", runId: "r", name: "demo", at: 0 }];
+    const store: WorkflowEvent[] = [{ type: "run-started", runId: "r" as RunId, name: "demo", at: 0 }];
     const { deps, fire } = fakeTail(store);
     const { initial, subscribe } = subscribeToRun(deps);
     expect(initial).toHaveLength(1);
@@ -56,7 +57,7 @@ describe("subscribeToRun", () => {
     const seen: WorkflowEvent[] = [];
     subscribe((e) => seen.push(e));
 
-    store.push({ type: "run-finished", runId: "r", at: 1 });
+    store.push({ type: "run-finished", runId: "r" as RunId, at: 1 });
     fire();
     expect(isUnwatched()).toBe(true);
 

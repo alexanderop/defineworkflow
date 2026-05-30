@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import { createScriptedRunner, createJournal } from "@workflow/core";
 import { runWorkflow } from "./orchestrator.js";
 import { buildWorkflowResolver } from "./resolve-workflow.js";
@@ -30,7 +31,7 @@ describe("buildWorkflowResolver", () => {
       source: PARENT_SOURCE,
       args: {},
       runner,
-      runId: "r1",
+      runId: "r1" as RunId,
       cwd: "/proj",
       concurrency: 4,
       maxAgents: 1000,

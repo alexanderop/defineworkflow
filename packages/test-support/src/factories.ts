@@ -3,6 +3,7 @@ import type {
   AgentResult,
   AgentUsage,
   RunCtx,
+  RunId,
   ToolEvent,
   WorkflowEvent,
 } from "@workflow/core";
@@ -17,6 +18,10 @@ import type {
  * `fast-check` (seeded, shrinking), not random data.
  */
 
+/** Mint a branded `RunId` from a plain string — the single trusted cast boundary for tests. */
+// oxlint-disable-next-line typescript/consistent-type-assertions -- minting a branded nominal type requires one cast
+const asRunId = (s: string): RunId => s as RunId;
+
 export const usage = (o: Partial<AgentUsage> = {}): AgentUsage => ({ inputTokens: 0, outputTokens: 0, ...o });
 
 export const toolEvent = (o: Partial<ToolEvent> = {}): ToolEvent => ({ name: "tool", ...o });
@@ -28,7 +33,7 @@ export const agentResult = (o: Partial<AgentResult> = {}): AgentResult => ({
   ...o,
 });
 
-export const runCtx = (o: Partial<RunCtx> = {}): RunCtx => ({ runId: "r1", seq: 0, ...o });
+export const runCtx = (o: Partial<RunCtx> = {}): RunCtx => ({ runId: asRunId("r1"), seq: 0, ...o });
 
 export const agentRequest = (o: Partial<AgentRequest> = {}): AgentRequest => ({
   prompt: "p",
@@ -41,7 +46,7 @@ type EventOf<T extends WorkflowEvent["type"]> = Extract<WorkflowEvent, { type: T
 
 /** Per-variant base (every required field except the `type` discriminant). */
 const EVENT_BASES: { [T in WorkflowEvent["type"]]: Omit<EventOf<T>, "type"> } = {
-  "run-started": { runId: "r1", name: "wf", at: 0 },
+  "run-started": { runId: asRunId("r1"), name: "wf", at: 0 },
   "phase-started": { phase: "Work", at: 0 },
   "agent-queued": { key: "0:Work:a", label: "a", phase: "Work", at: 0 },
   "agent-started": { key: "0:Work:a", at: 0 },
@@ -53,7 +58,7 @@ const EVENT_BASES: { [T in WorkflowEvent["type"]]: Omit<EventOf<T>, "type"> } = 
   "question-asked": { key: "deploy-target", question: "Where?", at: 0 },
   "question-answered": { key: "deploy-target", answer: "staging", cached: false, at: 0 },
   log: { message: "log", at: 0 },
-  "run-finished": { runId: "r1", at: 0 },
+  "run-finished": { runId: asRunId("r1"), at: 0 },
 };
 
 /**
@@ -62,7 +67,11 @@ const EVENT_BASES: { [T in WorkflowEvent["type"]]: Omit<EventOf<T>, "type"> } = 
  *   event("agent-finished", { usage: usage({ outputTokens: 9 }), at: 3 })
  */
 export function event<T extends WorkflowEvent["type"]>(type: T, overrides: Partial<EventOf<T>> = {}): EventOf<T> {
-  return { type, ...EVENT_BASES[type], ...overrides } as unknown as EventOf<T>;
+  const built: Record<string, unknown> = { type, ...EVENT_BASES[type], ...overrides };
+  // Spreading a generically-indexed base + Partial can't be re-narrowed to the precise member by
+  // TS; the field shapes above guarantee correctness for each variant.
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- generic discriminated-union reassembly
+  return built as EventOf<T>;
 }
 
 export interface WorkflowSourceOpts {

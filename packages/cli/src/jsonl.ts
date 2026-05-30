@@ -9,11 +9,17 @@ function parseJson(line: string): Result<unknown, WorkflowError> {
   try {
     return ok(JSON.parse(trimmed));
   } catch (e) {
-    return err(corrupt(`invalid JSON: ${(e as Error).message}`));
+    return err(corrupt(`invalid JSON: ${e instanceof Error ? e.message : String(e)}`));
   }
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
+
+const isEventLike = (v: unknown): v is WorkflowEvent =>
+  isRecord(v) && typeof v["type"] === "string";
+
+const isJournalEntryLike = (v: unknown): v is JournalEntry =>
+  isRecord(v) && typeof v["seq"] === "number" && typeof v["key"] === "string";
 
 export function serializeEvent(event: WorkflowEvent): string {
   return JSON.stringify(event) + "\n";
@@ -25,16 +31,16 @@ export function serializeJournalEntry(entry: JournalEntry): string {
 
 export function parseEventLine(line: string): Result<WorkflowEvent, WorkflowError> {
   return parseJson(line).andThen((value) =>
-    isRecord(value) && typeof value["type"] === "string"
-      ? ok(value as unknown as WorkflowEvent)
+    isEventLike(value)
+      ? ok(value)
       : err(corrupt("not a workflow event (missing string `type`)")),
   );
 }
 
 export function parseJournalLine(line: string): Result<JournalEntry, WorkflowError> {
   return parseJson(line).andThen((value) =>
-    isRecord(value) && typeof value["seq"] === "number" && typeof value["key"] === "string"
-      ? ok(value as unknown as JournalEntry)
+    isJournalEntryLike(value)
+      ? ok(value)
       : err(corrupt("not a journal entry (missing `seq`/`key`)")),
   );
 }

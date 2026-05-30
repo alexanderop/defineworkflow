@@ -1,3 +1,4 @@
+import type { RunId } from "./brand.js";
 import type { WorkflowError } from "./errors.js";
 import { assertNever } from "./exhaustive.js";
 
@@ -23,7 +24,7 @@ export interface AgentUsage {
 }
 
 export type WorkflowEvent =
-  | { readonly type: "run-started"; readonly runId: string; readonly name: string; readonly budgetTotal?: number | null; readonly at: number }
+  | { readonly type: "run-started"; readonly runId: RunId; readonly name: string; readonly budgetTotal?: number | null; readonly at: number }
   | { readonly type: "phase-started"; readonly phase: string; readonly at: number }
   | { readonly type: "agent-queued"; readonly key: string; readonly label: string; readonly phase: string; readonly prompt?: string; readonly overrides?: readonly string[]; readonly at: number }
   | { readonly type: "agent-started"; readonly key: string; readonly at: number }
@@ -35,7 +36,7 @@ export type WorkflowEvent =
   | { readonly type: "question-asked"; readonly key: string; readonly question: string; readonly choices?: readonly string[]; readonly allowOther?: boolean; readonly at: number }
   | { readonly type: "question-answered"; readonly key: string; readonly answer: string; readonly cached: boolean; readonly at: number }
   | { readonly type: "log"; readonly message: string; readonly at: number }
-  | { readonly type: "run-finished"; readonly runId: string; readonly at: number };
+  | { readonly type: "run-finished"; readonly runId: RunId; readonly at: number };
 
 export type AgentStatus = "queued" | "running" | "done" | "failed";
 
@@ -89,7 +90,7 @@ export interface PendingQuestion {
 }
 
 export interface RunState {
-  readonly runId: string;
+  readonly runId: RunId;
   readonly name: string;
   readonly status: "pending" | "running" | "finished";
   readonly phases: ReadonlyMap<string, PhaseState>;
@@ -110,7 +111,8 @@ export interface RunState {
 
 export function initialRunState(): RunState {
   return {
-    runId: "",
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- branded RunId sentinel; "" carries the RunId brand only at this trusted mint point
+    runId: "" as RunId,
     name: "",
     status: "pending",
     phases: new Map(),

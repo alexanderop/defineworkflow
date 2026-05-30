@@ -41,7 +41,9 @@ function cost(a: Agent) {
 }
 
 function onCrash(e: Event) {
-  crash.value = +(e.target as HTMLInputElement).value;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- DOM Event.target is typed EventTarget|null; narrowing to the input element requires a cast
+  const target = e.target as HTMLInputElement;
+  crash.value = +target.value;
   phase.value = "idle";
   cursor.value = -1;
 }

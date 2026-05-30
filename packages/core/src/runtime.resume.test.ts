@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "./brand.js";
 import { createRuntime } from "./runtime.js";
 import { createScriptedRunner } from "./scripted-runner.js";
 import { createJournal } from "./journal.js";
@@ -19,7 +20,7 @@ describe("resume", () => {
       budgetTotal: null,
       args: {},
       cwd: "/tmp",
-      runId: "r",
+      runId: "r" as RunId,
       emit: () => {},
       now: () => 0,
     });

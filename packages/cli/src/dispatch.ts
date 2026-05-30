@@ -44,7 +44,7 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
       },
     });
   } catch (e) {
-    deps.ui.print(`error: ${(e as Error).message}\n`);
+    deps.ui.print(`error: ${e instanceof Error ? e.message : String(e)}\n`);
     return 1;
   }
 

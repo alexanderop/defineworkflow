@@ -183,6 +183,8 @@ export function statusGlyph(status: AgentStatus, frame = 0): string {
       return "▱";
     case "running":
       return spinnerFrame(frame);
+    default:
+      return "▱";
   }
 }
 
@@ -256,6 +258,7 @@ function firstArgPreview(input: unknown): string {
   if (typeof input === "number" || typeof input === "boolean") return String(input);
   if (Array.isArray(input)) return input.length > 0 ? firstArgPreview(input[0]) : "";
   if (typeof input === "object") {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- `input` is narrowed to the structural `object` type, which is not assignable to an indexable Record without a cast
     const first = Object.values(input as Record<string, unknown>)[0];
     return first === undefined ? "" : firstArgPreview(first);
   }

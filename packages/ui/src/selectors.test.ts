@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import { reduce, initialRunState, type WorkflowEvent, type AgentState } from "@workflow/core";
 import { event, usage } from "@workflow/test-support";
 import {
@@ -18,7 +19,7 @@ import {
 // fields each assertion cares about (timeline `at`, label/phase, tokens, tool, chunk) are spelled out.
 const MODEL = "claude-opus-4-8[1m]";
 const events: WorkflowEvent[] = [
-  event("run-started", { runId: "r1", name: "demo", at: 100 }),
+  event("run-started", { runId: "r1" as RunId, name: "demo", at: 100 }),
   event("phase-started", { phase: "Scope", at: 110 }),
   event("phase-started", { phase: "Search", at: 120 }),
   event("agent-queued", { label: "angle-0", phase: "Search", prompt: "find a\nfind b", at: 130 }),
@@ -49,8 +50,8 @@ describe("selectors", () => {
 
   it("runElapsedMs freezes at run-finished for a finished/watched run, ignoring live now", () => {
     const finished = [
-      event("run-started", { runId: "r", name: "d", at: 1000 }),
-      event("run-finished", { runId: "r", at: 4000 }),
+      event("run-started", { runId: "r" as RunId, name: "d", at: 1000 }),
+      event("run-finished", { runId: "r" as RunId, at: 4000 }),
     ].reduce(reduce, initialRunState());
     expect(runElapsedMs(finished, 9_999_999)).toBe(3000); // not now - startedAt
   });

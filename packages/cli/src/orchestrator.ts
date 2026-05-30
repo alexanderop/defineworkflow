@@ -6,6 +6,7 @@ import {
   type AgentRunner,
   type ControlRegistry,
   type Journal,
+  type RunId,
   type RuntimeDeps,
   type WorkflowError,
   type WorkflowEvent,
@@ -16,7 +17,7 @@ export interface RunWorkflowDeps {
   readonly source: string;
   readonly args: unknown;
   readonly runner: AgentRunner;
-  readonly runId: string;
+  readonly runId: RunId;
   readonly cwd: string;
   readonly concurrency: number;
   readonly maxAgents: number;
@@ -55,7 +56,7 @@ export async function runWorkflow(deps: RunWorkflowDeps): Promise<Result<RunResu
   // not just the phases the script has reached. A long `await` (e.g. parallel research)
   // otherwise leaves later `phase()` calls unrun, so the PHASES pane would show only one.
   for (const p of loaded.meta.phases ?? []) {
-    const title = typeof p === "object" && p !== null && "title" in p ? String((p as { title: unknown }).title) : "";
+    const title = typeof p === "object" && p !== null && "title" in p ? String(p.title) : "";
     if (title) deps.emit({ type: "phase-started", phase: title, at: deps.now() });
   }
 

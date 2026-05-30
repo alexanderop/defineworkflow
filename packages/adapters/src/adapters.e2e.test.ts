@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import { createProcessRunner } from "./process-runner.js";
 import { detectAdapters } from "./detect.js";
 import { createClaudeAdapter } from "./claude.js";
@@ -21,7 +22,7 @@ d("real-CLI adapter smoke (costs tokens)", () => {
     const present = await detectAdapters();
     if (!present.includes("claude")) return;
     const adapter = createClaudeAdapter({ processRunner: createProcessRunner() });
-    const res = await adapter.run({ prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) }, { runId: "e2e", seq: 0 });
+    const res = await adapter.run({ prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) }, { runId: "e2e" as RunId, seq: 0 });
     expect(res.isOk()).toBe(true);
     expect((res._unsafeUnwrap().data as { answer: number }).answer).toBe(42);
   }, 130_000);
@@ -30,7 +31,7 @@ d("real-CLI adapter smoke (costs tokens)", () => {
     const present = await detectAdapters();
     if (!present.includes("codex")) return;
     const adapter = createCodexAdapter({ processRunner: createProcessRunner() });
-    const res = await adapter.run({ prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) }, { runId: "e2e", seq: 0 });
+    const res = await adapter.run({ prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) }, { runId: "e2e" as RunId, seq: 0 });
     expect(res.isOk()).toBe(true);
   }, 130_000);
 
@@ -38,7 +39,7 @@ d("real-CLI adapter smoke (costs tokens)", () => {
     const present = await detectAdapters();
     if (!present.includes("copilot")) return;
     const adapter = createCopilotAdapter({ processRunner: createProcessRunner() });
-    const res = await adapter.run({ prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) }, { runId: "e2e", seq: 0 });
+    const res = await adapter.run({ prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) }, { runId: "e2e" as RunId, seq: 0 });
     expect(res.isOk()).toBe(true);
   }, 130_000);
 });

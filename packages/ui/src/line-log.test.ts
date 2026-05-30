@@ -1,17 +1,18 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import { createLineLogger } from "./line-log.js";
 
 describe("createLineLogger", () => {
   it("renders one line for human-meaningful events", () => {
     const line = createLineLogger();
-    expect(line({ type: "run-started", runId: "r1", name: "demo", at: 0 })).toBe("▶ demo (r1)");
+    expect(line({ type: "run-started", runId: "r1" as RunId, name: "demo", at: 0 })).toBe("▶ demo (r1)");
     expect(line({ type: "phase-started", phase: "Search", at: 0 })).toBe("# Search");
     expect(line({ type: "agent-finished", key: "k0", usage: { inputTokens: 1, outputTokens: 9 }, cached: false, at: 0 })).toBe("  ✓ k0 (9 tok)");
     expect(line({ type: "agent-finished", key: "k0", usage: { inputTokens: 0, outputTokens: 9 }, cached: true, at: 0 })).toBe("  ✓ k0 (9 tok, cached)");
     expect(line({ type: "agent-failed", key: "k0", error: { kind: "BudgetExhausted", spent: 5, total: 5 }, at: 0 })).toBe("  ✗ k0: BudgetExhausted: spent 5 of 5");
     expect(line({ type: "agent-failed", key: "k1", error: { kind: "AdapterSpawn", adapter: "claude", cause: "exit 1: boom" }, at: 0 })).toBe("  ✗ k1: AdapterSpawn (claude): exit 1: boom");
     expect(line({ type: "log", message: "hi", at: 0 })).toBe("  hi");
-    expect(line({ type: "run-finished", runId: "r1", at: 0 })).toBe("■ done");
+    expect(line({ type: "run-finished", runId: "r1" as RunId, at: 0 })).toBe("■ done");
   });
 
   it("renders a question and its answer", () => {

@@ -1,3 +1,4 @@
+export type { Brand, RunId, AgentKey } from "./brand.js";
 export * from "./errors.js";
 export * from "./exhaustive.js";
 export { formatError } from "./format-error.js";

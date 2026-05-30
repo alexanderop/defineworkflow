@@ -10,7 +10,7 @@ let timer: ReturnType<typeof setInterval> | null = null;
 function reset() {
   if (timer) clearInterval(timer);
   timer = null;
-  agents.value = Array.from({ length: N }, (_, k) => ({ id: k, state: "queue" as State }));
+  agents.value = Array.from({ length: N }, (_, k): { id: number; state: State } => ({ id: k, state: "queue" }));
 }
 reset();
 watch(limit, reset);

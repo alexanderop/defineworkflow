@@ -1,4 +1,5 @@
 import { validate, compileValidator, isZodSchema, toJsonSchema, type JsonSchema } from "@workflow/schema";
+import type { AgentKey, RunId } from "./brand.js";
 import { createBudget, type Budget } from "./budget.js";
 import { WorkflowThrow, type WorkflowError } from "./errors.js";
 import { truncateRawOutput } from "./raw-output.js";
@@ -70,7 +71,7 @@ export interface RuntimeDeps {
   readonly budgetTotal: number | null;
   readonly args: unknown;
   readonly cwd: string;
-  readonly runId: string;
+  readonly runId: RunId;
   readonly emit: (event: WorkflowEvent) => void;
   readonly now: () => number;
   readonly resolveWorkflow?: (name: string, args?: unknown) => Promise<LoadedWorkflow>;
@@ -83,7 +84,7 @@ export interface RuntimeDeps {
   /** Per-agent control: registers each in-flight agent's AbortController under its key for stop/restart. */
   readonly control?: ControlRegistry | undefined;
   /** Worktree isolation: produce an isolated working directory for a given agent key; cleaned up after the agent finishes. */
-  readonly makeIsolatedCwd?: ((key: string) => Promise<{ cwd: string; cleanup: () => Promise<void> }>) | undefined;
+  readonly makeIsolatedCwd?: ((key: AgentKey) => Promise<{ cwd: string; cleanup: () => Promise<void> }>) | undefined;
   /** Human-in-the-loop: resolve a mid-run question to the user's answer. Required for askUserQuestion(). */
   readonly askUser?: ((req: QuestionRequest) => Promise<string>) | undefined;
 }
@@ -101,12 +102,24 @@ export interface Runtime {
   askUserQuestion(opts: AskUserQuestionOptions): Promise<string>;
 }
 
+/** The fields a {@link ProfileConfig} may set — also the keys a call site can override. */
+const PROFILE_CONFIG_KEYS = ["adapter", "model", "agentType", "isolation", "instructions"] as const satisfies ReadonlyArray<keyof ProfileConfig>;
+
 /** Keys a call site re-specified that the profile already set with a different value. */
 function profileOverrides(config: ProfileConfig, callOpts: AgentOptions): readonly string[] | undefined {
-  const keys = (Object.keys(config) as Array<keyof ProfileConfig>).filter(
-    (k) => callOpts[k] !== undefined && callOpts[k] !== config[k],
+  const keys = PROFILE_CONFIG_KEYS.filter(
+    (k) => config[k] !== undefined && callOpts[k] !== undefined && callOpts[k] !== config[k],
   );
   return keys.length > 0 ? keys : undefined;
+}
+
+/**
+ * Coerce a non-zod `agent({ schema })` value to a plain JSON Schema object. `isZodSchema` has
+ * already returned false at the call site, so this is a `Record<string, unknown>` in practice;
+ * the spread copies its own enumerable keys without a type assertion.
+ */
+function toJsonSchemaObject(value: JsonSchema | ZodLike): JsonSchema {
+  return { ...value };
 }
 
 export function createRuntime(deps: RuntimeDeps): Runtime {
@@ -130,19 +143,20 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     let opts: AgentOptions;
     let overrides: readonly string[] | undefined;
     if (isProfile(a)) {
-      prompt = b as string;
+      prompt = typeof b === "string" ? b : "";
       const callOpts = c ?? {};
       overrides = profileOverrides(a.config, callOpts);
       opts = { ...a.config, ...callOpts };
     } else {
       prompt = a;
-      opts = (b as AgentOptions | undefined) ?? {};
+      opts = typeof b === "object" ? b : {};
     }
 
     const mySeq = seq++;
     const phase = opts.phase ?? currentPhase;
     const label = opts.label ?? (labelFromPrompt(prompt) || `agent-${mySeq}`);
-    const key = `${mySeq}:${phase}:${label}`;
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- branded AgentKey mint; the composite identity carries the brand only here
+    const key = `${mySeq}:${phase}:${label}` as AgentKey;
     // instructions is a config-level system hint, folded into the request prompt only —
     // after label/key derivation, so it never changes an agent's identity.
     const requestPrompt = opts.instructions ? `${opts.instructions}\n\n${prompt}` : prompt;
@@ -214,7 +228,8 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     let jsonSchema: JsonSchema | undefined;
     if (opts.schema) {
       try {
-        const candidate = isZodSchema(opts.schema) ? toJsonSchema(opts.schema) : (opts.schema as JsonSchema);
+        const rawSchema = opts.schema;
+        const candidate: JsonSchema = isZodSchema(rawSchema) ? toJsonSchema(rawSchema) : toJsonSchemaObject(rawSchema);
         compileValidator(candidate);
         jsonSchema = candidate;
       } catch (cause) {
@@ -373,7 +388,8 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       // costs no tokens and is not an agent.
       const cached = deps.journal.lookup(mySeq);
       if (cached) {
-        const answer = (cached.data ?? cached.text) as string;
+        const cachedAnswer = cached.data ?? cached.text;
+        const answer = typeof cachedAnswer === "string" ? cachedAnswer : String(cachedAnswer);
         deps.emit({ type: "question-answered", key, answer, cached: true, at: deps.now() });
         return answer;
       }

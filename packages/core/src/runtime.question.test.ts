@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "./brand.js";
 import { createRuntime } from "./runtime.js";
 import { createScriptedRunner } from "./scripted-runner.js";
 import { createJournal } from "./journal.js";
@@ -18,7 +19,7 @@ function harness(opts: { askUser?: (req: QuestionRequest) => Promise<string>; jo
     budgetTotal: null,
     args: {},
     cwd: "/tmp",
-    runId: "r1",
+    runId: "r1" as RunId,
     emit: (e) => events.push(e),
     now: () => clock++,
     ...(opts.askUser ? { askUser: opts.askUser } : {}),

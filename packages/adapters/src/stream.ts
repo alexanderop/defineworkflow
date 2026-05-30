@@ -21,13 +21,24 @@ export interface StreamTranslator {
   result(): TranslatorResult;
 }
 
+/**
+ * Narrow an `unknown` JSON value to a plain record, or null if it isn't an object.
+ * Stream payloads are untyped JSON, so this is the one sanctioned narrowing point —
+ * callers read fields off the record with their own per-field type checks.
+ */
+export function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null) return null;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- narrowing untyped stream JSON to a record; field access is still guarded by callers
+  return value as Record<string, unknown>;
+}
+
 /** Parse a single NDJSON line into an object, or null for blank/non-JSON noise. */
 export function parseJsonLine(line: string): Record<string, unknown> | null {
   const trimmed = line.trim();
   if (trimmed === "" || (trimmed[0] !== "{" && trimmed[0] !== "[")) return null;
   try {
     const parsed: unknown = JSON.parse(trimmed);
-    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : null;
+    return asRecord(parsed);
   } catch {
     return null;
   }

@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "./brand.js";
 import { validate } from "@workflow/schema";
 import { createMockRunner } from "./mock-runner.js";
 import type { AgentRequest, RunCtx } from "./types.js";
 
-const ctx: RunCtx = { runId: "r", seq: 0 };
+const ctx: RunCtx = { runId: "r" as RunId, seq: 0 };
 const req = (over: Partial<AgentRequest> = {}): AgentRequest => ({
   prompt: "do a thing",
   cwd: "/tmp",

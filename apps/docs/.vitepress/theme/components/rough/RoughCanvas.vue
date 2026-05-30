@@ -58,7 +58,11 @@ provide(roughCanvasKey, api);
 
 onMounted(async () => {
   const r = (await import("roughjs")).default;
-  rough = (svg: SVGSVGElement) => r.svg(svg) as unknown as RoughSvg;
+  rough = (svg: SVGSVGElement): RoughSvg => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- roughjs ships its own RoughSVG type that is structurally incompatible with our local RoughSvg; interop requires a cast through unknown
+    const instance = r.svg(svg) as unknown as RoughSvg;
+    return instance;
+  };
   draw();
 });
 

@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import type { ScriptHash } from "./registry.js";
+import type { RunId } from "@workflow/core";
 import { createScriptedRunner } from "@workflow/core";
 import { createRegistry, type RegistryFs, type RunMeta } from "./registry.js";
 import { runWorkflow } from "./orchestrator.js";
@@ -23,11 +25,11 @@ const b = await agent("second", { label: "b" });
 return { a, b };`;
 
 const META: RunMeta = {
-  runId: "demo-1", name: "demo", scriptPath: null, args: {}, adapter: "codex",
-  status: "running", startedAt: 0, endedAt: null, pid: null, scriptHash: "h",
+  runId: "demo-1" as RunId, name: "demo", scriptPath: null, args: {}, adapter: "codex",
+  status: "running", startedAt: 0, endedAt: null, pid: null, scriptHash: "h" as ScriptHash,
 };
 
-function wire(runId: string) {
+function wire(runId: RunId) {
   const reg = createRegistry({ root: "/runs", fs: memFs() });
   reg.init({ ...META, runId }, SCRIPT);
   const emit = (e: Parameters<typeof reg.appendEvent>[1]) => reg.appendEvent(runId, e);
@@ -36,10 +38,10 @@ function wire(runId: string) {
 
 describe("runWorkflow", () => {
   it("runs the script, returns its value, and persists events + journal", async () => {
-    const { reg, emit } = wire("demo-1");
+    const { reg, emit } = wire("demo-1" as RunId);
     const runner = createScriptedRunner({ a: { text: "A", outputTokens: 3 }, b: { text: "B", outputTokens: 4 } });
     const result = await runWorkflow({
-      source: SCRIPT, args: {}, runner, runId: "demo-1", cwd: "/tmp",
+      source: SCRIPT, args: {}, runner, runId: "demo-1" as RunId, cwd: "/tmp",
       concurrency: 4, maxAgents: 1000, budgetTotal: null,
       journal: reg.persistentJournal("demo-1", []), emit, now: () => 0,
     });
@@ -52,10 +54,10 @@ describe("runWorkflow", () => {
   });
 
   it("carries budgetTotal onto the run-started event so a finished run can show the budget line", async () => {
-    const { reg, emit } = wire("demo-b");
+    const { reg, emit } = wire("demo-b" as RunId);
     const runner = createScriptedRunner({ a: { text: "A" }, b: { text: "B" } });
     await runWorkflow({
-      source: SCRIPT, args: {}, runner, runId: "demo-b", cwd: "/tmp",
+      source: SCRIPT, args: {}, runner, runId: "demo-b" as RunId, cwd: "/tmp",
       concurrency: 4, maxAgents: 1000, budgetTotal: 500_000,
       journal: reg.persistentJournal("demo-b", []), emit, now: () => 0,
     });
@@ -72,11 +74,11 @@ phase("Research");
 const a = await agent("first", { label: "a" });
 return { a };`;
     const reg = createRegistry({ root: "/runs", fs: memFs() });
-    reg.init({ ...META, runId: "multi-1" }, script);
+    reg.init({ ...META, runId: "multi-1" as RunId }, script);
     const emit = (e: Parameters<typeof reg.appendEvent>[1]) => reg.appendEvent("multi-1", e);
     const runner = createScriptedRunner({ a: { text: "A" } });
     await runWorkflow({
-      source: script, args: {}, runner, runId: "multi-1", cwd: "/tmp",
+      source: script, args: {}, runner, runId: "multi-1" as RunId, cwd: "/tmp",
       concurrency: 4, maxAgents: 1000, budgetTotal: null,
       journal: reg.persistentJournal("multi-1", []), emit, now: () => 0,
     });
@@ -91,10 +93,10 @@ return { a };`;
 
   it("resume: a journal-seeded run reuses cached results without re-spawning", async () => {
     // First run to populate the journal.
-    const first = wire("demo-2");
+    const first = wire("demo-2" as RunId);
     const r1 = createScriptedRunner({ a: { text: "A" }, b: { text: "B" } });
     await runWorkflow({
-      source: SCRIPT, args: {}, runner: r1, runId: "demo-2", cwd: "/tmp",
+      source: SCRIPT, args: {}, runner: r1, runId: "demo-2" as RunId, cwd: "/tmp",
       concurrency: 4, maxAgents: 1000, budgetTotal: null,
       journal: first.reg.persistentJournal("demo-2", []), emit: first.emit, now: () => 0,
     });
@@ -104,7 +106,7 @@ return { a };`;
     const seed = first.reg.readJournal("demo-2")._unsafeUnwrap();
     const r2 = createScriptedRunner({ a: { text: "A" }, b: { text: "B" } });
     const resumed = await runWorkflow({
-      source: SCRIPT, args: {}, runner: r2, runId: "demo-2", cwd: "/tmp",
+      source: SCRIPT, args: {}, runner: r2, runId: "demo-2" as RunId, cwd: "/tmp",
       concurrency: 4, maxAgents: 1000, budgetTotal: null,
       journal: first.reg.persistentJournal("demo-2", seed), emit: () => {}, now: () => 0,
     });
@@ -113,12 +115,12 @@ return { a };`;
   });
 
   it("an already-aborted signal ends the run with no agent calls", async () => {
-    const { reg, emit } = wire("demo-3");
+    const { reg, emit } = wire("demo-3" as RunId);
     const runner = createScriptedRunner({ a: { text: "A" }, b: { text: "B" } });
     const controller = new AbortController();
     controller.abort();
     const result = await runWorkflow({
-      source: SCRIPT, args: {}, runner, runId: "demo-3", cwd: "/tmp",
+      source: SCRIPT, args: {}, runner, runId: "demo-3" as RunId, cwd: "/tmp",
       concurrency: 4, maxAgents: 1000, budgetTotal: null,
       journal: reg.persistentJournal("demo-3", []), emit, now: () => 0, signal: controller.signal,
     });

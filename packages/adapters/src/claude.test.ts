@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import { readFileSync } from "node:fs";
 import type { AgentProgress } from "@workflow/core";
 import { createClaudeAdapter } from "./claude.js";
@@ -16,7 +17,7 @@ describe("claude adapter", () => {
     const progress: AgentProgress[] = [];
     const res = await adapter.run(
       { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", label: "a", signal: new AbortController().signal },
-      { runId: "r", seq: 0, onProgress: (p) => progress.push(p) },
+      { runId: "r" as RunId, seq: 0, onProgress: (p) => progress.push(p) },
     );
     expect(res.isOk()).toBe(true);
     const r = res._unsafeUnwrap();
@@ -44,7 +45,7 @@ describe("claude adapter", () => {
     const adapter = createClaudeAdapter({ processRunner: fake });
     const res = await adapter.run(
       { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
-      { runId: "r", seq: 0 },
+      { runId: "r" as RunId, seq: 0 },
     );
     expect(res.isErr()).toBe(true);
     expect(res._unsafeUnwrapErr().kind).toBe("SchemaValidation");
@@ -84,7 +85,7 @@ describe("claude adapter", () => {
     const adapter = createClaudeAdapter({ processRunner: fake, maxRetries: 2 });
     const res = await adapter.run(
       { prompt: "search HN", schema, cwd: "/tmp", label: "hn", signal: new AbortController().signal },
-      { runId: "r", seq: 0 },
+      { runId: "r" as RunId, seq: 0 },
     );
     expect(res.isOk()).toBe(true);
     expect(res._unsafeUnwrap().data).toEqual({ source: "hackernews", items: [] });
@@ -96,7 +97,7 @@ describe("claude adapter", () => {
     const adapter = createClaudeAdapter({ processRunner: fake });
     const res = await adapter.run(
       { prompt: "x", cwd: "/tmp", signal: new AbortController().signal },
-      { runId: "r", seq: 0 },
+      { runId: "r" as RunId, seq: 0 },
     );
     expect(res.isErr()).toBe(true);
     expect(res._unsafeUnwrapErr().kind).toBe("AdapterSpawn");

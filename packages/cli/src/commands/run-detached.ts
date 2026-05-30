@@ -24,7 +24,8 @@ export async function runDetachedCommand(
 
   return runHeadless(
     deps,
-    { runId, source, args: meta.args, runner: runnerResult.value, adapter: meta.adapter, seed: [], ...(meta.answers ? { answers: meta.answers } : {}) },
+    // Use the persisted branded RunId, not the raw argv string.
+    { runId: meta.runId, source, args: meta.args, runner: runnerResult.value, adapter: meta.adapter, seed: [], ...(meta.answers ? { answers: meta.answers } : {}) },
     controller,
   );
 }

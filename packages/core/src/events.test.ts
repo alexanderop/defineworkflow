@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "./brand.js";
 import { reduce, initialRunState, type WorkflowEvent } from "./events.js";
 
 describe("event reducer", () => {
   it("accumulates phase counts and tokens from an event stream", () => {
     const events: WorkflowEvent[] = [
-      { type: "run-started", runId: "r1", name: "demo", at: 0 },
+      { type: "run-started", runId: "r1" as RunId, name: "demo", at: 0 },
       { type: "phase-started", phase: "Search", at: 1 },
       { type: "agent-queued", key: "0", label: "a", phase: "Search", at: 2 },
       { type: "agent-started", key: "0", at: 3 },
@@ -43,7 +44,7 @@ describe("event reducer", () => {
 
   it("records run + agent timestamps and model/liveTokens from progress", () => {
     const events: WorkflowEvent[] = [
-      { type: "run-started", runId: "r", name: "demo", at: 100 },
+      { type: "run-started", runId: "r" as RunId, name: "demo", at: 100 },
       { type: "agent-queued", key: "0", label: "a", phase: "P", at: 110 },
       { type: "agent-started", key: "0", at: 120 },
       { type: "agent-progress", key: "0", tokens: 50, model: "claude-opus-4-8[1m]", at: 130 },
@@ -71,8 +72,8 @@ describe("event reducer", () => {
 
   it("records run endedAt from run-finished", () => {
     const events: WorkflowEvent[] = [
-      { type: "run-started", runId: "r", name: "d", at: 1000 },
-      { type: "run-finished", runId: "r", at: 4000 },
+      { type: "run-started", runId: "r" as RunId, name: "d", at: 1000 },
+      { type: "run-finished", runId: "r" as RunId, at: 4000 },
     ];
     const state = events.reduce(reduce, initialRunState());
     expect(state.startedAt).toBe(1000);
@@ -92,7 +93,7 @@ describe("event reducer", () => {
 
   it("splits input/output tokens per agent, phase and run", () => {
     const events: WorkflowEvent[] = [
-      { type: "run-started", runId: "r", name: "d", at: 0 },
+      { type: "run-started", runId: "r" as RunId, name: "d", at: 0 },
       { type: "phase-started", phase: "P", at: 1 },
       { type: "agent-queued", key: "0", label: "a", phase: "P", at: 2 },
       { type: "agent-started", key: "0", at: 3 },
@@ -141,7 +142,7 @@ describe("event reducer", () => {
 
   it("stores the run's budget total from run-started", () => {
     const events: WorkflowEvent[] = [
-      { type: "run-started", runId: "r", name: "d", budgetTotal: 500_000, at: 0 },
+      { type: "run-started", runId: "r" as RunId, name: "d", budgetTotal: 500_000, at: 0 },
     ];
     const state = events.reduce(reduce, initialRunState());
     expect(state.budgetTotal).toBe(500_000);

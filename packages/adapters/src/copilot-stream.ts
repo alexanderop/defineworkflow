@@ -1,5 +1,5 @@
 import type { AgentProgress, ToolEvent } from "@workflow/core";
-import { parseJsonLine, type StreamTranslator, type TranslatorResult } from "./stream.js";
+import { asRecord, parseJsonLine, type StreamTranslator, type TranslatorResult } from "./stream.js";
 
 /**
  * Translator for `copilot --output-format json` (GitHub Copilot CLI ≥1.0).
@@ -14,17 +14,19 @@ import { parseJsonLine, type StreamTranslator, type TranslatorResult } from "./s
  *   per-message `data.outputTokens` accumulated into a cumulative live token count
  * - `result` → only an error signal (`exitCode !== 0`)
  */
+
+// Payloads live under `data` in real output; fall back to the event itself so a
+// flatter/older shape still parses.
+function dataOf(ev: Record<string, unknown>): Record<string, unknown> {
+  return asRecord(ev.data) ?? ev;
+}
+
 export function createCopilotTranslator(): StreamTranslator {
   let model: string | undefined;
   let text = "";
   let cumulativeOutput = 0; // running total across assistant messages, for live tokens
   let isError = false;
   let errorMessage: string | undefined;
-
-  // Payloads live under `data` in real output; fall back to the event itself so a
-  // flatter/older shape still parses.
-  const dataOf = (ev: Record<string, unknown>): Record<string, unknown> =>
-    ev.data && typeof ev.data === "object" ? (ev.data as Record<string, unknown>) : ev;
 
   return {
     push(line): readonly AgentProgress[] {
@@ -46,7 +48,8 @@ export function createCopilotTranslator(): StreamTranslator {
         const name = typeof data.toolName === "string" ? data.toolName : undefined;
         if (!name) return [];
         const input = data.arguments ?? data.input;
-        return [{ tool: input !== undefined ? { name, input } : ({ name } as ToolEvent) }];
+        const tool: ToolEvent = input !== undefined ? { name, input } : { name };
+        return [{ tool }];
       }
 
       if (type === "assistant.message") {

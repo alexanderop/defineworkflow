@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import { readFileSync } from "node:fs";
 import type { AgentProgress } from "@workflow/core";
 import { createCodexAdapter } from "./codex.js";
@@ -24,7 +25,7 @@ describe("codex adapter", () => {
     const progress: AgentProgress[] = [];
     const res = await adapter.run(
       { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", label: "a", signal: new AbortController().signal },
-      { runId: "r", seq: 0, onProgress: (p) => progress.push(p) },
+      { runId: "r" as RunId, seq: 0, onProgress: (p) => progress.push(p) },
     );
     expect(res.isOk()).toBe(true);
     const r = res._unsafeUnwrap();
@@ -49,7 +50,7 @@ describe("codex adapter", () => {
       processRunner: createFakeProcessRunner({ codex: { stdout: "", stderr: "bad", code: 2 } }),
       fileStore: stubFileStore(),
     });
-    const res = await adapter.run({ prompt: "x", cwd: "/tmp", signal: new AbortController().signal }, { runId: "r", seq: 0 });
+    const res = await adapter.run({ prompt: "x", cwd: "/tmp", signal: new AbortController().signal }, { runId: "r" as RunId, seq: 0 });
     expect(res._unsafeUnwrapErr().kind).toBe("AdapterSpawn");
   });
 });

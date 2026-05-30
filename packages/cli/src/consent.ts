@@ -37,7 +37,7 @@ export interface ConsentResult {
 
 function phaseTitles(meta: WorkflowMetaLike): string {
   const titles = (meta.phases ?? [])
-    .map((p) => (typeof p === "object" && p !== null && "title" in p ? String((p as { title: unknown }).title) : ""))
+    .map((p) => (typeof p === "object" && p !== null && "title" in p ? String(p.title) : ""))
     .filter(Boolean);
   return titles.length ? titles.join(" · ") : "(no phases declared)";
 }

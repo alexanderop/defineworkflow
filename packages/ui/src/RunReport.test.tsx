@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import { render } from "ink-testing-library";
 import type { RunReport as RunReportData } from "@workflow/core";
 import { RunReport } from "./RunReport.js";
 
 const report: RunReportData = {
-  runId: "r1",
+  runId: "r1" as RunId,
   name: "refactor-imports",
   status: "finished",
   wallMs: 134_000,

@@ -10,7 +10,8 @@ export function extractJson(text: string): unknown {
   for (let end = candidate.length; end > start; end--) {
     const slice = candidate.slice(start, end);
     try {
-      return JSON.parse(slice) as unknown;
+      const parsed: unknown = JSON.parse(slice);
+      return parsed;
     } catch {
       // shrink the window and retry
     }

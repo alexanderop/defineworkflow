@@ -66,6 +66,7 @@ function persistConsent(homeDir: string, project: string, name: string): void {
   const raw = tryRead(configPath);
   if (raw !== undefined) {
     try {
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- untyped JSON config from disk narrowed to its known (all-optional) shape
       config = JSON.parse(raw) as WorkflowConfig;
     } catch {
       config = {};

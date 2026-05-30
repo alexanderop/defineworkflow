@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "./brand.js";
 import { createRuntime } from "./runtime.js";
 import { createScriptedRunner } from "./scripted-runner.js";
 import { createJournal } from "./journal.js";
@@ -15,7 +16,7 @@ describe("nested workflow()", () => {
       budgetTotal: 100,
       args: {},
       cwd: "/tmp",
-      runId: "r",
+      runId: "r" as RunId,
       emit: () => {},
       now: () => 0,
       resolveWorkflow: async (name) => {
@@ -42,7 +43,7 @@ describe("nested workflow()", () => {
       budgetTotal: null,
       args: {},
       cwd: "/tmp",
-      runId: "r2",
+      runId: "r2" as RunId,
       emit: () => {},
       now: () => 0,
       resolveWorkflow: async () => ({

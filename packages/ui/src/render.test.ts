@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import type { RunId } from "@workflow/core";
 import type { ReactElement } from "react";
 import type { WorkflowEvent } from "@workflow/core";
 import { startUi } from "./render.js";
@@ -30,7 +31,7 @@ describe("startUi (non-TTY line-log)", () => {
     const handle = startUi({
       isTTY: false,
       write: (t) => written.push(t),
-      initial: [{ type: "run-started", runId: "r1", name: "demo", at: 0 }],
+      initial: [{ type: "run-started", runId: "r1" as RunId, name: "demo", at: 0 }],
       subscribe: (l) => {
         listener = l;
         return () => {
@@ -41,7 +42,7 @@ describe("startUi (non-TTY line-log)", () => {
 
     listener?.({ type: "phase-started", phase: "Search", at: 1 });
     listener?.({ type: "agent-queued", key: "k0", label: "a", phase: "Search", at: 2 }); // noisy → no line
-    listener?.({ type: "run-finished", runId: "r1", at: 3 });
+    listener?.({ type: "run-finished", runId: "r1" as RunId, at: 3 });
 
     expect(written).toEqual(["▶ demo (r1)\n", "# Search\n", "■ done\n"]);
 
@@ -62,7 +63,7 @@ describe("startUi (TTY)", () => {
     const handle = startUi({
       isTTY: true,
       initial: [
-        { type: "run-started", runId: "r1", name: "haiku", at: 0 },
+        { type: "run-started", runId: "r1" as RunId, name: "haiku", at: 0 },
         { type: "phase-started", phase: "Write", at: 1 },
         { type: "agent-queued", key: "k0", label: "haiku-writer", phase: "Write", at: 2 },
         { type: "agent-started", key: "k0", at: 3 },
@@ -98,11 +99,11 @@ describe("startUi (TTY)", () => {
     startUi({
       isTTY: true,
       initial: [
-        { type: "run-started", runId: "r1", name: "done-run", at: 0 },
+        { type: "run-started", runId: "r1" as RunId, name: "done-run", at: 0 },
         { type: "agent-queued", key: "k0", label: "writer", phase: "Write", at: 1 },
         { type: "agent-started", key: "k0", at: 2 },
         { type: "agent-finished", key: "k0", usage: { inputTokens: 10, outputTokens: 5 }, cached: false, at: 3 },
-        { type: "run-finished", runId: "r1", at: 4 },
+        { type: "run-finished", runId: "r1" as RunId, at: 4 },
       ],
       subscribe: () => () => {},
     });

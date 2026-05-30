@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import { render } from "ink-testing-library";
 import type { WorkflowEvent } from "@workflow/core";
 import { App, type UiAction } from "./App.js";
 
 const events: WorkflowEvent[] = [
-  { type: "run-started", runId: "r1", name: "deep-research", at: 0 },
+  { type: "run-started", runId: "r1" as RunId, name: "deep-research", at: 0 },
   { type: "phase-started", phase: "Scope", at: 1 },
   { type: "phase-started", phase: "Search", at: 2 },
   { type: "agent-queued", key: "k0", label: "angle-0", phase: "Search", prompt: "Search X", at: 3 },
@@ -72,7 +73,7 @@ describe("App", () => {
 
   it("shows the question prompt and emits an answer action on selection", async () => {
     const qEvents: WorkflowEvent[] = [
-      { type: "run-started", runId: "r", name: "wf", at: 0 },
+      { type: "run-started", runId: "r" as RunId, name: "wf", at: 0 },
       { type: "question-asked", key: "deploy-target", question: "## Where to deploy?", choices: ["staging", "production"], at: 1 },
     ];
     const actions: UiAction[] = [];
@@ -88,7 +89,7 @@ describe("App", () => {
 
   it("stops processing nav keys while a question is pending", async () => {
     const qEvents: WorkflowEvent[] = [
-      { type: "run-started", runId: "r", name: "wf", at: 0 },
+      { type: "run-started", runId: "r" as RunId, name: "wf", at: 0 },
       { type: "question-asked", key: "k", question: "Name?", at: 1 },
     ];
     const actions: UiAction[] = [];

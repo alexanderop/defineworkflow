@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "./brand.js";
 import { ok, err } from "neverthrow";
 import type { Result } from "neverthrow";
 import { createRuntime } from "./runtime.js";
@@ -77,7 +78,7 @@ describe("AgentControl: per-agent stop", () => {
       budgetTotal: null,
       args: {},
       cwd: "/tmp",
-      runId: "r1",
+      runId: "r1" as RunId,
       emit: (e) => events.push(e),
       now: () => 0,
       control,
@@ -123,7 +124,7 @@ describe("AgentControl: per-agent restart", () => {
       budgetTotal: null,
       args: {},
       cwd: "/tmp",
-      runId: "r1",
+      runId: "r1" as RunId,
       emit: (e) => events.push(e),
       now: () => 0,
       control,

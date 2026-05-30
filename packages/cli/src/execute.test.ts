@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import type { ScriptHash } from "./registry.js";
+import type { RunId } from "@workflow/core";
 import { createMockRunner } from "@workflow/core";
 import type { WorkflowEvent } from "@workflow/core";
 import type { ProcessRunner } from "@workflow/adapters";
@@ -59,8 +61,8 @@ export default defineWorkflow({
 describe("runForeground with --mock", () => {
   it("runs a workflow to completion using the mock runner without spawning processes", async () => {
     const registry = createRegistry({ root: "/tmp/runs", fs: memRegistryFs() });
-    const runId = "mocktest-1";
-    const meta: RunMeta = { runId, name: "mocktest", scriptPath: "s.ts", args: null, adapter: "claude", status: "running", startedAt: 0, endedAt: null, pid: null, scriptHash: "h" };
+    const runId = "mocktest-1" as RunId;
+    const meta: RunMeta = { runId, name: "mocktest", scriptPath: "s.ts", args: null, adapter: "claude", status: "running", startedAt: 0, endedAt: null, pid: null, scriptHash: "h" as ScriptHash };
     registry.init(meta, SOURCE);
     const events: WorkflowEvent[] = [];
     const deps = fakeDeps(registry, events);
@@ -85,8 +87,8 @@ describe("runForeground with --mock", () => {
 
   it("prints a run report when the foreground run finishes", async () => {
     const registry = createRegistry({ root: "/tmp/runs", fs: memRegistryFs() });
-    const runId = "mocktest-2";
-    const meta: RunMeta = { runId, name: "mocktest", scriptPath: "s.ts", args: null, adapter: "claude", status: "running", startedAt: 0, endedAt: null, pid: null, scriptHash: "h" };
+    const runId = "mocktest-2" as RunId;
+    const meta: RunMeta = { runId, name: "mocktest", scriptPath: "s.ts", args: null, adapter: "claude", status: "running", startedAt: 0, endedAt: null, pid: null, scriptHash: "h" as ScriptHash };
     registry.init(meta, SOURCE);
     const events: WorkflowEvent[] = [];
     const prints: string[] = [];

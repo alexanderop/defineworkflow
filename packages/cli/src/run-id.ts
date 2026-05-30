@@ -1,3 +1,5 @@
+import type { RunId } from "@workflow/core";
+
 export interface RunIdDeps {
   readonly now: () => number;
   readonly rand: () => number;
@@ -12,9 +14,10 @@ export function slugify(name: string): string {
   return slug === "" ? "workflow" : slug;
 }
 
-/** A sortable, filesystem-safe run id: `<slug>-<base36 time>-<base36 rand>`. */
-export function genRunId(name: string, deps: RunIdDeps): string {
+/** A sortable, filesystem-safe run id: `<slug>-<base36 time>-<base36 rand>`. The sole `RunId` mint. */
+export function genRunId(name: string, deps: RunIdDeps): RunId {
   const time = Math.floor(deps.now()).toString(36);
   const rand = Math.floor(deps.rand() * 1_000_000).toString(36);
-  return `${slugify(name)}-${time}-${rand}`;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- brand mint: the sole RunId construction point
+  return `${slugify(name)}-${time}-${rand}` as RunId;
 }

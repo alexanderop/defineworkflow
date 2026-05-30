@@ -56,7 +56,9 @@ export function configPaths(deps: ConfigDeps): { personal: string; project: stri
 /** Personal config is the base; project config shallow-overrides it (project wins). */
 export function loadConfig(deps: ConfigDeps): WorkflowConfig {
   const { personal, project } = configPaths(deps);
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- untyped JSON config from disk narrowed to its known (all-optional) shape
   const base = readJson(deps, personal) as WorkflowConfig;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- untyped JSON config from disk narrowed to its known (all-optional) shape
   const over = readJson(deps, project) as WorkflowConfig;
   const consents = mergeConsents(base.consents, over.consents);
   return {

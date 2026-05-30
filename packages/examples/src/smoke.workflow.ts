@@ -42,10 +42,10 @@ export default defineWorkflow({
     log(`collected ${got.length}/${TOPICS.length} answers`);
 
     phase("Summarize");
-    const report = (await agent(
+    const report = await agent(
       `Combine these one-line descriptions into a tight 3-bullet markdown list:\n\n${got.join("\n")}\n\nOutput only the markdown.`,
       { label: "summarize", phase: "Summarize" },
-    )) as string;
+    );
 
     return { report, gathered: got.length, expected: TOPICS.length };
   },
