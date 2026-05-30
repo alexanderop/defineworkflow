@@ -124,68 +124,82 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     }
 
     const release = await deps.semaphore.acquire();
-    const isolated =
-      opts.isolation === "worktree" && deps.makeIsolatedCwd ? await deps.makeIsolatedCwd(key) : undefined;
-    const cwd = isolated?.cwd ?? deps.cwd;
     try {
-      // Restart loop: a restart request aborts the current run and re-runs with the same
-      // key/seq. Restart is only meaningful while the agent is in flight (registered here).
-      for (;;) {
-        const controller = new AbortController();
-        let restart = false;
-        // Run-scoped stop and per-agent stop both drive the adapter's AbortSignal.
-        const signal = deps.signal ? AbortSignal.any([deps.signal, controller.signal]) : controller.signal;
-        const unregister = deps.control?.register(key, controller, () => {
-          restart = true;
-        });
-        deps.emit({ type: "agent-started", key, at: deps.now() });
-        try {
-          const request: AgentRequest = {
-            prompt,
-            label,
-            cwd,
-            signal,
-            ...(jsonSchema ? { schema: jsonSchema } : {}),
-            ...(opts.model ? { model: opts.model } : {}),
-            ...(opts.agentType ? { agentType: opts.agentType } : {}),
-          };
-          const runner = opts.adapter ? (deps.resolveRunner?.(opts.adapter) ?? deps.runner) : deps.runner;
-          const result = await runner.run(request, { runId: deps.runId, seq: mySeq });
+      // Acquire the isolated cwd inside the try so a rejecting makeIsolatedCwd still releases
+      // the semaphore slot (via the outer finally). The cwd is stable across restart iterations.
+      const isolated =
+        opts.isolation === "worktree" && deps.makeIsolatedCwd ? await deps.makeIsolatedCwd(key) : undefined;
+      const cwd = isolated?.cwd ?? deps.cwd;
+      try {
+        // Restart loop: a restart request aborts the current run and re-runs with the same
+        // key/seq. Restart is only meaningful while the agent is in flight (registered here).
+        for (;;) {
+          const controller = new AbortController();
+          let restart = false;
+          // Run-scoped stop and per-agent stop both drive the adapter's AbortSignal.
+          const signal = deps.signal ? AbortSignal.any([deps.signal, controller.signal]) : controller.signal;
+          const unregister = deps.control?.register(key, controller, () => {
+            restart = true;
+          });
+          // Re-emitted each iteration: a restart is a fresh start for the same key.
+          deps.emit({ type: "agent-started", key, at: deps.now() });
+          try {
+            const request: AgentRequest = {
+              prompt,
+              label,
+              cwd,
+              signal,
+              ...(jsonSchema ? { schema: jsonSchema } : {}),
+              ...(opts.model ? { model: opts.model } : {}),
+              ...(opts.agentType ? { agentType: opts.agentType } : {}),
+            };
+            const runner = opts.adapter ? (deps.resolveRunner?.(opts.adapter) ?? deps.runner) : deps.runner;
+            const result = await runner.run(request, { runId: deps.runId, seq: mySeq });
 
-          if (result.isErr()) {
-            if (restart) continue; // restartAgent: re-run with a fresh controller, same key/seq.
-            deps.emit({ type: "agent-failed", key, error: result.error, at: deps.now() });
-            throw new WorkflowThrow(result.error);
-          }
-
-          const res = result.value;
-          for (const tool of res.toolCalls) deps.emit({ type: "agent-tool", key, tool, at: deps.now() });
-
-          let value: unknown = res.text;
-          if (opts.schema) {
-            const validated = validate(opts.schema, res.data);
-            if (validated.isErr()) {
-              const e: WorkflowError = { kind: "SchemaValidation", issues: validated.error.kind === "Validation" ? validated.error.issues : ["validation failed"], attempts: 1 };
-              deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
-              throw new WorkflowThrow(e);
+            if (result.isErr()) {
+              if (restart) continue; // restartAgent: re-run with a fresh controller, same key/seq.
+              deps.emit({ type: "agent-failed", key, error: result.error, at: deps.now() });
+              throw new WorkflowThrow(result.error);
             }
-            value = validated.value;
-          }
 
-          budget.record(res.usage.outputTokens);
-          deps.journal.record({ seq: mySeq, key, text: res.text, data: res.data, outputTokens: res.usage.outputTokens });
-          deps.emit({ type: "agent-output", key, chunk: res.text, at: deps.now() });
-          deps.emit({ type: "agent-finished", key, usage: res.usage, cached: false, at: deps.now() });
-          return value;
-        } catch (e) {
-          if (restart) continue; // restart requested even on a thrown error: re-run.
-          throw e; // stop / real failure: propagate (parallel nulls it).
-        } finally {
-          unregister?.();
+            const res = result.value;
+            for (const tool of res.toolCalls) deps.emit({ type: "agent-tool", key, tool, at: deps.now() });
+
+            let value: unknown = res.text;
+            if (opts.schema) {
+              const validated = validate(opts.schema, res.data);
+              if (validated.isErr()) {
+                const e: WorkflowError = { kind: "SchemaValidation", issues: validated.error.kind === "Validation" ? validated.error.issues : ["validation failed"], attempts: 1 };
+                deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
+                throw new WorkflowThrow(e);
+              }
+              value = validated.value;
+            }
+
+            budget.record(res.usage.outputTokens);
+            deps.journal.record({ seq: mySeq, key, text: res.text, data: res.data, outputTokens: res.usage.outputTokens });
+            deps.emit({ type: "agent-output", key, chunk: res.text, at: deps.now() });
+            deps.emit({ type: "agent-finished", key, usage: res.usage, cached: false, at: deps.now() });
+            return value;
+          } catch (e) {
+            if (restart) continue; // restart requested even on a thrown error: re-run.
+            throw e; // stop / real failure: propagate (parallel nulls it).
+          } finally {
+            unregister?.();
+          }
+        }
+      } finally {
+        // Best-effort cleanup: a failing worktree removal must not skip release() below
+        // (outer finally) nor mask the agent's real result/throw.
+        if (isolated) {
+          try {
+            await isolated.cleanup();
+          } catch {
+            // ignore: leaked isolated cwd is non-fatal; the CLI factory warns on its own.
+          }
         }
       }
     } finally {
-      if (isolated) await isolated.cleanup();
       release();
     }
   };
