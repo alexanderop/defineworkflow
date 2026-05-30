@@ -1,5 +1,5 @@
 import { assertNever, createControlRegistry, initialRunState, reduce, selectRunReport } from "@workflow/core";
-import type { AgentRunner, JournalEntry, RunReportStatus, WorkflowEvent } from "@workflow/core";
+import type { AgentRunner, JournalEntry, QuestionRequest, RunReportStatus, WorkflowEvent } from "@workflow/core";
 import { renderReportText } from "@workflow/ui";
 import type { AppDeps } from "./app.js";
 import { buildRunnerMap } from "./adapter-select.js";
@@ -10,6 +10,7 @@ import { formatError } from "./format-error.js";
 import { buildArtifacts, resolveOutputDir, writeArtifacts } from "./artifacts.js";
 import { buildWorkflowResolver } from "./resolve-workflow.js";
 import { createWorktreeFactory } from "./worktree.js";
+import { createHeadlessAskUser, type AnswerMap } from "./ask-user.js";
 
 /** Capability slice the foreground/headless run loops need. */
 type RunDeps = Pick<AppDeps, "registry" | "config" | "clock" | "env" | "io" | "adapters" | "ui">;
@@ -21,6 +22,8 @@ export interface ExecuteParams {
   readonly runner: AgentRunner;
   readonly adapter: string;
   readonly seed: readonly JournalEntry[];
+  /** Pre-supplied answers for askUserQuestion(); used directly headless, and as a fast-path in the foreground. */
+  readonly answers?: AnswerMap;
   /** When set, per-call `agent({ adapter })` overrides also resolve to `runner` (the mock), so a --mock run spawns no real adapter. */
   readonly mock?: boolean;
 }
@@ -84,6 +87,18 @@ export async function runForeground(deps: RunDeps, params: ExecuteParams): Promi
   };
   const note = (message: string): void => emit({ type: "log", message, at: deps.clock.now() });
 
+  // Foreground question handling: a pre-supplied answer (--answers) resolves immediately; otherwise,
+  // on a TTY the prompt is parked here and resolved by the UI's "answer" action. With no TTY there is
+  // no prompt to show, so fall back to the headless resolver (default / fail-fast).
+  const headlessAskUser = createHeadlessAskUser(params.answers ?? {});
+  const pendingAnswers = new Map<string, (answer: string) => void>();
+  const askUser = (req: QuestionRequest): Promise<string> => {
+    const supplied = params.answers?.[req.key];
+    if (supplied !== undefined) return Promise.resolve(supplied);
+    if (!deps.env.isTTY) return headlessAskUser(req);
+    return new Promise<string>((resolve) => pendingAnswers.set(req.key, resolve));
+  };
+
   const ui = deps.ui.start({
     initial: deps.registry.readEvents(params.runId),
     subscribe: (listener) => {
@@ -109,6 +124,14 @@ export async function runForeground(deps: RunDeps, params: ExecuteParams): Promi
           saveRun(deps, params.runId);
           note("saved workflow script");
           break;
+        case "answer": {
+          const resolve = pendingAnswers.get(action.key);
+          if (resolve) {
+            pendingAnswers.delete(action.key);
+            resolve(action.value);
+          }
+          break;
+        }
         default:
           assertNever(action);
       }
@@ -140,6 +163,7 @@ export async function runForeground(deps: RunDeps, params: ExecuteParams): Promi
     resolveWorkflow: buildWorkflowResolver({ homeDir: deps.env.homeDir, cwd: deps.env.cwd, readTextFile: deps.io.readText, bundledDir: deps.env.bundledDir }),
     resolveRunner,
     makeIsolatedCwd,
+    askUser,
   });
 
   const status: RunStatus = controller.signal.aborted ? "stopped" : result.isOk() ? "finished" : "failed";
@@ -183,6 +207,9 @@ export async function runHeadless(deps: RunDeps, params: ExecuteParams, controll
     resolveWorkflow: buildWorkflowResolver({ homeDir: deps.env.homeDir, cwd: deps.env.cwd, readTextFile: deps.io.readText, bundledDir: deps.env.bundledDir }),
     resolveRunner,
     makeIsolatedCwd,
+    // No human is attached to a detached run: answers come from --answers / the question default,
+    // else the run fails fast rather than hanging on a prompt nobody can see.
+    askUser: createHeadlessAskUser(params.answers ?? {}),
   });
 
   const status: RunStatus = controller.signal.aborted ? "stopped" : result.isOk() ? "finished" : "failed";

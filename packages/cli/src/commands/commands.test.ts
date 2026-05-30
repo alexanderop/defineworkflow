@@ -75,6 +75,25 @@ describe("dispatch run (end-to-end, line-log)", () => {
     expect(out()).toContain("hello");
     expect(out()).toContain("greeter");
   });
+
+  const ASK_BODY = `const env = await askUserQuestion({ key: "deploy-target", question: "Where to deploy?", choices: ["staging", "production"] });
+return { env };`;
+  const ASK = workflowSource({ name: "ask", description: "asks", harness: "raw-api", body: ASK_BODY });
+
+  it("resolves askUserQuestion from --answers in a non-interactive run", async () => {
+    const { deps } = fakeDeps({ _files: { "/a.ts": ASK } });
+    const code = await dispatch(["run", "/a.ts", "--yes", "--answers", '{"deploy-target":"staging"}'], deps);
+    expect(code).toBe(0);
+    expect(deps.registry.listRuns()[0]!.status).toBe("finished");
+  });
+
+  it("fails fast with UnansweredQuestion when no answer is supplied non-interactively", async () => {
+    const { deps, out } = fakeDeps({ _files: { "/a.ts": ASK } });
+    const code = await dispatch(["run", "/a.ts", "--yes"], deps);
+    expect(code).toBe(1);
+    expect(out()).toContain("UnansweredQuestion");
+    expect(deps.registry.listRuns()[0]!.status).toBe("failed");
+  });
 });
 
 interface Deferred<T> {

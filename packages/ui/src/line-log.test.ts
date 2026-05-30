@@ -14,6 +14,14 @@ describe("createLineLogger", () => {
     expect(line({ type: "run-finished", runId: "r1", at: 0 })).toBe("■ done");
   });
 
+  it("renders a question and its answer", () => {
+    const line = createLineLogger();
+    expect(line({ type: "question-asked", key: "deploy-target", question: "## Where to deploy?\nPick one", at: 0 })).toBe(
+      "? deploy-target: ## Where to deploy?",
+    );
+    expect(line({ type: "question-answered", key: "deploy-target", answer: "staging", cached: false, at: 0 })).toBe("  ↳ staging");
+  });
+
   it("returns null for noisy events that don't warrant a line", () => {
     const line = createLineLogger();
     expect(line({ type: "agent-queued", key: "k0", label: "a", phase: "P", at: 0 })).toBeNull();

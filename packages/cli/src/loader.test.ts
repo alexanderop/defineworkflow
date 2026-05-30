@@ -69,6 +69,57 @@ export default defineWorkflow({
     await expect(loaded.run(runtime, undefined)).resolves.toEqual({ out: "hit" });
   });
 
+  it("routes askUserQuestion() to the runtime's askUser handler", async () => {
+    const loaded = loadWorkflow(`export const meta = { name: "q", description: "d", harness: "claude" }
+const ans = await askUserQuestion({ key: "deploy-target", question: "Where?" });
+return { ans };`);
+
+    const runtime = createRuntime({
+      runner: createScriptedRunner({}),
+      semaphore: createSemaphore(4),
+      journal: createJournal(),
+      maxAgents: 1000,
+      budgetTotal: null,
+      args: null,
+      cwd: "/tmp",
+      runId: "rq",
+      emit: () => {},
+      now: () => 0,
+      askUser: async (req) => `chose ${req.key}`,
+    });
+
+    await expect(loaded.run(runtime, undefined)).resolves.toEqual({ ans: "chose deploy-target" });
+  });
+
+  it("provides askUserQuestion on a defineWorkflow run context", async () => {
+    const loaded = loadWorkflow(`import { defineWorkflow } from "workflow";
+export default defineWorkflow({
+  name: "q2",
+  description: "d",
+  harness: "claude",
+  async run({ askUserQuestion }) {
+    const ans = await askUserQuestion({ key: "k", question: "?" });
+    return { ans };
+  },
+});`);
+
+    const runtime = createRuntime({
+      runner: createScriptedRunner({}),
+      semaphore: createSemaphore(4),
+      journal: createJournal(),
+      maxAgents: 1000,
+      budgetTotal: null,
+      args: null,
+      cwd: "/tmp",
+      runId: "rq2",
+      emit: () => {},
+      now: () => 0,
+      askUser: async (req) => `picked ${req.key}`,
+    });
+
+    await expect(loaded.run(runtime, undefined)).resolves.toEqual({ ans: "picked k" });
+  });
+
   it("validates an agent's structured output against a plain JSON Schema", async () => {
     const SCHEMA_SCRIPT = `export const meta = { name: "s", description: "d", harness: "claude" }
 const Out = { type: "object", properties: { ok: { type: "boolean" }, n: { type: "number" } }, required: ["ok", "n"] };

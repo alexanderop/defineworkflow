@@ -26,6 +26,8 @@ export {
   type Runtime,
   type RuntimeDeps,
   type AgentOptions,
+  type AskUserQuestionOptions,
+  type QuestionRequest,
   type LoadedWorkflow,
 } from "./runtime.js";
 export type { JsonSchema } from "@workflow/schema";

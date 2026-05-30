@@ -22,5 +22,9 @@ export async function runDetachedCommand(
   const controller = new AbortController();
   deps.proc.onSigterm(() => controller.abort());
 
-  return runHeadless(deps, { runId, source, args: meta.args, runner: runnerResult.value, adapter: meta.adapter, seed: [] }, controller);
+  return runHeadless(
+    deps,
+    { runId, source, args: meta.args, runner: runnerResult.value, adapter: meta.adapter, seed: [], ...(meta.answers ? { answers: meta.answers } : {}) },
+    controller,
+  );
 }

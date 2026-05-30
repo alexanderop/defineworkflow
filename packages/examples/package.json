@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "haiku": "defineworkflow run src/haiku.workflow.ts --yes",
+    "question": "defineworkflow run src/question.workflow.ts --yes",
     "feature-pipeline": "defineworkflow run src/feature-pipeline.workflow.ts --yes",
     "vue-newsletter": "defineworkflow run src/vue-newsletter.workflow.ts --yes"
   },

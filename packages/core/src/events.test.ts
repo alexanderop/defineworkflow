@@ -147,6 +147,29 @@ describe("event reducer", () => {
     expect(state.budgetTotal).toBe(500_000);
   });
 
+  it("tracks a pending question and clears it on answer", () => {
+    const asked = reduce(initialRunState(), {
+      type: "question-asked",
+      key: "deploy-target",
+      question: "Where?",
+      choices: ["staging", "production"],
+      at: 0,
+    });
+    expect(asked.pendingQuestion).toMatchObject({
+      key: "deploy-target",
+      question: "Where?",
+      choices: ["staging", "production"],
+    });
+    const answered = reduce(asked, { type: "question-answered", key: "deploy-target", answer: "production", cached: false, at: 1 });
+    expect(answered.pendingQuestion).toBeUndefined();
+  });
+
+  it("only clears the pending question when the answer key matches", () => {
+    const asked = reduce(initialRunState(), { type: "question-asked", key: "a", question: "?", at: 0 });
+    const other = reduce(asked, { type: "question-answered", key: "b", answer: "x", cached: false, at: 1 });
+    expect(other.pendingQuestion?.key).toBe("a");
+  });
+
   it("preserves the error on agent-failed", () => {
     const events: WorkflowEvent[] = [
       { type: "agent-queued", key: "0", label: "a", phase: "P", at: 0 },

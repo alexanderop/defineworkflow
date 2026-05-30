@@ -25,6 +25,8 @@ export interface RunMeta {
   readonly endedAt: number | null;
   readonly pid: number | null;
   readonly scriptHash: string;
+  /** Pre-supplied answers for askUserQuestion() (from `--answers`); read by detached/headless runs. */
+  readonly answers?: Readonly<Record<string, string>>;
 }
 
 export interface RegistryDeps {

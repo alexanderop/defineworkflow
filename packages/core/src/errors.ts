@@ -14,7 +14,8 @@ export type WorkflowError =
   | { readonly kind: "JournalCorrupt"; readonly runId: string; readonly detail: string }
   | { readonly kind: "BudgetExhausted"; readonly spent: number; readonly total: number }
   | { readonly kind: "AgentCapExceeded"; readonly cap: number }
-  | { readonly kind: "HarnessNotDeclared"; readonly found: string | undefined };
+  | { readonly kind: "HarnessNotDeclared"; readonly found: string | undefined }
+  | { readonly kind: "UnansweredQuestion"; readonly key: string };
 
 /** Thrown across the sandbox boundary only; carries a typed WorkflowError. */
 export class WorkflowThrow extends Error {

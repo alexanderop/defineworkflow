@@ -34,6 +34,29 @@ export interface AgentOptions {
   readonly instructions?: string;
 }
 
+/** A question raised mid-run; the resolved `askUser` handler turns it into the user's answer. */
+export interface QuestionRequest {
+  readonly key: string;
+  readonly question: string;
+  readonly choices?: readonly string[];
+  readonly allowOther?: boolean;
+  readonly default?: string;
+}
+
+export interface AskUserQuestionOptions {
+  /** Stable key for `--answers` and journaling; falls back to a seq/phase/label-derived key. */
+  readonly key?: string;
+  /** The question text, rendered as markdown in the interactive UI. */
+  readonly question: string;
+  readonly choices?: readonly string[];
+  /** Offer an "Other → type your own" free-text path alongside the choices. */
+  readonly allowOther?: boolean;
+  /** Answer used in non-interactive runs when no pre-supplied answer matches the key. */
+  readonly default?: string;
+  readonly label?: string;
+  readonly phase?: string;
+}
+
 export interface LoadedWorkflow {
   readonly meta: WorkflowMeta;
   run(runtime: Runtime, args?: unknown): Promise<unknown>;
@@ -61,6 +84,8 @@ export interface RuntimeDeps {
   readonly control?: ControlRegistry | undefined;
   /** Worktree isolation: produce an isolated working directory for a given agent key; cleaned up after the agent finishes. */
   readonly makeIsolatedCwd?: ((key: string) => Promise<{ cwd: string; cleanup: () => Promise<void> }>) | undefined;
+  /** Human-in-the-loop: resolve a mid-run question to the user's answer. Required for askUserQuestion(). */
+  readonly askUser?: ((req: QuestionRequest) => Promise<string>) | undefined;
 }
 
 export interface Runtime {
@@ -73,6 +98,7 @@ export interface Runtime {
   phase(title: string): void;
   log(message: string): void;
   workflow(name: string, args?: unknown): Promise<unknown>;
+  askUserQuestion(opts: AskUserQuestionOptions): Promise<string>;
 }
 
 /** Keys a call site re-specified that the profile already set with a different value. */
@@ -88,6 +114,9 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
   let currentPhase = "default";
   let seq = 0;
   let spawned = 0;
+  // Tail of the question lock chain — each askUserQuestion() awaits the prior question before
+  // prompting, so only one prompt is ever open even when raised inside parallel()/pipeline().
+  let questionTail: Promise<void> = Promise.resolve();
 
   const agent = async (
     a: string | Profile,
@@ -315,6 +344,59 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       }),
     );
 
+  const askUserQuestion = async (opts: AskUserQuestionOptions): Promise<string> => {
+    const mySeq = seq++;
+    const phase = opts.phase ?? currentPhase;
+    const label = opts.label ?? (labelFromPrompt(opts.question) || `question-${mySeq}`);
+    const key = opts.key ?? `${mySeq}:${phase}:${label}`;
+
+    // Serialize prompts: only one question competes for the keyboard at a time. Agents already
+    // in flight keep running; concurrent questions queue here in seq (call) order.
+    const prior = questionTail;
+    let releaseLock!: () => void;
+    questionTail = new Promise<void>((res) => {
+      releaseLock = res;
+    });
+    await prior;
+    try {
+      deps.emit({
+        type: "question-asked",
+        key,
+        question: opts.question,
+        ...(opts.choices ? { choices: opts.choices } : {}),
+        ...(opts.allowOther !== undefined ? { allowOther: opts.allowOther } : {}),
+        at: deps.now(),
+      });
+
+      // Resume: a journaled answer returns without re-asking. Questions ride the same seq
+      // counter and journal as agent(), but skip the budget/agent-cap gates — a question
+      // costs no tokens and is not an agent.
+      const cached = deps.journal.lookup(mySeq);
+      if (cached) {
+        const answer = (cached.data ?? cached.text) as string;
+        deps.emit({ type: "question-answered", key, answer, cached: true, at: deps.now() });
+        return answer;
+      }
+
+      if (!deps.askUser) {
+        throw new WorkflowThrow({ kind: "AdapterSpawn", adapter: "askUser", cause: "no askUser handler configured" });
+      }
+      const request: QuestionRequest = {
+        key,
+        question: opts.question,
+        ...(opts.choices ? { choices: opts.choices } : {}),
+        ...(opts.allowOther !== undefined ? { allowOther: opts.allowOther } : {}),
+        ...(opts.default !== undefined ? { default: opts.default } : {}),
+      };
+      const answer = await deps.askUser(request);
+      deps.journal.record({ seq: mySeq, key, text: answer, data: answer, outputTokens: 0 });
+      deps.emit({ type: "question-answered", key, answer, cached: false, at: deps.now() });
+      return answer;
+    } finally {
+      releaseLock();
+    }
+  };
+
   const phase = (title: string): void => {
     currentPhase = title;
     deps.emit({ type: "phase-started", phase: title, at: deps.now() });
@@ -340,9 +422,10 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       workflow: async () => {
         throw new WorkflowThrow({ kind: "AdapterSpawn", adapter: "workflow", cause: "workflow() nesting is one level only" });
       },
+      askUserQuestion,
     };
     return loaded.run(childRuntime, childArgs);
   };
 
-  return { args: deps.args, budget, agent, parallel, pipeline, phase, log, workflow };
+  return { args: deps.args, budget, agent, parallel, pipeline, phase, log, workflow, askUserQuestion };
 }

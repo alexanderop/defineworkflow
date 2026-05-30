@@ -42,5 +42,6 @@ export async function resumeCommand(
     runner: runnerResult.value,
     adapter: meta.adapter,
     seed: seedResult.value,
+    ...(meta.answers ? { answers: meta.answers } : {}),
   });
 }

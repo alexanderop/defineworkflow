@@ -8,10 +8,13 @@ import { genRunId } from "../run-id.js";
 import type { RunMeta } from "../registry.js";
 import { runForeground } from "../execute.js";
 import { formatError } from "../format-error.js";
+import { parseAnswers } from "../ask-user.js";
 
 export interface RunArgs {
   readonly script: string;
   readonly argsJson?: string | undefined;
+  /** Pre-supplied answers for askUserQuestion() as a flat JSON object (from `--answers`). */
+  readonly answersJson?: string | undefined;
   readonly detach: boolean;
   readonly yes: boolean;
   /** Run against a fabricating mock runner: no real agents, no tokens — a token-free dev loop. */
@@ -34,6 +37,13 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
       return 1;
     }
   }
+
+  const answersResult = parseAnswers(args.answersJson);
+  if (answersResult.isErr()) {
+    deps.ui.print(`error: ${answersResult.error}\n`);
+    return 1;
+  }
+  const answers = answersResult.value;
 
   let meta;
   try {
@@ -101,6 +111,7 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
     endedAt: null,
     pid: args.detach ? null : deps.clock.pid(),
     scriptHash: deps.clock.hash(source),
+    ...(Object.keys(answers).length > 0 ? { answers } : {}),
   };
   deps.registry.init(meta0, source);
 
@@ -120,6 +131,7 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
     runner,
     adapter: args.mock ? "mock" : adapter,
     seed: [],
+    answers,
     ...(args.mock ? { mock: true } : {}),
   });
 }

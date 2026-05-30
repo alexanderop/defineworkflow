@@ -7,14 +7,12 @@ import { PhasesColumn } from "./PhasesColumn.js";
 import { AgentsColumn } from "./AgentsColumn.js";
 import { DetailPane } from "./DetailPane.js";
 import { Footer } from "./Footer.js";
+import { QuestionPrompt } from "./QuestionPrompt.js";
 import { orderedPhases, agentsInPhase, detailSections, runElapsedMs } from "./selectors.js";
 import { navReducer, initialNav, type NavState, type NavCtx } from "./navigation.js";
+import { resolveKey, type UiAction } from "./keymap.js";
 
-export type UiAction =
-  | { readonly type: "pause" }
-  | { readonly type: "stop"; readonly target: { readonly scope: "run" } | { readonly scope: "agent"; readonly key: string } }
-  | { readonly type: "restart"; readonly key: string }
-  | { readonly type: "save" };
+export type { UiAction };
 
 export interface AppProps {
   readonly events: readonly WorkflowEvent[];
@@ -88,25 +86,28 @@ export function App({ events, adapter, description, detailRows = 12, onAction, a
     return () => clearInterval(id);
   }, [animate, nowProp, running]);
 
+  const pendingQuestion = state.pendingQuestion;
+
   useInput((input, key) => {
-    if (key.upArrow) setNav((p) => navReducer(p, { type: "up" }, ctxRef.current));
-    else if (key.downArrow) setNav((p) => navReducer(p, { type: "down" }, ctxRef.current));
-    else if (key.rightArrow) setNav((p) => navReducer(p, { type: "right" }, ctxRef.current));
-    else if (key.leftArrow) setNav((p) => navReducer(p, { type: "left" }, ctxRef.current));
-    else if (key.escape) setNav((p) => navReducer(p, { type: "esc" }, ctxRef.current));
-    else if (key.return) setNav((p) => navReducer(p, { type: "toggleExpand" }, ctxRef.current));
-    else if (input === "j") setNav((p) => navReducer(p, { type: "scrollDown" }, ctxRef.current));
-    else if (input === "k") setNav((p) => navReducer(p, { type: "scrollUp" }, ctxRef.current));
-    else if (input === "p") onAction?.({ type: "pause" });
-    else if (input === "x") {
-      const agentKey = selectedAgentKeyRef.current;
-      if (navRef.current.focus !== "phases" && agentKey) onAction?.({ type: "stop", target: { scope: "agent", key: agentKey } });
-      else onAction?.({ type: "stop", target: { scope: "run" } });
-    } else if (input === "r") {
-      const agentKey = selectedAgentKeyRef.current;
-      if (agentKey) onAction?.({ type: "restart", key: agentKey });
-    } else if (input === "s") onAction?.({ type: "save" });
+    // While a question is pending, the QuestionPrompt owns the keyboard — swallow nav/control keys.
+    if (pendingQuestion) return;
+    const intent = resolveKey(input, key, { focus: navRef.current.focus, agentKey: selectedAgentKeyRef.current });
+    if (!intent) return;
+    if (intent.kind === "nav") setNav((p) => navReducer(p, intent.action, ctxRef.current));
+    else onAction?.(intent.action);
   });
+
+  if (pendingQuestion) {
+    return (
+      <Box flexDirection="column">
+        <Header state={state} elapsedMs={runElapsedMs(state, now)} description={description} adapter={adapter} />
+        <QuestionPrompt
+          question={pendingQuestion}
+          onSubmit={(value) => onAction?.({ type: "answer", key: pendingQuestion.key, value })}
+        />
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column">

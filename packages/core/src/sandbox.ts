@@ -29,7 +29,7 @@ export function transformScript(source: string): string {
       /\bexport\s+default\s+defineWorkflow\s*\(/,
       "const __workflow = globalThis.__workflow = defineWorkflow(",
     );
-    const wrapped = `(async () => {\n${safe}\nreturn await __workflow.run({ agent, parallel, pipeline, workflow, phase, log, args, budget });\n})()`;
+    const wrapped = `(async () => {\n${safe}\nreturn await __workflow.run({ agent, parallel, pipeline, workflow, phase, log, askUserQuestion, args, budget });\n})()`;
     return transformSync(wrapped, { loader: "ts", format: "esm" }).code;
   }
   // Declare `const meta` (so the script body can reference it) AND mirror the same

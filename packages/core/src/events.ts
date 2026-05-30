@@ -32,6 +32,8 @@ export type WorkflowEvent =
   | { readonly type: "agent-output"; readonly key: string; readonly chunk: string; readonly at: number }
   | { readonly type: "agent-finished"; readonly key: string; readonly usage: AgentUsage; readonly cached: boolean; readonly model?: string; readonly at: number }
   | { readonly type: "agent-failed"; readonly key: string; readonly error: WorkflowError; readonly at: number }
+  | { readonly type: "question-asked"; readonly key: string; readonly question: string; readonly choices?: readonly string[]; readonly allowOther?: boolean; readonly at: number }
+  | { readonly type: "question-answered"; readonly key: string; readonly answer: string; readonly cached: boolean; readonly at: number }
   | { readonly type: "log"; readonly message: string; readonly at: number }
   | { readonly type: "run-finished"; readonly runId: string; readonly at: number };
 
@@ -78,12 +80,22 @@ export interface PhaseState {
   readonly outputTokens: number;
 }
 
+/** An outstanding human-in-the-loop question awaiting the user's answer. */
+export interface PendingQuestion {
+  readonly key: string;
+  readonly question: string;
+  readonly choices?: readonly string[];
+  readonly allowOther?: boolean;
+}
+
 export interface RunState {
   readonly runId: string;
   readonly name: string;
   readonly status: "pending" | "running" | "finished";
   readonly phases: ReadonlyMap<string, PhaseState>;
   readonly agents: ReadonlyMap<string, AgentState>;
+  /** Set while a mid-run question awaits an answer; cleared when the matching answer arrives. */
+  readonly pendingQuestion?: PendingQuestion;
   readonly totalTokens: number;
   readonly totalInputTokens: number;
   readonly totalOutputTokens: number;
@@ -237,6 +249,21 @@ export function reduce(state: RunState, event: WorkflowEvent): RunState {
         agents,
         phases: upsertPhase(state.phases, a.phase, (p) => ({ ...p, running: Math.max(0, p.running - 1) })),
       };
+    }
+    case "question-asked": {
+      const pendingQuestion: PendingQuestion = {
+        key: event.key,
+        question: event.question,
+        ...(event.choices ? { choices: event.choices } : {}),
+        ...(event.allowOther !== undefined ? { allowOther: event.allowOther } : {}),
+      };
+      return { ...state, pendingQuestion };
+    }
+    case "question-answered": {
+      // Only the matching question clears the pane; a stale/mismatched answer is ignored.
+      if (state.pendingQuestion?.key !== event.key) return state;
+      const { pendingQuestion: _cleared, ...rest } = state;
+      return rest;
     }
     case "log":
       return { ...state, logs: [...state.logs, event.message] };

@@ -50,6 +50,8 @@ const EVENT_BASES: { [T in WorkflowEvent["type"]]: Omit<EventOf<T>, "type"> } = 
   "agent-output": { key: "0:Work:a", chunk: "", at: 0 },
   "agent-finished": { key: "0:Work:a", usage: { inputTokens: 0, outputTokens: 0 }, cached: false, at: 0 },
   "agent-failed": { key: "0:Work:a", error: { kind: "AdapterSpawn", adapter: "test", cause: "boom" }, at: 0 },
+  "question-asked": { key: "deploy-target", question: "Where?", at: 0 },
+  "question-answered": { key: "deploy-target", answer: "staging", cached: false, at: 0 },
   log: { message: "log", at: 0 },
   "run-finished": { runId: "r1", at: 0 },
 };

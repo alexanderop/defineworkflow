@@ -30,6 +30,7 @@ export interface RunWorkflowDeps {
   readonly resolveWorkflow?: RuntimeDeps["resolveWorkflow"] | undefined;
   readonly resolveRunner?: RuntimeDeps["resolveRunner"] | undefined;
   readonly makeIsolatedCwd?: RuntimeDeps["makeIsolatedCwd"] | undefined;
+  readonly askUser?: RuntimeDeps["askUser"] | undefined;
 }
 
 export interface RunResult {
@@ -75,6 +76,7 @@ export async function runWorkflow(deps: RunWorkflowDeps): Promise<Result<RunResu
     ...(deps.resolveWorkflow ? { resolveWorkflow: deps.resolveWorkflow } : {}),
     ...(deps.resolveRunner ? { resolveRunner: deps.resolveRunner } : {}),
     ...(deps.makeIsolatedCwd ? { makeIsolatedCwd: deps.makeIsolatedCwd } : {}),
+    ...(deps.askUser ? { askUser: deps.askUser } : {}),
   });
 
   try {
