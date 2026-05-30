@@ -26,6 +26,7 @@ export interface RunWorkflowDeps {
   readonly signal?: AbortSignal | undefined;
   readonly gate?: (() => Promise<void>) | undefined;
   readonly resolveWorkflow?: RuntimeDeps["resolveWorkflow"] | undefined;
+  readonly resolveRunner?: RuntimeDeps["resolveRunner"] | undefined;
 }
 
 export interface RunResult {
@@ -58,6 +59,7 @@ export async function runWorkflow(deps: RunWorkflowDeps): Promise<Result<RunResu
     ...(deps.signal ? { signal: deps.signal } : {}),
     ...(deps.gate ? { gate: deps.gate } : {}),
     ...(deps.resolveWorkflow ? { resolveWorkflow: deps.resolveWorkflow } : {}),
+    ...(deps.resolveRunner ? { resolveRunner: deps.resolveRunner } : {}),
   });
 
   try {

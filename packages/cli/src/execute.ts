@@ -1,5 +1,6 @@
 import type { AgentRunner, JournalEntry, WorkflowEvent } from "@workflow/core";
 import type { AppDeps } from "./app.js";
+import { buildRunnerMap } from "./adapter-select.js";
 import { effectiveConcurrency, effectiveMaxAgents } from "./config.js";
 import { runWorkflow } from "./orchestrator.js";
 import type { RunStatus } from "./registry.js";
@@ -74,6 +75,8 @@ export async function runForeground(deps: AppDeps, params: ExecuteParams): Promi
     },
   });
 
+  const { resolveRunner } = buildRunnerMap(deps.detected, deps.config, { processRunner: deps.processRunner, complete: deps.complete });
+
   const result = await runWorkflow({
     source: params.source,
     args: params.args,
@@ -89,6 +92,7 @@ export async function runForeground(deps: AppDeps, params: ExecuteParams): Promi
     signal: controller.signal,
     gate,
     resolveWorkflow: buildWorkflowResolver({ homeDir: deps.homeDir, cwd: deps.cwd, readTextFile: deps.readTextFile }),
+    resolveRunner,
   });
 
   const status: RunStatus = controller.signal.aborted ? "stopped" : result.isOk() ? "finished" : "failed";
@@ -104,6 +108,8 @@ export async function runForeground(deps: AppDeps, params: ExecuteParams): Promi
 
 /** Run headless (the detached child body). Returns a process exit code. */
 export async function runHeadless(deps: AppDeps, params: ExecuteParams, controller: AbortController): Promise<number> {
+  const { resolveRunner } = buildRunnerMap(deps.detected, deps.config, { processRunner: deps.processRunner, complete: deps.complete });
+
   const result = await runWorkflow({
     source: params.source,
     args: params.args,
@@ -118,6 +124,7 @@ export async function runHeadless(deps: AppDeps, params: ExecuteParams, controll
     now: deps.now,
     signal: controller.signal,
     resolveWorkflow: buildWorkflowResolver({ homeDir: deps.homeDir, cwd: deps.cwd, readTextFile: deps.readTextFile }),
+    resolveRunner,
   });
 
   const status: RunStatus = controller.signal.aborted ? "stopped" : result.isOk() ? "finished" : "failed";
