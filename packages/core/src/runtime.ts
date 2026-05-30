@@ -43,6 +43,8 @@ export interface RuntimeDeps {
   readonly gate?: (() => Promise<void>) | undefined;
   /** Per-agent control: registers each in-flight agent's AbortController under its key for stop/restart. */
   readonly control?: ControlRegistry | undefined;
+  /** Worktree isolation: produce an isolated working directory for a given agent key; cleaned up after the agent finishes. */
+  readonly makeIsolatedCwd?: ((key: string) => Promise<{ cwd: string; cleanup: () => Promise<void> }>) | undefined;
 }
 
 export interface Runtime {
@@ -122,6 +124,9 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     }
 
     const release = await deps.semaphore.acquire();
+    const isolated =
+      opts.isolation === "worktree" && deps.makeIsolatedCwd ? await deps.makeIsolatedCwd(key) : undefined;
+    const cwd = isolated?.cwd ?? deps.cwd;
     try {
       // Restart loop: a restart request aborts the current run and re-runs with the same
       // key/seq. Restart is only meaningful while the agent is in flight (registered here).
@@ -138,7 +143,7 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
           const request: AgentRequest = {
             prompt,
             label,
-            cwd: deps.cwd,
+            cwd,
             signal,
             ...(jsonSchema ? { schema: jsonSchema } : {}),
             ...(opts.model ? { model: opts.model } : {}),
@@ -180,6 +185,7 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
         }
       }
     } finally {
+      if (isolated) await isolated.cleanup();
       release();
     }
   };
