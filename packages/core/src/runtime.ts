@@ -6,6 +6,7 @@ import type { Semaphore } from "./semaphore.js";
 import type { Journal } from "./journal.js";
 import type { AgentRequest, AgentRunner } from "./types.js";
 import type { WorkflowEvent } from "./events.js";
+import type { ControlRegistry } from "./control.js";
 
 export interface AgentOptions {
   readonly label?: string;
@@ -40,6 +41,8 @@ export interface RuntimeDeps {
   readonly signal?: AbortSignal | undefined;
   /** Pause gate: awaited before each agent acquires the semaphore (resolves immediately when not paused). */
   readonly gate?: (() => Promise<void>) | undefined;
+  /** Per-agent control: registers each in-flight agent's AbortController under its key for stop/restart. */
+  readonly control?: ControlRegistry | undefined;
 }
 
 export interface Runtime {
@@ -119,45 +122,63 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     }
 
     const release = await deps.semaphore.acquire();
-    deps.emit({ type: "agent-started", key, at: deps.now() });
     try {
-      // Run-scoped stop drives the adapter's AbortSignal; falls back to a private controller.
-      const request: AgentRequest = {
-        prompt,
-        label,
-        cwd: deps.cwd,
-        signal: deps.signal ?? new AbortController().signal,
-        ...(jsonSchema ? { schema: jsonSchema } : {}),
-        ...(opts.model ? { model: opts.model } : {}),
-        ...(opts.agentType ? { agentType: opts.agentType } : {}),
-      };
-      const runner = opts.adapter ? (deps.resolveRunner?.(opts.adapter) ?? deps.runner) : deps.runner;
-      const result = await runner.run(request, { runId: deps.runId, seq: mySeq });
+      // Restart loop: a restart request aborts the current run and re-runs with the same
+      // key/seq. Restart is only meaningful while the agent is in flight (registered here).
+      for (;;) {
+        const controller = new AbortController();
+        let restart = false;
+        // Run-scoped stop and per-agent stop both drive the adapter's AbortSignal.
+        const signal = deps.signal ? AbortSignal.any([deps.signal, controller.signal]) : controller.signal;
+        const unregister = deps.control?.register(key, controller, () => {
+          restart = true;
+        });
+        deps.emit({ type: "agent-started", key, at: deps.now() });
+        try {
+          const request: AgentRequest = {
+            prompt,
+            label,
+            cwd: deps.cwd,
+            signal,
+            ...(jsonSchema ? { schema: jsonSchema } : {}),
+            ...(opts.model ? { model: opts.model } : {}),
+            ...(opts.agentType ? { agentType: opts.agentType } : {}),
+          };
+          const runner = opts.adapter ? (deps.resolveRunner?.(opts.adapter) ?? deps.runner) : deps.runner;
+          const result = await runner.run(request, { runId: deps.runId, seq: mySeq });
 
-      if (result.isErr()) {
-        deps.emit({ type: "agent-failed", key, error: result.error, at: deps.now() });
-        throw new WorkflowThrow(result.error);
-      }
+          if (result.isErr()) {
+            if (restart) continue; // restartAgent: re-run with a fresh controller, same key/seq.
+            deps.emit({ type: "agent-failed", key, error: result.error, at: deps.now() });
+            throw new WorkflowThrow(result.error);
+          }
 
-      const res = result.value;
-      for (const tool of res.toolCalls) deps.emit({ type: "agent-tool", key, tool, at: deps.now() });
+          const res = result.value;
+          for (const tool of res.toolCalls) deps.emit({ type: "agent-tool", key, tool, at: deps.now() });
 
-      let value: unknown = res.text;
-      if (opts.schema) {
-        const validated = validate(opts.schema, res.data);
-        if (validated.isErr()) {
-          const e: WorkflowError = { kind: "SchemaValidation", issues: validated.error.kind === "Validation" ? validated.error.issues : ["validation failed"], attempts: 1 };
-          deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
-          throw new WorkflowThrow(e);
+          let value: unknown = res.text;
+          if (opts.schema) {
+            const validated = validate(opts.schema, res.data);
+            if (validated.isErr()) {
+              const e: WorkflowError = { kind: "SchemaValidation", issues: validated.error.kind === "Validation" ? validated.error.issues : ["validation failed"], attempts: 1 };
+              deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
+              throw new WorkflowThrow(e);
+            }
+            value = validated.value;
+          }
+
+          budget.record(res.usage.outputTokens);
+          deps.journal.record({ seq: mySeq, key, text: res.text, data: res.data, outputTokens: res.usage.outputTokens });
+          deps.emit({ type: "agent-output", key, chunk: res.text, at: deps.now() });
+          deps.emit({ type: "agent-finished", key, usage: res.usage, cached: false, at: deps.now() });
+          return value;
+        } catch (e) {
+          if (restart) continue; // restart requested even on a thrown error: re-run.
+          throw e; // stop / real failure: propagate (parallel nulls it).
+        } finally {
+          unregister?.();
         }
-        value = validated.value;
       }
-
-      budget.record(res.usage.outputTokens);
-      deps.journal.record({ seq: mySeq, key, text: res.text, data: res.data, outputTokens: res.usage.outputTokens });
-      deps.emit({ type: "agent-output", key, chunk: res.text, at: deps.now() });
-      deps.emit({ type: "agent-finished", key, usage: res.usage, cached: false, at: deps.now() });
-      return value;
     } finally {
       release();
     }
