@@ -4,6 +4,7 @@ import { effectiveConcurrency, effectiveMaxAgents } from "./config.js";
 import { runWorkflow } from "./orchestrator.js";
 import type { RunStatus } from "./registry.js";
 import { formatError } from "./format-error.js";
+import { buildWorkflowResolver } from "./resolve-workflow.js";
 
 export interface ExecuteParams {
   readonly runId: string;
@@ -87,6 +88,7 @@ export async function runForeground(deps: AppDeps, params: ExecuteParams): Promi
     now: deps.now,
     signal: controller.signal,
     gate,
+    resolveWorkflow: buildWorkflowResolver({ homeDir: deps.homeDir, cwd: deps.cwd, readTextFile: deps.readTextFile }),
   });
 
   const status: RunStatus = controller.signal.aborted ? "stopped" : result.isOk() ? "finished" : "failed";
@@ -115,6 +117,7 @@ export async function runHeadless(deps: AppDeps, params: ExecuteParams, controll
     emit: (event) => deps.registry.appendEvent(params.runId, event),
     now: deps.now,
     signal: controller.signal,
+    resolveWorkflow: buildWorkflowResolver({ homeDir: deps.homeDir, cwd: deps.cwd, readTextFile: deps.readTextFile }),
   });
 
   const status: RunStatus = controller.signal.aborted ? "stopped" : result.isOk() ? "finished" : "failed";
