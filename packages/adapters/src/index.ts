@@ -8,6 +8,10 @@ export { createCopilotAdapter, type CopilotAdapterDeps } from "./copilot.js";
 export { createRawApiAdapter, type RawApiAdapterDeps, type CompletionRequest, type CompletionResult } from "./raw-api.js";
 export { createGenericAdapter, type GenericAdapterConfig, type GenericAdapterDeps } from "./generic.js";
 export { extractJson, compileJsonSchemaValidator } from "./json.js";
+export { parseJsonLine, type StreamTranslator, type TranslatorResult } from "./stream.js";
+export { createClaudeTranslator } from "./claude-stream.js";
+export { createCodexTranslator } from "./codex-stream.js";
+export { createCopilotTranslator } from "./copilot-stream.js";
 
 import type { AgentRunner } from "@workflow/core";
 import type { ProcessRunner } from "./process-runner.js";

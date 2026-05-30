@@ -1,0 +1,6 @@
+{"type":"session.created","model":"claude-sonnet-4-6","session_id":"s1"}
+{"type":"assistant.tool_call","name":"str_replace_editor","arguments":{"path":"a.ts"}}
+{"type":"assistant.message_delta","usage":{"output_tokens":80}}
+{"type":"assistant.tool_call","name":"bash","arguments":{"command":"pnpm test"}}
+{"type":"assistant.turn_end","usage":{"output_tokens":220}}
+{"type":"result","result":"{\"n\": 7}","usage":{"output_tokens":240},"is_error":false}

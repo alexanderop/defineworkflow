@@ -18,7 +18,15 @@ export function createFakeProcessRunner(
       recorded.push(spec);
       const r = responses[spec.command];
       const resolved = typeof r === "function" ? r(spec) : (r ?? {});
-      return { code: resolved.code ?? 0, stdout: resolved.stdout ?? "", stderr: resolved.stderr ?? "" };
+      const stdout = resolved.stdout ?? "";
+      // Drive streaming adapters: replay stdout line-by-line through onLine, matching
+      // the real runner's newline-delimited semantics (trailing newline => no empty line).
+      if (spec.onLine && stdout.length > 0) {
+        const lines = stdout.split("\n");
+        if (lines[lines.length - 1] === "") lines.pop();
+        for (const line of lines) spec.onLine(line);
+      }
+      return { code: resolved.code ?? 0, stdout, stderr: resolved.stderr ?? "" };
     },
     calls: () => recorded,
   };

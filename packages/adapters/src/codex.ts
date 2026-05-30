@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentRunner, AgentRequest, AgentResult, RunCtx, WorkflowError } from "@workflow/core";
 import type { ProcessRunner } from "./process-runner.js";
+import { createCodexTranslator } from "./codex-stream.js";
 import { CAPABILITIES } from "./detect.js";
 
 export interface FileStore {
@@ -40,14 +41,12 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
   return {
     id: "codex",
     capabilities: CAPABILITIES.codex,
-    run: async (req: AgentRequest, _ctx: RunCtx): Promise<Result<AgentResult, WorkflowError>> => {
+    run: async (req: AgentRequest, ctx: RunCtx): Promise<Result<AgentResult, WorkflowError>> => {
       const created: string[] = [];
-      const outPath = await fileStore.writeTemp("codex-out.txt", "");
-      created.push(outPath);
       // YOLO mode: `--full-auto` sandboxes execution (no network), which blocks
       // web research. Bypass approvals and the sandbox so headless agents get full
-      // access — the workflow run is already gated by the CLI consent prompt.
-      const args = ["exec", "--skip-git-repo-check", "-C", req.cwd, "--dangerously-bypass-approvals-and-sandbox", "-o", outPath];
+      // access. `--json` streams events for live progress + final extraction.
+      const args = ["exec", "--json", "--skip-git-repo-check", "-C", req.cwd, "--dangerously-bypass-approvals-and-sandbox"];
       if (req.schema) {
         const schemaPath = await fileStore.writeTemp("codex-schema.json", JSON.stringify(req.schema));
         created.push(schemaPath);
@@ -57,11 +56,21 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
       args.push(req.prompt);
 
       try {
-        const out = await deps.processRunner.run({ command: bin, args, cwd: req.cwd, signal: req.signal });
+        const translator = createCodexTranslator();
+        const out = await deps.processRunner.run({
+          command: bin,
+          args,
+          cwd: req.cwd,
+          signal: req.signal,
+          onLine: (line) => {
+            for (const p of translator.push(line)) ctx.onProgress?.(p);
+          },
+        });
         if (out.code !== 0) {
           return err({ kind: "AdapterSpawn", adapter: "codex", cause: out.stderr || `exit ${out.code}` });
         }
-        const finalMessage = (await fileStore.read(outPath)).trim();
+        const final = translator.result();
+        const finalMessage = final.text.trim();
         let data: unknown;
         if (req.schema) {
           try {
@@ -70,14 +79,17 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
             return err({ kind: "AdapterSpawn", adapter: "codex", cause: "final message was not valid JSON for the schema" });
           }
         }
-        const outputTokens = Math.ceil(finalMessage.length / 4);
-        const result: AgentResult = {
+        // Real usage from turn.completed; fall back to a length estimate only when absent.
+        const reportsTokens = final.usage.outputTokens > 0;
+        const usage = reportsTokens
+          ? { inputTokens: final.usage.inputTokens, outputTokens: final.usage.outputTokens }
+          : { inputTokens: 0, outputTokens: Math.ceil(finalMessage.length / 4), approximate: true };
+        return ok({
           text: finalMessage,
           ...(data !== undefined ? { data } : {}),
-          usage: { inputTokens: 0, outputTokens, approximate: true },
+          usage,
           toolCalls: [],
-        };
-        return ok(result);
+        });
       } finally {
         await fileStore.cleanup(created);
       }

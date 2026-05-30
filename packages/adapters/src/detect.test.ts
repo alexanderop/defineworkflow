@@ -9,6 +9,13 @@ describe("detect", () => {
     expect(CAPABILITIES["raw-api"].reportsTokens).toBe(true);
   });
 
+  it("declares streaming tool events + real token reporting for the CLI harnesses", () => {
+    for (const id of ["claude", "codex", "copilot"] as const) {
+      expect(CAPABILITIES[id].toolEvents).toBe(true);
+      expect(CAPABILITIES[id].reportsTokens).toBe(true);
+    }
+  });
+
   it("detects only the harnesses present on PATH (injected probe)", async () => {
     const present = await detectAdapters({ exists: async (bin) => bin === "codex" });
     expect(present).toContain("codex");

@@ -1,0 +1,7 @@
+{"type":"system","subtype":"init","model":"claude-opus-4-8[1m]","session_id":"abc"}
+{"type":"hook_started","hook":"PreToolUse"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"Let me search."},{"type":"tool_use","name":"WebFetch","input":{"url":"https://alexop.dev"}}],"usage":{"output_tokens":120}}}
+{"type":"user","message":{"content":[{"type":"tool_result","content":"..."}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"WebSearch","input":{"query":"May 2026 posts"}}],"usage":{"output_tokens":340}}}
+{"type":"rate_limit_event","tokens":1}
+{"type":"result","subtype":"success","is_error":false,"result":"{\"n\": 7}","structured_output":{"n":7},"usage":{"input_tokens":10406,"output_tokens":106}}

@@ -10,9 +10,11 @@ export interface Capabilities {
 }
 
 export const CAPABILITIES: Readonly<Record<AdapterId, Capabilities>> = {
-  claude: { nativeSchema: true, reportsTokens: true, toolEvents: false },
-  codex: { nativeSchema: true, reportsTokens: false, toolEvents: false },
-  copilot: { nativeSchema: false, reportsTokens: false, toolEvents: false },
+  // All three CLIs stream tool events; codex/copilot now report real usage from
+  // their turn/result events (replacing the old approximate length estimate).
+  claude: { nativeSchema: true, reportsTokens: true, toolEvents: true },
+  codex: { nativeSchema: true, reportsTokens: true, toolEvents: true },
+  copilot: { nativeSchema: false, reportsTokens: true, toolEvents: true },
   "raw-api": { nativeSchema: true, reportsTokens: true, toolEvents: false },
 };
 

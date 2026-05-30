@@ -5,8 +5,15 @@ import { WorkflowThrow, type WorkflowError } from "./errors.js";
 import type { Semaphore } from "./semaphore.js";
 import type { Journal } from "./journal.js";
 import type { AgentRequest, AgentRunner, WorkflowMeta } from "./types.js";
-import type { WorkflowEvent } from "./events.js";
+import type { AgentProgress, WorkflowEvent } from "./events.js";
 import type { ControlRegistry } from "./control.js";
+
+/** Derive a readable label from a prompt's first non-empty line (truncated), for unlabeled agents. */
+export function labelFromPrompt(prompt: string, max = 48): string {
+  const firstLine = prompt.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
+  if (firstLine === "") return "";
+  return firstLine.length > max ? `${firstLine.slice(0, max - 1)}…` : firstLine;
+}
 
 export interface AgentOptions {
   readonly label?: string;
@@ -67,8 +74,32 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
   const agent = async (prompt: string, opts: AgentOptions = {}): Promise<unknown> => {
     const mySeq = seq++;
     const phase = opts.phase ?? currentPhase;
-    const label = opts.label ?? `agent-${mySeq}`;
+    const label = opts.label ?? (labelFromPrompt(prompt) || `agent-${mySeq}`);
     const key = `${mySeq}:${phase}:${label}`;
+
+    // Live progress sink: tool calls become `agent-tool`; token/model updates become
+    // `agent-progress`, coalesced to ≤1/sec. Tokens are tracked monotonically and the
+    // last seen model is carried into `agent-finished`. The first update always emits
+    // (lastProgressAt seeded to -Infinity).
+    let lastProgressAt = Number.NEGATIVE_INFINITY;
+    let lastModel: string | undefined;
+    let maxTokens = 0;
+    const onProgress = (p: AgentProgress): void => {
+      if (p.tool) deps.emit({ type: "agent-tool", key, tool: p.tool, at: deps.now() });
+      if (p.model !== undefined) lastModel = p.model;
+      if (p.tokens !== undefined) maxTokens = Math.max(maxTokens, p.tokens);
+      if (p.tokens === undefined && p.model === undefined) return;
+      const at = deps.now();
+      if (at - lastProgressAt < 1000) return; // coalesce
+      lastProgressAt = at;
+      deps.emit({
+        type: "agent-progress",
+        key,
+        ...(p.tokens !== undefined ? { tokens: maxTokens } : {}),
+        ...(lastModel !== undefined ? { model: lastModel } : {}),
+        at,
+      });
+    };
 
     deps.emit({ type: "agent-queued", key, label, phase, prompt, at: deps.now() });
 
@@ -154,7 +185,7 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
               ...(opts.agentType ? { agentType: opts.agentType } : {}),
             };
             const runner = opts.adapter ? (deps.resolveRunner?.(opts.adapter) ?? deps.runner) : deps.runner;
-            const result = await runner.run(request, { runId: deps.runId, seq: mySeq });
+            const result = await runner.run(request, { runId: deps.runId, seq: mySeq, onProgress });
 
             if (result.isErr()) {
               if (restart) continue; // restartAgent: re-run with a fresh controller, same key/seq.
@@ -179,7 +210,14 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
             budget.record(res.usage.outputTokens);
             deps.journal.record({ seq: mySeq, key, text: res.text, data: res.data, outputTokens: res.usage.outputTokens });
             deps.emit({ type: "agent-output", key, chunk: res.text, at: deps.now() });
-            deps.emit({ type: "agent-finished", key, usage: res.usage, cached: false, at: deps.now() });
+            deps.emit({
+              type: "agent-finished",
+              key,
+              usage: res.usage,
+              cached: false,
+              ...(lastModel !== undefined ? { model: lastModel } : {}),
+              at: deps.now(),
+            });
             return value;
           } catch (e) {
             if (restart) continue; // restart requested even on a thrown error: re-run.
