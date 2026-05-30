@@ -4,6 +4,17 @@ export { formatError } from "./format-error.js";
 export { truncateRawOutput, MAX_RAW_OUTPUT } from "./raw-output.js";
 export * from "./types.js";
 export * from "./events.js";
+export {
+  selectRunReport,
+  type RunReport,
+  type RunReportStatus,
+  type RunReportTotals,
+  type RunBudgetReport,
+  type PhaseReport,
+  type AgentReport,
+  type AgentReportStatus,
+  type SelectRunReportOptions,
+} from "./report.js";
 export { createBudget, type Budget } from "./budget.js";
 export { createSemaphore, type Semaphore } from "./semaphore.js";
 export { createJournal, type Journal, type JournalEntry } from "./journal.js";

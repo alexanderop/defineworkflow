@@ -90,4 +90,27 @@ describe("startUi (TTY)", () => {
 
     vi.useRealTimers();
   });
+
+  it("renders a static RunReport for an already-finished run instead of the live App", () => {
+    inkMock.frames.length = 0;
+    inkMock.render.mockClear();
+
+    startUi({
+      isTTY: true,
+      initial: [
+        { type: "run-started", runId: "r1", name: "done-run", at: 0 },
+        { type: "agent-queued", key: "k0", label: "writer", phase: "Write", at: 1 },
+        { type: "agent-started", key: "k0", at: 2 },
+        { type: "agent-finished", key: "k0", usage: { inputTokens: 10, outputTokens: 5 }, cached: false, at: 3 },
+        { type: "run-finished", runId: "r1", at: 4 },
+      ],
+      subscribe: () => () => {},
+    });
+
+    const element = inkMock.frames.at(-1);
+    const report = element?.props.report as { name: string; status: string } | undefined;
+    expect(report).toBeDefined();
+    expect(report?.name).toBe("done-run");
+    expect(report?.status).toBe("finished");
+  });
 });

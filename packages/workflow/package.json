@@ -28,7 +28,7 @@
   },
   "type": "module",
   "bin": {
-    "defineworkflow": "./bin/defineworkflow.js"
+    "defineworkflow": "bin/defineworkflow.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -64,14 +64,5 @@
     "neverthrow": "^8.1.0",
     "react": "^18.3.1",
     "zod": "^4.0.0"
-  },
-  "devDependencies": {
-    "@workflow/adapters": "workspace:*",
-    "@workflow/cli": "workspace:*",
-    "@workflow/core": "workspace:*",
-    "@workflow/schema": "workspace:*",
-    "@workflow/ui": "workspace:*",
-    "tsup": "^8.3.0",
-    "typescript": "^5.6.0"
   }
 }

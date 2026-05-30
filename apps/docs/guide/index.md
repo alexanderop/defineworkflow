@@ -12,6 +12,32 @@ throttles how many agents run at once).
 > You don't call models directly. You describe orchestration; the engine runs your script inside a
 > sandbox and hands it a `Runtime` of primitives.
 
+## Why a separate engine?
+
+Most agent orchestration today is welded to a single vendor's coding agent: you get the orchestration
+only if you commit to that one model and that one CLI. **workflow** inverts that — the engine is the
+constant, and the *harness is a choice*. The same script, the same `agent()` / `parallel()` /
+`pipeline()` calls, runs on the Claude CLI, the Codex CLI, the Copilot CLI, or the raw Anthropic API.
+Change one line — `meta.harness` — and nothing else moves.
+
+And you don't have to pick just one. A single run can **combine harnesses**: declare a default in
+`meta.harness`, then send individual agents to a different backend per call with the `adapter` option.
+
+```ts
+phase("Generate")
+const draft = await agent("Write the migration.", { schema: PATCH })   // runs on meta.harness
+
+phase("Review")
+const review = await agent("Audit this patch for regressions.", {
+  adapter: "codex",                                                    // ← this one runs on Codex
+  schema: VERDICT,
+})
+```
+
+Use the model that's best (or cheapest) for each step, cross-check one harness's output against
+another, or route around whatever isn't installed — all inside one deterministic, journaled run. No
+lock-in to a single agent vendor.
+
 ## The mental model
 
 <RoughDiagram
@@ -81,8 +107,10 @@ export default defineWorkflow({
 
 Two things make this honest engineering rather than a prompt toy:
 
-- **`meta.harness` is the single source of truth** for which backend runs — there is no auto-detect
-  and no CLI override. The phases are seeded up front so the UI shows the whole pipeline before it runs.
+- **`meta.harness` sets the default backend** — there is no auto-detect and no CLI override of it,
+  though any single `agent()` call can opt into a different `adapter` (see [Why a separate
+  engine?](#why-a-separate-engine)). The phases are seeded up front so the UI shows the whole pipeline
+  before it runs.
 - **The script must be deterministic.** That's enforced by the [sandbox](/guide/sandbox): `Date.now()`,
   `Math.random()`, and argless `new Date()` are hard-banned, because replay depends on the same calls
   happening in the same order.

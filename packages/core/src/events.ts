@@ -23,7 +23,7 @@ export interface AgentUsage {
 }
 
 export type WorkflowEvent =
-  | { readonly type: "run-started"; readonly runId: string; readonly name: string; readonly at: number }
+  | { readonly type: "run-started"; readonly runId: string; readonly name: string; readonly budgetTotal?: number | null; readonly at: number }
   | { readonly type: "phase-started"; readonly phase: string; readonly at: number }
   | { readonly type: "agent-queued"; readonly key: string; readonly label: string; readonly phase: string; readonly prompt?: string; readonly at: number }
   | { readonly type: "agent-started"; readonly key: string; readonly at: number }
@@ -45,7 +45,17 @@ export interface AgentState {
   readonly resultText: string;
   readonly status: AgentStatus;
   readonly tokens: number;
+  /** Input tokens reported at agent-finished (0 for cached replays). */
+  readonly inputTokens: number;
+  /** Output tokens reported at agent-finished. */
+  readonly outputTokens: number;
+  /** True when the result was replayed from the journal rather than freshly spawned. */
+  readonly cached: boolean;
+  /** Set when the harness reported the usage figures as an estimate. */
+  readonly approximate?: boolean;
   readonly tools: readonly ToolEvent[];
+  /** Wall-clock of agent-queued (ms); with startedAt yields the time spent waiting on the semaphore. */
+  readonly queuedAt?: number;
   /** Wall-clock of agent-started (ms). */
   readonly startedAt?: number;
   /** Wall-clock of agent-finished/agent-failed (ms). */
@@ -64,6 +74,8 @@ export interface PhaseState {
   readonly done: number;
   readonly running: number;
   readonly tokens: number;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
 }
 
 export interface RunState {
@@ -73,6 +85,10 @@ export interface RunState {
   readonly phases: ReadonlyMap<string, PhaseState>;
   readonly agents: ReadonlyMap<string, AgentState>;
   readonly totalTokens: number;
+  readonly totalInputTokens: number;
+  readonly totalOutputTokens: number;
+  /** The run's configured budget cap (output tokens), or null when unbounded; from run-started. */
+  readonly budgetTotal?: number | null;
   readonly logs: readonly string[];
   /** Wall-clock of run-started (ms); drives the header's run elapsed. */
   readonly startedAt?: number;
@@ -88,6 +104,8 @@ export function initialRunState(): RunState {
     phases: new Map(),
     agents: new Map(),
     totalTokens: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
     logs: [],
   };
 }
@@ -98,7 +116,7 @@ function upsertPhase(
   patch: (p: PhaseState) => PhaseState,
 ): Map<string, PhaseState> {
   const next = new Map(phases);
-  const current = next.get(title) ?? { title, total: 0, done: 0, running: 0, tokens: 0 };
+  const current = next.get(title) ?? { title, total: 0, done: 0, running: 0, tokens: 0, inputTokens: 0, outputTokens: 0 };
   next.set(title, patch(current));
   return next;
 }
@@ -106,7 +124,14 @@ function upsertPhase(
 export function reduce(state: RunState, event: WorkflowEvent): RunState {
   switch (event.type) {
     case "run-started":
-      return { ...state, runId: event.runId, name: event.name, status: "running", startedAt: event.at };
+      return {
+        ...state,
+        runId: event.runId,
+        name: event.name,
+        status: "running",
+        startedAt: event.at,
+        ...(event.budgetTotal !== undefined ? { budgetTotal: event.budgetTotal } : {}),
+      };
     case "phase-started":
       return { ...state, phases: upsertPhase(state.phases, event.phase, (p) => p) };
     case "agent-queued": {
@@ -119,7 +144,11 @@ export function reduce(state: RunState, event: WorkflowEvent): RunState {
         resultText: "",
         status: "queued",
         tokens: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cached: false,
         tools: [],
+        queuedAt: event.at,
       });
       return {
         ...state,
@@ -168,24 +197,33 @@ export function reduce(state: RunState, event: WorkflowEvent): RunState {
     case "agent-finished": {
       const a = state.agents.get(event.key);
       if (!a) return state;
-      const tokens = event.usage.inputTokens + event.usage.outputTokens;
+      const { inputTokens, outputTokens } = event.usage;
+      const tokens = inputTokens + outputTokens;
       const agents = new Map(state.agents);
       agents.set(event.key, {
         ...a,
         status: "done",
         tokens,
+        inputTokens,
+        outputTokens,
+        cached: event.cached,
         endedAt: event.at,
+        ...(event.usage.approximate ? { approximate: true } : {}),
         ...(event.model !== undefined ? { model: event.model } : {}),
       });
       return {
         ...state,
         agents,
         totalTokens: state.totalTokens + tokens,
+        totalInputTokens: state.totalInputTokens + inputTokens,
+        totalOutputTokens: state.totalOutputTokens + outputTokens,
         phases: upsertPhase(state.phases, a.phase, (p) => ({
           ...p,
           done: p.done + 1,
           running: Math.max(0, p.running - (event.cached ? 0 : 1)),
           tokens: p.tokens + tokens,
+          inputTokens: p.inputTokens + inputTokens,
+          outputTokens: p.outputTokens + outputTokens,
         })),
       };
     }

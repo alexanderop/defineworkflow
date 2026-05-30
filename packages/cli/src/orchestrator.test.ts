@@ -51,6 +51,18 @@ describe("runWorkflow", () => {
     expect(reg.readJournal("demo-1")._unsafeUnwrap()).toHaveLength(2);
   });
 
+  it("carries budgetTotal onto the run-started event so a finished run can show the budget line", async () => {
+    const { reg, emit } = wire("demo-b");
+    const runner = createScriptedRunner({ a: { text: "A" }, b: { text: "B" } });
+    await runWorkflow({
+      source: SCRIPT, args: {}, runner, runId: "demo-b", cwd: "/tmp",
+      concurrency: 4, maxAgents: 1000, budgetTotal: 500_000,
+      journal: reg.persistentJournal("demo-b", []), emit, now: () => 0,
+    });
+    const started = reg.readEvents("demo-b").find((e) => e.type === "run-started");
+    expect(started).toMatchObject({ type: "run-started", budgetTotal: 500_000 });
+  });
+
   it("seeds all declared meta.phases as phase-started events before the script reaches them", async () => {
     // Script declares three phases but only ever calls phase("Research") — the later
     // phase() calls would run after a long await, so without seeding the UI would only

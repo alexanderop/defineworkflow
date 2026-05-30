@@ -13,9 +13,10 @@ interface AgentRunner {
 }
 ```
 
-The harness is **declared in `meta.harness`** and is the single source of truth — there is no
-auto-detect and no CLI/config override. `adapter-select.ts` resolves that declaration to a concrete
-adapter instance.
+The harness is **declared in `meta.harness`** as the run's default backend — there is no auto-detect
+and no CLI/config override of it, though individual `agent()` calls can target a different `adapter`
+(see [below](#combining-harnesses-in-one-run)). `adapter-select.ts` resolves the declaration to a
+concrete adapter instance.
 
 ## The four backends
 
@@ -29,6 +30,22 @@ adapter instance.
 Because schema support differs per backend, `coercion.ts` (`runWithSchemaRetry`) and `json.ts`
 (`extractJson` + an AJV validator) normalize and repair model output with retries before it's handed
 back to the runtime for the final zod validation.
+
+## Combining harnesses in one run
+
+`meta.harness` sets the **default** backend, but a single `agent()` call can override it with the
+`adapter` option — so one workflow can fan work across several harnesses at once:
+
+```ts
+await agent("Draft the change.", { schema: PATCH })                  // → meta.harness default
+await agent("Review it.", { adapter: "codex", schema: VERDICT })     // → this call runs on Codex
+```
+
+At run time the engine looks that id up in a memoised runner map — `buildRunnerMap` builds one runner
+per detected harness, plus `raw-api` — and falls back to the run default if the requested adapter
+isn't available, rather than failing. That's what lets you spend the strongest model only where it
+pays off, have one harness adversarially check another's output, or keep running when a CLI is
+missing — all in the same deterministic, journaled run.
 
 ## Capabilities
 

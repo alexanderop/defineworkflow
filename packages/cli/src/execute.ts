@@ -1,5 +1,6 @@
-import { assertNever, createControlRegistry } from "@workflow/core";
-import type { AgentRunner, JournalEntry, WorkflowEvent } from "@workflow/core";
+import { assertNever, createControlRegistry, initialRunState, reduce, selectRunReport } from "@workflow/core";
+import type { AgentRunner, JournalEntry, RunReportStatus, WorkflowEvent } from "@workflow/core";
+import { renderReportText } from "@workflow/ui";
 import type { AppDeps } from "./app.js";
 import { buildRunnerMap } from "./adapter-select.js";
 import { effectiveConcurrency, effectiveMaxAgents } from "./config.js";
@@ -53,6 +54,18 @@ function emitArtifacts(deps: AppDeps, run: RunResult): void {
     const names = writeArtifacts(set, dir, deps.writeTextFile);
     deps.print(`\nartifacts → ${dir} (${names.join(", ")})\n`);
   }
+}
+
+/** Map a persisted run status to the report's coarser run status. */
+function reportStatus(status: RunStatus): RunReportStatus {
+  return status === "finished" ? "finished" : "failed";
+}
+
+/** Print the end-of-run report, projected from the persisted event stream. */
+function printReport(deps: AppDeps, runId: string, status: RunStatus): void {
+  const state = deps.registry.readEvents(runId).reduce(reduce, initialRunState());
+  const report = selectRunReport(state, { status: reportStatus(status) });
+  deps.print(`\n${renderReportText(report)}\n`);
 }
 
 /** Run with the live Ink UI attached (run + resume foreground). Returns a process exit code. */
@@ -132,9 +145,11 @@ export async function runForeground(deps: AppDeps, params: ExecuteParams): Promi
 
   if (result.isErr()) {
     deps.print(`run ${status}: ${formatError(result.error)}\n`);
+    printReport(deps, params.runId, status);
     return 1;
   }
   emitArtifacts(deps, result.value);
+  printReport(deps, params.runId, status);
   return 0;
 }
 
