@@ -38,9 +38,17 @@ describe("selectors", () => {
   });
 
   it("runElapsedMs / agentElapsedMs use injected now (live) and freeze when ended", () => {
-    expect(runElapsedMs(state, 200)).toBe(100);
+    expect(runElapsedMs(state, 200)).toBe(100); // running: now - startedAt
     expect(agentElapsedMs(agent, 9999)).toBe(160 - 135); // frozen at endedAt
     expect(runElapsedMs(initialRunState(), 5)).toBe(0);
+  });
+
+  it("runElapsedMs freezes at run-finished for a finished/watched run, ignoring live now", () => {
+    const finished = ([
+      { type: "run-started", runId: "r", name: "d", at: 1000 },
+      { type: "run-finished", runId: "r", at: 4000 },
+    ] satisfies WorkflowEvent[]).reduce(reduce, initialRunState());
+    expect(runElapsedMs(finished, 9_999_999)).toBe(3000); // not now - startedAt
   });
 
   it("humanizeTool previews the first arg, special-cases StructuredOutput and arg-less tools", () => {

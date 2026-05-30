@@ -52,8 +52,11 @@ export function createCopilotAdapter(deps: CopilotAdapterDeps): AgentRunner {
               throw new Error("copilot spawn failed");
             }
             const final = translator.result();
-            const data = req.schema ? extractJson(final.text) : undefined;
-            return { text: final.text, data, usage: { inputTokens: final.usage.inputTokens, outputTokens: final.usage.outputTokens } };
+            // Fall back to raw stdout when the stream carried no `result` event, so a
+            // valid answer that ended at turn_end is still extracted (old plain-text path).
+            const text = final.text !== "" ? final.text : out.stdout;
+            const data = req.schema ? extractJson(text) : undefined;
+            return { text, data, usage: { inputTokens: final.usage.inputTokens, outputTokens: final.usage.outputTokens } };
           },
         });
       } catch (e) {
@@ -62,10 +65,16 @@ export function createCopilotAdapter(deps: CopilotAdapterDeps): AgentRunner {
       }
       if (result.isErr()) return err(result.error);
       const r = result.value;
+      // If the stream reported no usage, mark the length-based estimate approximate
+      // rather than surfacing an unreliable exact zero.
+      const usage =
+        r.usage.outputTokens > 0
+          ? r.usage
+          : { inputTokens: 0, outputTokens: Math.ceil(r.text.length / 4), approximate: true };
       return ok({
         text: r.text,
         ...(r.data !== undefined ? { data: r.data } : {}),
-        usage: r.usage,
+        usage,
         toolCalls: [],
       });
     },

@@ -58,8 +58,13 @@ export function createCodexTranslator(): StreamTranslator {
       }
 
       if (type === "turn.completed") {
+        // Accumulate across turns: a multi-turn run emits one turn.completed per turn,
+        // each carrying that turn's usage. Overwriting would undercount total spend.
         const u = ev.usage as { input_tokens?: number; output_tokens?: number } | undefined;
-        usage = { inputTokens: u?.input_tokens ?? 0, outputTokens: u?.output_tokens ?? 0 };
+        usage = {
+          inputTokens: usage.inputTokens + (u?.input_tokens ?? 0),
+          outputTokens: usage.outputTokens + (u?.output_tokens ?? 0),
+        };
         return usage.outputTokens > 0 ? [model !== undefined ? { tokens: usage.outputTokens, model } : { tokens: usage.outputTokens }] : [];
       }
 

@@ -18,7 +18,8 @@ describe("claude stream translator", () => {
 
     expect(progress.find((p) => p.model)?.model).toBe("claude-opus-4-8[1m]");
     expect(progress.filter((p) => p.tool).map((p) => p.tool!.name)).toEqual(["WebFetch", "WebSearch"]);
-    expect(progress.filter((p) => p.tokens !== undefined).map((p) => p.tokens)).toEqual([120, 340]);
+    // Cumulative across assistant messages: 120, then 120+340.
+    expect(progress.filter((p) => p.tokens !== undefined).map((p) => p.tokens)).toEqual([120, 460]);
 
     const final = t.result();
     expect(final.text).toBe('{"n": 7}');

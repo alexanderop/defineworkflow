@@ -25,6 +25,17 @@ describe("codex stream translator", () => {
     expect(final.usage).toEqual({ inputTokens: 2048, outputTokens: 256 });
   });
 
+  it("accumulates usage across multiple turn.completed events", () => {
+    const t = createCodexTranslator();
+    const progress = drive(
+      t,
+      '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":100}}\n' +
+        '{"type":"turn.completed","usage":{"input_tokens":5,"output_tokens":150}}',
+    );
+    expect(progress.filter((p) => p.tokens !== undefined).map((p) => p.tokens)).toEqual([100, 250]);
+    expect(t.result().usage).toEqual({ inputTokens: 15, outputTokens: 250 });
+  });
+
   it("skips thread/turn noise and non-tool items", () => {
     const t = createCodexTranslator();
     expect(t.push('{"type":"turn.started"}')).toEqual([]);

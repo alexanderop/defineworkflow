@@ -69,6 +69,17 @@ describe("event reducer", () => {
     expect(state.agents.get("0")?.liveTokens).toBe(300);
   });
 
+  it("records run endedAt from run-finished", () => {
+    const events: WorkflowEvent[] = [
+      { type: "run-started", runId: "r", name: "d", at: 1000 },
+      { type: "run-finished", runId: "r", at: 4000 },
+    ];
+    const state = events.reduce(reduce, initialRunState());
+    expect(state.startedAt).toBe(1000);
+    expect(state.endedAt).toBe(4000);
+    expect(state.status).toBe("finished");
+  });
+
   it("sets endedAt on agent-failed", () => {
     const events: WorkflowEvent[] = [
       { type: "agent-queued", key: "0", label: "a", phase: "P", at: 0 },

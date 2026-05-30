@@ -9,9 +9,11 @@ export function agentsInPhase(state: RunState, phase: string): readonly AgentSta
   return [...state.agents.values()].filter((a) => a.phase === phase);
 }
 
-/** Wall-clock ms since the run started, or 0 before it has. */
+/** Run elapsed ms: live (now − startedAt) while running, frozen at run-finished after. */
 export function runElapsedMs(state: RunState, now: number): number {
-  return state.startedAt === undefined ? 0 : Math.max(0, now - state.startedAt);
+  if (state.startedAt === undefined) return 0;
+  const end = state.endedAt ?? now;
+  return Math.max(0, end - state.startedAt);
 }
 
 /** Ms an agent has been (or was) running: live while running, frozen once ended. */

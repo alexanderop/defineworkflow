@@ -46,11 +46,15 @@ export function App({ events, adapter, description, detailRows = 12, onAction, a
   const detailTotal = selectedAgent ? detailSections(selectedAgent, now, nav.expanded).length : 1;
 
   // Latest values for the input handler, kept in refs to avoid stale closures.
+  // DetailPane reserves one row for the scroll indicator when content overflows, so
+  // its visible content budget is detailRows-1 in that case. maxScroll must match, or
+  // the final line is never scrollable into view.
+  const detailVisibleRows = detailTotal > detailRows ? detailRows - 1 : detailRows;
   const ctxRef = useRef<NavCtx>({ phaseCount: 0, agentCount: 0, maxScroll: 0 });
   ctxRef.current = {
     phaseCount: phases.length,
     agentCount: agents.length,
-    maxScroll: Math.max(0, detailTotal - detailRows),
+    maxScroll: Math.max(0, detailTotal - detailVisibleRows),
   };
   const navRef = useRef(nav);
   navRef.current = nav;

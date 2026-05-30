@@ -20,6 +20,7 @@ export function createClaudeTranslator(): StreamTranslator {
   let text = "";
   let structuredOutput: unknown;
   let usage = { inputTokens: 0, outputTokens: 0 };
+  let cumulativeOutput = 0; // running total across assistant messages, for live tokens
   let isError = false;
   let errorMessage: string | undefined;
 
@@ -47,8 +48,14 @@ export function createClaudeTranslator(): StreamTranslator {
             out.push({ tool });
           }
         }
+        // Each assistant message reports its own output_tokens; sum them so the live
+        // `tokens` is the cumulative count the contract promises (final usage still
+        // comes authoritatively from the `result` event).
         const tokens = message?.usage?.output_tokens;
-        if (typeof tokens === "number") out.push(model !== undefined ? { tokens, model } : { tokens });
+        if (typeof tokens === "number") {
+          cumulativeOutput += tokens;
+          out.push(model !== undefined ? { tokens: cumulativeOutput, model } : { tokens: cumulativeOutput });
+        }
         return out;
       }
 

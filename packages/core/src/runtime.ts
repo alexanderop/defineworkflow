@@ -92,10 +92,12 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       const at = deps.now();
       if (at - lastProgressAt < 1000) return; // coalesce
       lastProgressAt = at;
+      // Always carry the best-known token count (not just when this update had one),
+      // so a model-only update still flushes any tokens coalesced since the last emit.
       deps.emit({
         type: "agent-progress",
         key,
-        ...(p.tokens !== undefined ? { tokens: maxTokens } : {}),
+        ...(maxTokens > 0 ? { tokens: maxTokens } : {}),
         ...(lastModel !== undefined ? { model: lastModel } : {}),
         at,
       });

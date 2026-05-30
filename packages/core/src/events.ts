@@ -73,6 +73,8 @@ export interface RunState {
   readonly logs: readonly string[];
   /** Wall-clock of run-started (ms); drives the header's run elapsed. */
   readonly startedAt?: number;
+  /** Wall-clock of run-finished (ms); freezes elapsed for finished/replayed runs. */
+  readonly endedAt?: number;
 }
 
 export function initialRunState(): RunState {
@@ -198,6 +200,6 @@ export function reduce(state: RunState, event: WorkflowEvent): RunState {
     case "log":
       return { ...state, logs: [...state.logs, event.message] };
     case "run-finished":
-      return { ...state, status: "finished" };
+      return { ...state, status: "finished", endedAt: event.at };
   }
 }
