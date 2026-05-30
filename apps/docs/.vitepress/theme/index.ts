@@ -11,6 +11,7 @@ import SemaphoreViz from "./components/SemaphoreViz.vue";
 import ParallelPipeline from "./components/ParallelPipeline.vue";
 import EventStream from "./components/EventStream.vue";
 import SandboxWidget from "./components/SandboxWidget.vue";
+import WorkflowTui from "./components/WorkflowTui.vue";
 
 import RoughDiagram from "./components/rough/RoughDiagram.vue";
 import RoughCanvas from "./components/rough/RoughCanvas.vue";
@@ -31,6 +32,7 @@ export default {
     app.component("ParallelPipeline", ParallelPipeline);
     app.component("EventStream", EventStream);
     app.component("SandboxWidget", SandboxWidget);
+    app.component("WorkflowTui", WorkflowTui);
     app.component("RoughDiagram", RoughDiagram);
     app.component("RoughCanvas", RoughCanvas);
     app.component("RoughBox", RoughBox);

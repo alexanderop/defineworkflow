@@ -50,7 +50,7 @@ missing — all in the same deterministic, journaled run.
 ## Capabilities
 
 `detect.ts` probes `PATH` for available CLIs and declares each adapter's capability flags — native
-schema support, token reporting, tool events. `workflow adapters` prints what's detected on your
+schema support, token reporting, tool events. `defineworkflow adapters` prints what's detected on your
 machine.
 
 ## Process spawning is injected

@@ -29,7 +29,7 @@ const v = computed(() => CASES.find((c) => c.id === sel.value)!);
     </div>
 
     <div class="console">
-      <div class="ln mut">$ workflow run my.workflow.ts</div>
+      <div class="ln mut">$ defineworkflow run my.workflow.ts</div>
       <div class="ln"><span class="mut">›</span><span class="ink">{{ v.code }}</span></div>
       <div class="ln">
         <span v-if="v.err" class="err">✗ {{ v.err }}</span>

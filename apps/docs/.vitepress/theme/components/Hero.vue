@@ -12,7 +12,7 @@ const agents = [0, 1, 2, 3, 4];
       <div class="left">
         <div class="wf-eyebrow">deterministic · crash-safe · harness-agnostic</div>
         <h1 class="title">
-          workflow<span class="comma">,</span><br />
+          defineworkflow<span class="comma">,</span><br />
           <span class="glow">under the hood</span>
         </h1>
         <p class="sub">

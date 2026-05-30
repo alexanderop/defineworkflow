@@ -1,9 +1,9 @@
-# What is workflow?
+# What is defineworkflow?
 
 <p class="wf-eyebrow">deterministic multi-agent workflow engine</p>
 
-**workflow** is a deterministic, crash-safe engine for orchestrating coding agents. A *workflow* is a
-TypeScript file — no DSL, no YAML — that imports from the `workflow` package and exports a
+**defineworkflow** is a deterministic, crash-safe engine for orchestrating coding agents. A *workflow* is a
+TypeScript file — no DSL, no YAML — that imports from the `defineworkflow` package and exports a
 `defineWorkflow({ ..., run() })`, calling a handful of primitives to fan work out across agents and
 fold the results back together. The engine makes that workflow **durable** (every result is journaled
 and replayable), **observable** (a typed event stream drives the UI), and **concurrent** (a semaphore
@@ -15,7 +15,7 @@ throttles how many agents run at once).
 ## Why a separate engine?
 
 Most agent orchestration today is welded to a single vendor's coding agent: you get the orchestration
-only if you commit to that one model and that one CLI. **workflow** inverts that — the engine is the
+only if you commit to that one model and that one CLI. **defineworkflow** inverts that — the engine is the
 constant, and the *harness is a choice*. The same script, the same `agent()` / `parallel()` /
 `pipeline()` calls, runs on the Claude CLI, the Codex CLI, the Copilot CLI, or the raw Anthropic API.
 Change one line — `meta.harness` — and nothing else moves.
