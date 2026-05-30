@@ -7,6 +7,7 @@ export { createJournal, type Journal, type JournalEntry } from "./journal.js";
 export { runInSandbox, extractMeta, transformScript, type SandboxResult } from "./sandbox.js";
 export {
   createRuntime,
+  labelFromPrompt,
   type Runtime,
   type RuntimeDeps,
   type AgentOptions,

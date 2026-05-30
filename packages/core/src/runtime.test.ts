@@ -219,3 +219,69 @@ describe("makeIsolatedCwd: worktree isolation hook", () => {
     expect(makeIsolatedCwd).not.toHaveBeenCalled();
   });
 });
+
+describe("runtime.agent progress + labels", () => {
+  // A runner that drives ctx.onProgress with a scripted sequence before resolving.
+  function progressRunner(updates: ReadonlyArray<Parameters<NonNullable<RunCtx["onProgress"]>>[0]>): AgentRunner {
+    return {
+      id: "p",
+      capabilities: { nativeSchema: true, reportsTokens: true, toolEvents: true },
+      run: async (_req: AgentRequest, ctx: RunCtx) => {
+        for (const u of updates) ctx.onProgress?.(u);
+        return ok<AgentResult>({ text: "done", usage: { inputTokens: 0, outputTokens: 1 }, toolCalls: [] });
+      },
+    };
+  }
+
+  function progressHarness(runner: AgentRunner, now: () => number) {
+    const events: WorkflowEvent[] = [];
+    const rt = createRuntime({
+      runner,
+      semaphore: createSemaphore(8),
+      journal: createJournal(),
+      maxAgents: 1000,
+      budgetTotal: null,
+      args: {},
+      cwd: "/tmp",
+      runId: "r1",
+      emit: (e) => events.push(e),
+      now,
+    });
+    return { rt, events };
+  }
+
+  it("emits agent-tool per tool call observed via onProgress", async () => {
+    const runner = progressRunner([{ tool: { name: "WebFetch", input: { url: "x" } } }, { tool: { name: "WebSearch" } }]);
+    const { rt, events } = progressHarness(runner, () => 0);
+    await rt.agent("p", { label: "a" });
+    const tools = events.filter((e) => e.type === "agent-tool");
+    expect(tools.map((t) => (t as { tool: { name: string } }).tool.name)).toEqual(["WebFetch", "WebSearch"]);
+  });
+
+  it("coalesces token/model progress to <=1/sec and carries model into agent-finished", async () => {
+    let clock = 0;
+    // first update at t=0 (emits), second at t=500 (dropped), third at t=1500 (emits)
+    const times = [0, 500, 1500, 2000];
+    const now = () => times[clock++] ?? 9999;
+    const runner = progressRunner([
+      { tokens: 100, model: "claude-opus-4-8[1m]" },
+      { tokens: 200 },
+      { tokens: 300 },
+    ]);
+    const { rt, events } = progressHarness(runner, now);
+    await rt.agent("p", { label: "a" });
+    const progress = events.filter((e) => e.type === "agent-progress") as Array<{ tokens?: number; model?: string }>;
+    expect(progress.length).toBe(2);
+    expect(progress[0]).toMatchObject({ tokens: 100, model: "claude-opus-4-8[1m]" });
+    expect(progress[1]?.tokens).toBe(300);
+    const finished = events.find((e) => e.type === "agent-finished") as { model?: string };
+    expect(finished.model).toBe("claude-opus-4-8[1m]");
+  });
+
+  it("derives an agent label from the prompt's first non-empty line when unlabeled", async () => {
+    const { rt, events } = progressHarness(progressRunner([]), () => 0);
+    await rt.agent("\n  Use the WebFetch tool to gather posts\nmore detail here");
+    const queued = events.find((e) => e.type === "agent-queued") as { label: string };
+    expect(queued.label).toBe("Use the WebFetch tool to gather posts");
+  });
+});

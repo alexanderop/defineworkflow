@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatTokens, formatElapsed, statusGlyph, SPINNER_FRAMES } from "./format.js";
+import { formatTokens, formatElapsed, formatDuration, formatModel, statusGlyph, SPINNER_FRAMES } from "./format.js";
 
 describe("formatTokens", () => {
   it("passes through small counts and abbreviates thousands/decimals", () => {
@@ -16,6 +16,28 @@ describe("formatElapsed", () => {
     expect(formatElapsed(5000)).toBe("5s");
     expect(formatElapsed(161000)).toBe("2m41s");
     expect(formatElapsed(600000)).toBe("10m00s");
+  });
+});
+
+describe("formatDuration", () => {
+  it("renders Ns under a minute and m:ss at/above one", () => {
+    expect(formatDuration(0)).toBe("0s");
+    expect(formatDuration(21000)).toBe("21s");
+    expect(formatDuration(59999)).toBe("59s");
+    expect(formatDuration(60000)).toBe("1:00");
+    expect(formatDuration(161000)).toBe("2:41");
+  });
+});
+
+describe("formatModel", () => {
+  it("maps known claude ids to friendly names with context note", () => {
+    expect(formatModel("claude-opus-4-8[1m]")).toBe("Opus 4.8 (1M context)");
+    expect(formatModel("claude-sonnet-4-6")).toBe("Sonnet 4.6");
+    expect(formatModel("claude-haiku-4-5")).toBe("Haiku 4.5");
+  });
+  it("falls back to the raw id for unknown models and the empty string", () => {
+    expect(formatModel("gpt-5-codex")).toBe("gpt-5-codex");
+    expect(formatModel("")).toBe("");
   });
 });
 

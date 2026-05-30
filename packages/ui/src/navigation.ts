@@ -5,6 +5,8 @@ export interface NavState {
   readonly phaseIndex: number;
   readonly agentIndex: number;
   readonly scroll: number;
+  /** Whether the detail pane's Prompt section is expanded (⏎ toggles). */
+  readonly expanded: boolean;
 }
 
 export type NavAction =
@@ -14,7 +16,8 @@ export type NavAction =
   | { readonly type: "right" }
   | { readonly type: "esc" }
   | { readonly type: "scrollUp" }
-  | { readonly type: "scrollDown" };
+  | { readonly type: "scrollDown" }
+  | { readonly type: "toggleExpand" };
 
 export interface NavCtx {
   readonly phaseCount: number;
@@ -22,17 +25,17 @@ export interface NavCtx {
   readonly maxScroll: number;
 }
 
-export const initialNav: NavState = { focus: "phases", phaseIndex: 0, agentIndex: 0, scroll: 0 };
+export const initialNav: NavState = { focus: "phases", phaseIndex: 0, agentIndex: 0, scroll: 0, expanded: false };
 
 const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n));
 
 // Move the selection cursor by `delta` within the focused column, clamping to
-// its bounds. Changing the phase resets the agent selection and detail scroll.
+// its bounds. Changing the phase/agent resets detail scroll + prompt expansion.
 function move(state: NavState, ctx: NavCtx, delta: number): NavState {
   if (state.focus === "phases")
-    return { ...state, phaseIndex: clamp(state.phaseIndex + delta, 0, Math.max(0, ctx.phaseCount - 1)), agentIndex: 0, scroll: 0 };
+    return { ...state, phaseIndex: clamp(state.phaseIndex + delta, 0, Math.max(0, ctx.phaseCount - 1)), agentIndex: 0, scroll: 0, expanded: false };
   if (state.focus === "agents")
-    return { ...state, agentIndex: clamp(state.agentIndex + delta, 0, Math.max(0, ctx.agentCount - 1)), scroll: 0 };
+    return { ...state, agentIndex: clamp(state.agentIndex + delta, 0, Math.max(0, ctx.agentCount - 1)), scroll: 0, expanded: false };
   return state;
 }
 
@@ -56,5 +59,7 @@ export function navReducer(state: NavState, action: NavAction, ctx: NavCtx): Nav
       return { ...state, scroll: clamp(state.scroll - 1, 0, ctx.maxScroll) };
     case "scrollDown":
       return { ...state, scroll: clamp(state.scroll + 1, 0, ctx.maxScroll) };
+    case "toggleExpand":
+      return { ...state, expanded: !state.expanded, scroll: 0 };
   }
 }

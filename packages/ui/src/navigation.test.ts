@@ -5,7 +5,7 @@ const ctx: NavCtx = { phaseCount: 3, agentCount: 5, maxScroll: 4 };
 
 describe("navReducer", () => {
   it("starts focused on phases at index 0", () => {
-    expect(initialNav).toEqual({ focus: "phases", phaseIndex: 0, agentIndex: 0, scroll: 0 });
+    expect(initialNav).toEqual({ focus: "phases", phaseIndex: 0, agentIndex: 0, scroll: 0, expanded: false });
   });
 
   it("down/up move and clamp the phase selection while focused on phases", () => {
@@ -18,8 +18,8 @@ describe("navReducer", () => {
   });
 
   it("changing the phase resets agent selection and scroll", () => {
-    const moved = navReducer({ focus: "phases", phaseIndex: 0, agentIndex: 3, scroll: 2 }, { type: "down" }, ctx);
-    expect(moved).toMatchObject({ phaseIndex: 1, agentIndex: 0, scroll: 0 });
+    const moved = navReducer({ focus: "phases", phaseIndex: 0, agentIndex: 3, scroll: 2, expanded: true }, { type: "down" }, ctx);
+    expect(moved).toMatchObject({ phaseIndex: 1, agentIndex: 0, scroll: 0, expanded: false });
   });
 
   it("right/left move focus across columns; esc jumps back to phases", () => {
@@ -35,7 +35,7 @@ describe("navReducer", () => {
   });
 
   it("down/up move and clamp the agent selection while focused on agents", () => {
-    const onAgents = { focus: "agents" as const, phaseIndex: 0, agentIndex: 0, scroll: 0 };
+    const onAgents = { focus: "agents" as const, phaseIndex: 0, agentIndex: 0, scroll: 0, expanded: false };
     expect(navReducer(onAgents, { type: "down" }, ctx).agentIndex).toBe(1);
     const last = [...Array(10)].reduce((s) => navReducer(s, { type: "down" }, ctx), onAgents);
     expect(last.agentIndex).toBe(4); // clamped at agentCount - 1
@@ -47,5 +47,12 @@ describe("navReducer", () => {
     const max = [...Array(10)].reduce((s) => navReducer(s, { type: "scrollDown" }, ctx), initialNav);
     expect(max.scroll).toBe(4); // clamped at maxScroll
     expect(navReducer(initialNav, { type: "scrollUp" }, ctx).scroll).toBe(0); // clamped at 0
+  });
+
+  it("toggleExpand flips the prompt-expand flag and resets scroll", () => {
+    const expanded = navReducer({ ...initialNav, scroll: 3 }, { type: "toggleExpand" }, ctx);
+    expect(expanded.expanded).toBe(true);
+    expect(expanded.scroll).toBe(0);
+    expect(navReducer(expanded, { type: "toggleExpand" }, ctx).expanded).toBe(false);
   });
 });

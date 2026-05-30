@@ -20,13 +20,14 @@ const tick = () => new Promise((r) => setTimeout(r, 10));
 
 describe("App", () => {
   it("renders the header and all three columns from the event stream", () => {
-    const { lastFrame } = render(<App events={events} adapter="codex" animate={false} />);
+    const { lastFrame } = render(<App events={events} adapter="codex" animate={false} now={10} />);
     const frame = lastFrame() ?? "";
     expect(frame).toContain("deep-research");
     expect(frame).toContain("PHASES");
-    expect(frame).toContain("AGENTS");
     expect(frame).toContain("Scope 0/0");
     expect(frame).toContain("Search 1/1");
+    expect(frame).toContain("1/1 agent"); // header agent counts
+    expect(frame).toContain("Scope · 0 agents"); // agents column header for the selected phase
   });
 
   it("right-arrow focuses agents so the selected phase's agents show, then detail", async () => {
@@ -36,7 +37,7 @@ describe("App", () => {
     await tick();
     stdin.write(KEY.right); // focus agents
     await tick();
-    expect(lastFrame() ?? "").toContain("AGENTS (Search)");
+    expect(lastFrame() ?? "").toContain("Search · 1 agent");
     expect(lastFrame() ?? "").toContain("angle-0");
     stdin.write(KEY.right); // focus detail
     await tick();
