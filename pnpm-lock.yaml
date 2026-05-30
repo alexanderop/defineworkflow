@@ -115,9 +115,6 @@ importers:
         specifier: ^1.3.1
         version: 1.3.1
     devDependencies:
-      '@workflow/test-support':
-        specifier: workspace:*
-        version: link:../test-support
       zod:
         specifier: ^4.0.0
         version: 4.4.3

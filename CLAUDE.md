@@ -54,9 +54,15 @@ constants (`at: 0`, `outputTokens: 0`) and there is no shared mutable counter (i
 across tests and break replay). **Do not add `faker.js`** or any random-data lib; for generative
 coverage use **`fast-check`** (already a devDep — seeded and shrinking, so failures reproduce).
 
-Because `@workflow/test-support` depends on `@workflow/core`/`@workflow/adapters` yet their own
-tests consume it, pnpm reports a **cyclic workspace dependency** warning on install — it is harmless
-(a dev-only cycle; build/typecheck/test all pass).
+`@workflow/test-support` depends on `@workflow/core`/`@workflow/adapters` (it re-exports their
+fakes), so it must **not** introduce a workspace dependency cycle: a cycle puts `core`/`adapters`/
+`test-support` in one strongly-connected component, and pnpm then builds them **unordered**, so a
+`--dts` build can start before its dependency emits declarations and the clean build fails (it only
+passed locally with a warm `dist/`). Concretely: **`@workflow/core` must never depend on
+`@workflow/test-support`** — `core` is the foundation the helpers are built on. The one `core` test
+that needs leaf factories (`scripted-runner.test.ts`) defines its own local `agentRequest`/`runCtx`
+mirroring the shared ones. Packages *above* `core` (`adapters` tests aside — `ui`, `cli`, …) consume
+`test-support` freely.
 
 ## TypeScript conventions
 

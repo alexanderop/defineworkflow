@@ -1,6 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { agentRequest, runCtx } from "@workflow/test-support";
 import { createScriptedRunner } from "./scripted-runner.js";
+import type { AgentRequest, RunCtx } from "./types.js";
+
+// `core` is the foundation `@workflow/test-support` is built on, so it can't import the shared
+// factories from there without creating a workspace dependency cycle that breaks the clean build
+// (the SCC would make pnpm build core/adapters/test-support unordered). These two leaf builders
+// mirror `@workflow/test-support`'s `agentRequest`/`runCtx` — keep them in sync.
+const agentRequest = (o: Partial<AgentRequest> = {}): AgentRequest => ({
+  prompt: "p",
+  cwd: "/tmp",
+  signal: new AbortController().signal,
+  ...o,
+});
+const runCtx = (o: Partial<RunCtx> = {}): RunCtx => ({ runId: "r1", seq: 0, ...o });
 
 describe("ScriptedRunner", () => {
   it("returns canned results matched by label, with default usage", async () => {
