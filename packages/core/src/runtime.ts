@@ -4,7 +4,7 @@ import { createBudget, type Budget } from "./budget.js";
 import { WorkflowThrow, type WorkflowError } from "./errors.js";
 import type { Semaphore } from "./semaphore.js";
 import type { Journal } from "./journal.js";
-import type { AgentRequest, AgentRunner } from "./types.js";
+import type { AgentRequest, AgentRunner, WorkflowMeta } from "./types.js";
 import type { WorkflowEvent } from "./events.js";
 import type { ControlRegistry } from "./control.js";
 
@@ -19,7 +19,7 @@ export interface AgentOptions {
 }
 
 export interface LoadedWorkflow {
-  readonly meta: { readonly name: string; readonly description: string; readonly phases?: readonly unknown[] };
+  readonly meta: WorkflowMeta;
   run(runtime: Runtime, args?: unknown): Promise<unknown>;
 }
 

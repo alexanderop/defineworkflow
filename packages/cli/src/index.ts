@@ -11,7 +11,7 @@ export {
   type AdapterOverride,
   type ConfigDeps,
 } from "./config.js";
-export { selectAdapterId, buildRunner, type SelectAdapterArgs, type BuildRunnerDeps } from "./adapter-select.js";
+export { resolveHarness, buildRunner, type BuildRunnerDeps } from "./adapter-select.js";
 export { decideConsent, promptConsent, type ConsentDecision, type ConsentIO, type ConsentResult } from "./consent.js";
 export { subscribeToRun, type TailDeps, type RunSubscription } from "./tail.js";
 export { resolveSavedWorkflow, type ResolveDeps, type ResolvedWorkflow } from "./resolve.js";

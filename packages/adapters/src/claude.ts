@@ -22,7 +22,10 @@ export function createClaudeAdapter(deps: ClaudeAdapterDeps): AgentRunner {
     id: "claude",
     capabilities: CAPABILITIES.claude,
     run: async (req: AgentRequest, _ctx: RunCtx): Promise<Result<AgentResult, WorkflowError>> => {
-      const args = ["-p", req.prompt, "--output-format", "json", "--permission-mode", "acceptEdits", "--add-dir", req.cwd];
+      // YOLO mode: a headless `-p` agent can't answer permission prompts, and
+      // `acceptEdits` blocks WebSearch/WebFetch — so any tool-using agent (e.g.
+      // research) stalls or refuses. Skip all permission checks instead.
+      const args = ["-p", req.prompt, "--output-format", "json", "--dangerously-skip-permissions", "--add-dir", req.cwd];
       if (req.schema) args.push("--json-schema", JSON.stringify(req.schema));
       if (req.model) args.push("--model", req.model);
 

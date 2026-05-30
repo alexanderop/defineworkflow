@@ -1,30 +1,28 @@
 import { describe, it, expect } from "vitest";
 import { createFakeProcessRunner } from "@workflow/adapters";
-import { selectAdapterId, buildRunner, buildRunnerMap } from "./adapter-select.js";
+import { resolveHarness, buildRunner, buildRunnerMap } from "./adapter-select.js";
 
-describe("selectAdapterId", () => {
-  const detected = ["codex", "copilot", "raw-api"] as const;
-
-  it("meta default wins over everything", () => {
-    expect(selectAdapterId({ metaDefault: "copilot", cliFlag: "codex", configDefault: "claude", detected })).toBe("copilot");
+describe("resolveHarness", () => {
+  it("returns the declared harness when it is a known id", () => {
+    for (const id of ["claude", "codex", "copilot", "raw-api"] as const) {
+      expect(resolveHarness(id)._unsafeUnwrap()).toBe(id);
+    }
   });
 
-  it("CLI flag wins over config + auto-detect", () => {
-    expect(selectAdapterId({ cliFlag: "codex", configDefault: "claude", detected })).toBe("codex");
+  it("errors (HarnessNotDeclared) when meta.harness is missing", () => {
+    const r = resolveHarness(undefined);
+    expect(r.isErr()).toBe(true);
+    const e = r._unsafeUnwrapErr();
+    expect(e.kind).toBe("HarnessNotDeclared");
+    if (e.kind === "HarnessNotDeclared") expect(e.found).toBeUndefined();
   });
 
-  it("config default wins over auto-detect", () => {
-    expect(selectAdapterId({ configDefault: "copilot", detected })).toBe("copilot");
-  });
-
-  it("auto-detect prefers claude > codex > copilot > raw-api", () => {
-    expect(selectAdapterId({ detected: ["copilot", "codex", "claude"] })).toBe("claude");
-    expect(selectAdapterId({ detected: ["copilot", "codex"] })).toBe("codex");
-    expect(selectAdapterId({ detected: [] })).toBe("raw-api");
-  });
-
-  it("ignores an invalid explicit id and falls through", () => {
-    expect(selectAdapterId({ metaDefault: "bogus", detected: ["codex"] })).toBe("codex");
+  it("errors (HarnessNotDeclared) and reports the value when meta.harness is unknown", () => {
+    const r = resolveHarness("bogus");
+    expect(r.isErr()).toBe(true);
+    const e = r._unsafeUnwrapErr();
+    expect(e.kind).toBe("HarnessNotDeclared");
+    if (e.kind === "HarnessNotDeclared") expect(e.found).toBe("bogus");
   });
 });
 

@@ -26,6 +26,9 @@ describe("claude adapter", () => {
     expect(argv).toContain("--output-format");
     expect(argv).toContain("json");
     expect(argv).toContain("--json-schema");
+    // YOLO: headless agents must skip permission prompts so WebSearch/WebFetch work.
+    expect(argv).toContain("--dangerously-skip-permissions");
+    expect(argv).not.toContain("--permission-mode");
   });
 
   it("returns AdapterSpawn when a schema is requested but the result carries no structured output", async () => {

@@ -1,4 +1,5 @@
 import { extractMeta, runInSandbox, type LoadedWorkflow, type Runtime, type SandboxResult } from "@workflow/core";
+import { z } from "@workflow/schema";
 
 /** Read a workflow's `meta` without executing its body (used by the consent flow). */
 export function loadMeta(source: string): SandboxResult["meta"] {
@@ -23,6 +24,7 @@ export function loadWorkflow(source: string): LoadedWorkflow {
         log: runtime.log,
         args: runArgs ?? runtime.args,
         budget: runtime.budget,
+        z,
       };
       const { returnValue } = await runInSandbox(source, globals);
       return returnValue;

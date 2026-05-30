@@ -13,6 +13,7 @@
     "@workflow/schema": "workspace:*",
     "neverthrow": "^8.1.0",
     "zod": "^4.0.0",
-    "esbuild": "^0.24.0"
+    "esbuild": "^0.24.0",
+    "acorn": "^8.16.0"
   }
 }

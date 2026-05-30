@@ -1,0 +1,137 @@
+/* ───────────────────────── workflow docs — phosphor / control-room theme ───────────────────────── */
+
+:root {
+  /* brand → VitePress accent */
+  --vp-c-brand-1: #ffb000;
+  --vp-c-brand-2: #ffce6b;
+  --vp-c-brand-3: #ffb000;
+  --vp-c-brand-soft: rgba(255, 176, 0, 0.14);
+
+  /* surfaces */
+  --vp-c-bg: #0a0b0d;
+  --vp-c-bg-alt: #0e1014;
+  --vp-c-bg-elv: #13161b;
+  --vp-c-bg-soft: #13161b;
+
+  --vp-c-text-1: #e7e3d8;
+  --vp-c-text-2: #9aa0a8;
+  --vp-c-text-3: #5b6168;
+
+  --vp-c-divider: #23282f;
+  --vp-c-border: #23282f;
+  --vp-c-gutter: #1a1d22;
+
+  /* palette tokens reused by widgets */
+  --wf-amber: #ffb000;
+  --wf-amber-soft: #ffce6b;
+  --wf-cyan: #5ad1e0;
+  --wf-green: #67e08a;
+  --wf-red: #ff5d54;
+  --wf-violet: #b69cff;
+  --wf-panel: #13161b;
+  --wf-panel-2: #171b21;
+  --wf-line: #23282f;
+  --wf-line-bright: #313842;
+  --wf-ink: #e7e3d8;
+  --wf-ink-dim: #9aa0a8;
+  --wf-ink-faint: #5b6168;
+
+  --vp-font-family-base: "Spectral", Georgia, serif;
+  --vp-font-family-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --vp-home-hero-name-color: var(--wf-amber);
+}
+
+/* ── ambient blueprint grid + grain on the whole page ── */
+html {
+  background: var(--vp-c-bg);
+}
+body {
+  background:
+    radial-gradient(1100px 600px at 80% -10%, rgba(90, 209, 224, 0.06), transparent 60%),
+    radial-gradient(900px 520px at -5% 8%, rgba(255, 176, 0, 0.05), transparent 55%),
+    var(--vp-c-bg);
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(255, 176, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 176, 0, 0.03) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(circle at 50% 20%, #000, transparent 95%);
+  mask-image: radial-gradient(circle at 50% 20%, #000, transparent 95%);
+}
+
+/* ── typography ── */
+h1,
+h2,
+h3,
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3 {
+  font-family: "Big Shoulders Display", sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+.vp-doc h2 {
+  border-top: 1px solid var(--vp-c-divider);
+  margin-top: 40px;
+  padding-top: 28px;
+  font-size: 30px;
+}
+.vp-doc h3 {
+  font-size: 22px;
+}
+.vp-doc p,
+.vp-doc li {
+  font-size: 16.5px;
+}
+
+/* eyebrow helper usable in markdown */
+.wf-eyebrow {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--wf-amber);
+  font-weight: 500;
+}
+
+/* ── landing page: full-bleed, no doc max-width ── */
+.landing .VPDoc {
+  padding: 0 !important;
+}
+.landing .VPDoc .container {
+  max-width: 100% !important;
+}
+.landing .VPDoc .content {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+.landing .vp-doc > div > * {
+  margin: 0;
+}
+
+/* ── inline brand pills used in prose ── */
+.vp-doc code {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.86em;
+  color: var(--wf-amber-soft);
+  background: rgba(255, 176, 0, 0.08);
+  border: 1px solid var(--wf-line);
+}
+
+/* keep the default-theme code blocks on-brand */
+.vp-doc div[class*="language-"] {
+  border: 1px solid var(--wf-line);
+  border-radius: 12px;
+}
+
+/* callout tweak */
+.vp-doc .custom-block {
+  border-radius: 12px;
+}

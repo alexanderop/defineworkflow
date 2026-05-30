@@ -26,6 +26,7 @@ export interface ConsentIO {
 export interface WorkflowMetaLike {
   readonly name: string;
   readonly description: string;
+  readonly harness?: string | undefined;
   readonly phases?: readonly unknown[] | undefined;
 }
 
@@ -45,6 +46,7 @@ function phaseTitles(meta: WorkflowMetaLike): string {
 export async function promptConsent(meta: WorkflowMetaLike, source: string, io: ConsentIO): Promise<ConsentResult> {
   io.write(`\nWorkflow: ${meta.name}\n`);
   io.write(`  ${meta.description}\n`);
+  io.write(`  harness: ${meta.harness ?? "(none declared)"}\n`);
   io.write(`  phases: ${phaseTitles(meta)}\n`);
   io.write(`  ⚠ this will spawn agents and may consume a significant number of tokens.\n`);
 

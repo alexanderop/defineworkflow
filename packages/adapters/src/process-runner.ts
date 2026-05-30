@@ -39,9 +39,10 @@ export function createProcessRunner(): ProcessRunner {
         });
         child.on("error", reject);
         child.on("close", (code) => resolve({ code, stdout, stderr }));
-        if (spec.stdin !== undefined) {
-          child.stdin.end(spec.stdin);
-        }
+        // Always end stdin: write the payload when provided, otherwise send a bare
+        // EOF. Leaving the pipe open hangs children that read stdin in a tool loop —
+        // e.g. `claude -p` web-search agents block forever waiting on input.
+        child.stdin.end(spec.stdin ?? undefined);
       }),
   };
 }

@@ -16,7 +16,7 @@ function memFs(): RegistryFs {
   };
 }
 
-const SCRIPT = `export const meta = { name: "demo", description: "d", phases: [{ title: "Search" }] } as const
+const SCRIPT = `export const meta = { name: "demo", description: "d", harness: "claude", phases: [{ title: "Search" }] } as const
 phase("Search");
 const a = await agent("first", { label: "a" });
 const b = await agent("second", { label: "b" });
@@ -49,6 +49,32 @@ describe("runWorkflow", () => {
     expect(types[0]).toBe("run-started");
     expect(types[types.length - 1]).toBe("run-finished");
     expect(reg.readJournal("demo-1")._unsafeUnwrap()).toHaveLength(2);
+  });
+
+  it("seeds all declared meta.phases as phase-started events before the script reaches them", async () => {
+    // Script declares three phases but only ever calls phase("Research") — the later
+    // phase() calls would run after a long await, so without seeding the UI would only
+    // ever see "Research" while research is in flight.
+    const script = `export const meta = { name: "multi", description: "d", harness: "claude", phases: [{ title: "Research" }, { title: "Curate" }, { title: "Write" }] } as const
+phase("Research");
+const a = await agent("first", { label: "a" });
+return { a };`;
+    const reg = createRegistry({ root: "/runs", fs: memFs() });
+    reg.init({ ...META, runId: "multi-1" }, script);
+    const emit = (e: Parameters<typeof reg.appendEvent>[1]) => reg.appendEvent("multi-1", e);
+    const runner = createScriptedRunner({ a: { text: "A" } });
+    await runWorkflow({
+      source: script, args: {}, runner, runId: "multi-1", cwd: "/tmp",
+      concurrency: 4, maxAgents: 1000, budgetTotal: null,
+      journal: reg.persistentJournal("multi-1", []), emit, now: () => 0,
+    });
+
+    const phaseTitles = reg
+      .readEvents("multi-1")
+      .filter((e): e is Extract<typeof e, { type: "phase-started" }> => e.type === "phase-started")
+      .map((e) => e.phase);
+    // All declared phases present, in declared order, deduped (Research seeded + re-emitted is fine).
+    expect(phaseTitles.slice(0, 3)).toEqual(["Research", "Curate", "Write"]);
   });
 
   it("resume: a journal-seeded run reuses cached results without re-spawning", async () => {

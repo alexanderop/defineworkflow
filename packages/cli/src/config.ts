@@ -1,5 +1,3 @@
-import type { AdapterId } from "@workflow/adapters";
-
 export interface AdapterOverride {
   readonly bin?: string;
   readonly extraArgs?: readonly string[];
@@ -7,7 +5,6 @@ export interface AdapterOverride {
 }
 
 export interface WorkflowConfig {
-  readonly defaultAdapter?: AdapterId;
   readonly concurrency?: number;
   readonly maxAgents?: number;
   readonly budget?: number | null;

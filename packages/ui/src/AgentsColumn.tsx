@@ -17,6 +17,7 @@ export function AgentsColumn({ agents, selectedIndex, focused, phaseTitle, frame
   return (
     <Box flexDirection="column" width={30} borderStyle="round" borderColor={focused ? "cyan" : "gray"} paddingX={1}>
       <Text bold>AGENTS ({phaseTitle})</Text>
+      {agents.length === 0 ? <Text dimColor>not started yet</Text> : null}
       {visible.map((a, i) => {
         const index = start + i;
         return (

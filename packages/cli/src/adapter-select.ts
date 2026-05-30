@@ -12,34 +12,19 @@ import {
 import type { WorkflowConfig } from "./config.js";
 
 const KNOWN: readonly AdapterId[] = ["claude", "codex", "copilot", "raw-api"];
-/** Auto-detect preference order (raw-api is always available as the fallback). */
-const PREFERENCE: readonly AdapterId[] = ["claude", "codex", "copilot", "raw-api"];
-
-const asAdapterId = (s: string | undefined): AdapterId | undefined =>
-  s !== undefined && (KNOWN as readonly string[]).includes(s) ? (s as AdapterId) : undefined;
-
-export interface SelectAdapterArgs {
-  readonly metaDefault?: string | undefined;
-  readonly cliFlag?: string | undefined;
-  readonly configDefault?: AdapterId | undefined;
-  readonly detected: readonly AdapterId[];
-}
 
 /**
- * Select the run-level default adapter id. Precedence (design §6):
- * meta.defaultAdapter → CLI --adapter → config.defaultAdapter → auto-detect.
- *
- * This selects the *run default*. A per-call `agent("p", { adapter: "codex" })`
- * overrides it at the call level via the runner map built by `buildRunnerMap`
- * (design §6's per-call level). `selectAdapterId`'s behavior is unchanged.
+ * The coding harness is declared in `meta.harness` and is the single source of
+ * truth for the run default — there is no auto-detect or CLI/config override. A
+ * workflow that does not declare a known harness fails fast with
+ * `HarnessNotDeclared`. Per-call `agent("p", { adapter })` overrides are still
+ * resolved separately via {@link buildRunnerMap}.
  */
-export function selectAdapterId(args: SelectAdapterArgs): AdapterId {
-  const explicit = asAdapterId(args.metaDefault) ?? asAdapterId(args.cliFlag) ?? asAdapterId(args.configDefault);
-  if (explicit) return explicit;
-  for (const id of PREFERENCE) {
-    if (id === "raw-api" || args.detected.includes(id)) return id;
+export function resolveHarness(harness: unknown): Result<AdapterId, WorkflowError> {
+  if (typeof harness === "string" && (KNOWN as readonly string[]).includes(harness)) {
+    return ok(harness as AdapterId);
   }
-  return "raw-api";
+  return err({ kind: "HarnessNotDeclared", found: typeof harness === "string" ? harness : undefined });
 }
 
 export interface BuildRunnerDeps {
