@@ -1,5 +1,5 @@
 import { assertNever, createControlRegistry, initialRunState, reduce, selectRunReport } from "@workflow/core";
-import type { AgentRunner, JournalEntry, RunReportStatus, WorkflowEvent } from "@workflow/core";
+import type { AgentRunner, JournalEntry, QuestionRequest, RunId, RunReportStatus, WorkflowEvent } from "@workflow/core";
 import { renderReportText } from "@workflow/ui";
 import type { AppDeps } from "./app.js";
 import { buildRunnerMap } from "./adapter-select.js";
@@ -10,14 +10,20 @@ import { formatError } from "./format-error.js";
 import { buildArtifacts, resolveOutputDir, writeArtifacts } from "./artifacts.js";
 import { buildWorkflowResolver } from "./resolve-workflow.js";
 import { createWorktreeFactory } from "./worktree.js";
+import { createHeadlessAskUser, type AnswerMap } from "./ask-user.js";
+
+/** Capability slice the foreground/headless run loops need. */
+type RunDeps = Pick<AppDeps, "registry" | "config" | "clock" | "env" | "io" | "adapters" | "ui">;
 
 export interface ExecuteParams {
-  readonly runId: string;
+  readonly runId: RunId;
   readonly source: string;
   readonly args: unknown;
   readonly runner: AgentRunner;
   readonly adapter: string;
   readonly seed: readonly JournalEntry[];
+  /** Pre-supplied answers for askUserQuestion(); used directly headless, and as a fast-path in the foreground. */
+  readonly answers?: AnswerMap;
   /** When set, per-call `agent({ adapter })` overrides also resolve to `runner` (the mock), so a --mock run spawns no real adapter. */
   readonly mock?: boolean;
 }
@@ -45,14 +51,14 @@ function createGate(): { gate: () => Promise<void>; toggle: () => boolean } {
  * when the workflow declared `meta.output`, it is also persisted there (`result.json`
  * verbatim plus each top-level string field as its own file).
  */
-function emitArtifacts(deps: AppDeps, run: RunResult): void {
+function emitArtifacts(deps: Pick<AppDeps, "ui" | "env" | "io">, run: RunResult): void {
   const set = buildArtifacts(run.returnValue);
   if (!set) return;
-  deps.print(`\n${set.terminal}\n`);
-  const dir = resolveOutputDir(run.output, deps.cwd);
+  deps.ui.print(`\n${set.terminal}\n`);
+  const dir = resolveOutputDir(run.output, deps.env.cwd);
   if (dir) {
-    const names = writeArtifacts(set, dir, deps.writeTextFile);
-    deps.print(`\nartifacts → ${dir} (${names.join(", ")})\n`);
+    const names = writeArtifacts(set, dir, deps.io.writeText);
+    deps.ui.print(`\nartifacts → ${dir} (${names.join(", ")})\n`);
   }
 }
 
@@ -62,14 +68,14 @@ function reportStatus(status: RunStatus): RunReportStatus {
 }
 
 /** Print the end-of-run report, projected from the persisted event stream. */
-function printReport(deps: AppDeps, runId: string, status: RunStatus): void {
+function printReport(deps: Pick<AppDeps, "registry" | "ui">, runId: string, status: RunStatus): void {
   const state = deps.registry.readEvents(runId).reduce(reduce, initialRunState());
   const report = selectRunReport(state, { status: reportStatus(status) });
-  deps.print(`\n${renderReportText(report)}\n`);
+  deps.ui.print(`\n${renderReportText(report)}\n`);
 }
 
 /** Run with the live Ink UI attached (run + resume foreground). Returns a process exit code. */
-export async function runForeground(deps: AppDeps, params: ExecuteParams): Promise<number> {
+export async function runForeground(deps: RunDeps, params: ExecuteParams): Promise<number> {
   const controller = new AbortController();
   const control = createControlRegistry();
   const { gate, toggle } = createGate();
@@ -79,17 +85,29 @@ export async function runForeground(deps: AppDeps, params: ExecuteParams): Promi
     deps.registry.appendEvent(params.runId, event);
     for (const l of listeners) l(event);
   };
-  const note = (message: string): void => emit({ type: "log", message, at: deps.now() });
+  const note = (message: string): void => emit({ type: "log", message, at: deps.clock.now() });
 
-  const ui = deps.startUi({
+  // Foreground question handling: a pre-supplied answer (--answers) resolves immediately; otherwise,
+  // on a TTY the prompt is parked here and resolved by the UI's "answer" action. With no TTY there is
+  // no prompt to show, so fall back to the headless resolver (default / fail-fast).
+  const headlessAskUser = createHeadlessAskUser(params.answers ?? {});
+  const pendingAnswers = new Map<string, (answer: string) => void>();
+  const askUser = (req: QuestionRequest): Promise<string> => {
+    const supplied = params.answers?.[req.key];
+    if (supplied !== undefined) return Promise.resolve(supplied);
+    if (!deps.env.isTTY) return headlessAskUser(req);
+    return new Promise<string>((resolve) => pendingAnswers.set(req.key, resolve));
+  };
+
+  const ui = deps.ui.start({
     initial: deps.registry.readEvents(params.runId),
     subscribe: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
     adapter: params.adapter,
-    isTTY: deps.isTTY,
-    write: deps.print,
+    isTTY: deps.env.isTTY,
+    write: deps.ui.print,
     onAction: (action) => {
       switch (action.type) {
         case "pause":
@@ -106,6 +124,14 @@ export async function runForeground(deps: AppDeps, params: ExecuteParams): Promi
           saveRun(deps, params.runId);
           note("saved workflow script");
           break;
+        case "answer": {
+          const resolve = pendingAnswers.get(action.key);
+          if (resolve) {
+            pendingAnswers.delete(action.key);
+            resolve(action.value);
+          }
+          break;
+        }
         default:
           assertNever(action);
       }
@@ -116,35 +142,36 @@ export async function runForeground(deps: AppDeps, params: ExecuteParams): Promi
   // so no real harness is ever dispatched; otherwise build the real per-call adapter map.
   const resolveRunner = params.mock
     ? () => params.runner
-    : buildRunnerMap(deps.detected, deps.config, { processRunner: deps.processRunner, complete: deps.complete }).resolveRunner;
-  const makeIsolatedCwd = createWorktreeFactory({ processRunner: deps.processRunner, baseCwd: deps.cwd, tmpRoot: deps.tmpDir, runId: params.runId, warn: note });
+    : buildRunnerMap(deps.adapters.detected, deps.config, { processRunner: deps.adapters.processRunner, complete: deps.adapters.complete }).resolveRunner;
+  const makeIsolatedCwd = createWorktreeFactory({ processRunner: deps.adapters.processRunner, baseCwd: deps.env.cwd, tmpRoot: deps.env.tmpDir, runId: params.runId, warn: note });
 
   const result = await runWorkflow({
     source: params.source,
     args: params.args,
     runner: params.runner,
     runId: params.runId,
-    cwd: deps.cwd,
-    concurrency: effectiveConcurrency(deps.config, deps.cores),
+    cwd: deps.env.cwd,
+    concurrency: effectiveConcurrency(deps.config, deps.env.cores),
     maxAgents: effectiveMaxAgents(deps.config),
     budgetTotal: deps.config.budget ?? null,
     journal: deps.registry.persistentJournal(params.runId, params.seed),
     emit,
-    now: deps.now,
+    now: deps.clock.now,
     signal: controller.signal,
     control,
     gate,
-    resolveWorkflow: buildWorkflowResolver({ homeDir: deps.homeDir, cwd: deps.cwd, readTextFile: deps.readTextFile, bundledDir: deps.bundledDir }),
+    resolveWorkflow: buildWorkflowResolver({ homeDir: deps.env.homeDir, cwd: deps.env.cwd, readTextFile: deps.io.readText, bundledDir: deps.env.bundledDir }),
     resolveRunner,
     makeIsolatedCwd,
+    askUser,
   });
 
   const status: RunStatus = controller.signal.aborted ? "stopped" : result.isOk() ? "finished" : "failed";
-  deps.registry.updateMeta(params.runId, { status, endedAt: deps.now() });
+  deps.registry.updateMeta(params.runId, { status, endedAt: deps.clock.now() });
   ui.unmount();
 
   if (result.isErr()) {
-    deps.print(`run ${status}: ${formatError(result.error)}\n`);
+    deps.ui.print(`run ${status}: ${formatError(result.error)}\n`);
     printReport(deps, params.runId, status);
     return 1;
   }
@@ -154,14 +181,14 @@ export async function runForeground(deps: AppDeps, params: ExecuteParams): Promi
 }
 
 /** Run headless (the detached child body). Returns a process exit code. */
-export async function runHeadless(deps: AppDeps, params: ExecuteParams, controller: AbortController): Promise<number> {
-  const { resolveRunner } = buildRunnerMap(deps.detected, deps.config, { processRunner: deps.processRunner, complete: deps.complete });
+export async function runHeadless(deps: RunDeps, params: ExecuteParams, controller: AbortController): Promise<number> {
+  const { resolveRunner } = buildRunnerMap(deps.adapters.detected, deps.config, { processRunner: deps.adapters.processRunner, complete: deps.adapters.complete });
   const makeIsolatedCwd = createWorktreeFactory({
-    processRunner: deps.processRunner,
-    baseCwd: deps.cwd,
-    tmpRoot: deps.tmpDir,
+    processRunner: deps.adapters.processRunner,
+    baseCwd: deps.env.cwd,
+    tmpRoot: deps.env.tmpDir,
     runId: params.runId,
-    warn: (message) => deps.registry.appendEvent(params.runId, { type: "log", message, at: deps.now() }),
+    warn: (message) => deps.registry.appendEvent(params.runId, { type: "log", message, at: deps.clock.now() }),
   });
 
   const result = await runWorkflow({
@@ -169,34 +196,37 @@ export async function runHeadless(deps: AppDeps, params: ExecuteParams, controll
     args: params.args,
     runner: params.runner,
     runId: params.runId,
-    cwd: deps.cwd,
-    concurrency: effectiveConcurrency(deps.config, deps.cores),
+    cwd: deps.env.cwd,
+    concurrency: effectiveConcurrency(deps.config, deps.env.cores),
     maxAgents: effectiveMaxAgents(deps.config),
     budgetTotal: deps.config.budget ?? null,
     journal: deps.registry.persistentJournal(params.runId, params.seed),
     emit: (event) => deps.registry.appendEvent(params.runId, event),
-    now: deps.now,
+    now: deps.clock.now,
     signal: controller.signal,
-    resolveWorkflow: buildWorkflowResolver({ homeDir: deps.homeDir, cwd: deps.cwd, readTextFile: deps.readTextFile, bundledDir: deps.bundledDir }),
+    resolveWorkflow: buildWorkflowResolver({ homeDir: deps.env.homeDir, cwd: deps.env.cwd, readTextFile: deps.io.readText, bundledDir: deps.env.bundledDir }),
     resolveRunner,
     makeIsolatedCwd,
+    // No human is attached to a detached run: answers come from --answers / the question default,
+    // else the run fails fast rather than hanging on a prompt nobody can see.
+    askUser: createHeadlessAskUser(params.answers ?? {}),
   });
 
   const status: RunStatus = controller.signal.aborted ? "stopped" : result.isOk() ? "finished" : "failed";
-  deps.registry.updateMeta(params.runId, { status, endedAt: deps.now() });
+  deps.registry.updateMeta(params.runId, { status, endedAt: deps.clock.now() });
   if (result.isErr()) return 1;
   emitArtifacts(deps, result.value);
   return 0;
 }
 
 /** Persist a run's script snapshot as a saved workflow (project `.workflow` if present, else personal). */
-export function saveRun(deps: AppDeps, runId: string): string | undefined {
+export function saveRun(deps: Pick<AppDeps, "registry" | "env" | "io">, runId: string): string | undefined {
   const meta = deps.registry.readMeta(runId);
   const source = deps.registry.readScript(runId);
   if (!meta || source === undefined) return undefined;
-  const projectDir = `${deps.cwd}/.workflow`;
-  const base = deps.readTextFile(`${projectDir}/config.json`) !== undefined ? projectDir : `${deps.homeDir}/.workflow`;
+  const projectDir = `${deps.env.cwd}/.workflow`;
+  const base = deps.io.readText(`${projectDir}/config.json`) !== undefined ? projectDir : `${deps.env.homeDir}/.workflow`;
   const path = `${base}/workflows/${meta.name}.ts`;
-  deps.writeTextFile(path, source);
+  deps.io.writeText(path, source);
   return path;
 }

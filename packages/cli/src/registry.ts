@@ -1,7 +1,10 @@
 import { ok, err, type Result } from "neverthrow";
-import { createJournal, type Journal, type JournalEntry, type WorkflowError, type WorkflowEvent } from "@workflow/core";
+import { createJournal, type Brand, type Journal, type JournalEntry, type RunId, type WorkflowError, type WorkflowEvent } from "@workflow/core";
 import type { AdapterId } from "@workflow/adapters";
 import { serializeEvent, serializeJournalEntry, parseEventLine, parseJournalLine } from "./jsonl.js";
+
+/** SHA-256 hex of a run's script snapshot — compared on resume to guarantee same-script replay. */
+export type ScriptHash = Brand<string, "ScriptHash">;
 
 export interface RegistryFs {
   mkdirp(dir: string): void;
@@ -15,7 +18,7 @@ export interface RegistryFs {
 export type RunStatus = "running" | "finished" | "failed" | "stopped";
 
 export interface RunMeta {
-  readonly runId: string;
+  readonly runId: RunId;
   readonly name: string;
   readonly scriptPath: string | null;
   readonly args: unknown;
@@ -24,7 +27,9 @@ export interface RunMeta {
   readonly startedAt: number;
   readonly endedAt: number | null;
   readonly pid: number | null;
-  readonly scriptHash: string;
+  readonly scriptHash: ScriptHash;
+  /** Pre-supplied answers for askUserQuestion() (from `--answers`); read by detached/headless runs. */
+  readonly answers?: Readonly<Record<string, string>>;
 }
 
 export interface RegistryDeps {
@@ -62,6 +67,7 @@ export function createRegistry(deps: RegistryDeps): Registry {
     const raw = fs.readFile(metaPath(runId));
     if (raw === undefined) return undefined;
     try {
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- untyped JSON meta.json from disk narrowed to its persisted RunMeta shape
       return JSON.parse(raw) as RunMeta;
     } catch {
       return undefined;

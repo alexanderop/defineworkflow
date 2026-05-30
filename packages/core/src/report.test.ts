@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "./brand.js";
 import { reduce, initialRunState, type WorkflowEvent } from "./events.js";
 import { selectRunReport } from "./report.js";
 
@@ -7,7 +8,7 @@ const build = (events: WorkflowEvent[]) => events.reduce(reduce, initialRunState
 describe("selectRunReport", () => {
   it("rolls up totals, phases and agents from a finished run", () => {
     const state = build([
-      { type: "run-started", runId: "r1", name: "refactor-imports", budgetTotal: 500_000, at: 0 },
+      { type: "run-started", runId: "r1" as RunId, name: "refactor-imports", budgetTotal: 500_000, at: 0 },
       { type: "phase-started", phase: "Discover", at: 0 },
       { type: "phase-started", phase: "Transform", at: 0 },
       // Discover: one agent
@@ -24,7 +25,7 @@ describe("selectRunReport", () => {
       { type: "agent-queued", key: "2:Transform:b", label: "review:b.ts", phase: "Transform", at: 700 },
       { type: "agent-started", key: "2:Transform:b", at: 800 },
       { type: "agent-finished", key: "2:Transform:b", usage: { inputTokens: 10_000, outputTokens: 2_000 }, cached: false, at: 20_000 },
-      { type: "run-finished", runId: "r1", at: 22_000 },
+      { type: "run-finished", runId: "r1" as RunId, at: 22_000 },
     ]);
 
     const report = selectRunReport(state);
@@ -67,13 +68,13 @@ describe("selectRunReport", () => {
 
   it("excludes cached agents from token totals but counts them as cached", () => {
     const state = build([
-      { type: "run-started", runId: "r", name: "d", at: 0 },
+      { type: "run-started", runId: "r" as RunId, name: "d", at: 0 },
       { type: "agent-queued", key: "0", label: "fresh", phase: "P", at: 0 },
       { type: "agent-started", key: "0", at: 1 },
       { type: "agent-finished", key: "0", usage: { inputTokens: 100, outputTokens: 50 }, cached: false, at: 2 },
       { type: "agent-queued", key: "1", label: "replayed", phase: "P", at: 0 },
       { type: "agent-finished", key: "1", usage: { inputTokens: 0, outputTokens: 40 }, cached: true, at: 1 },
-      { type: "run-finished", runId: "r", at: 3 },
+      { type: "run-finished", runId: "r" as RunId, at: 3 },
     ]);
     const report = selectRunReport(state);
     expect(report.totals.cached).toBe(1);
@@ -88,15 +89,15 @@ describe("selectRunReport", () => {
 
   it("omits the budget line when no budget is set", () => {
     const state = build([
-      { type: "run-started", runId: "r", name: "d", budgetTotal: null, at: 0 },
-      { type: "run-finished", runId: "r", at: 1 },
+      { type: "run-started", runId: "r" as RunId, name: "d", budgetTotal: null, at: 0 },
+      { type: "run-finished", runId: "r" as RunId, at: 1 },
     ]);
     expect(selectRunReport(state).budget).toBeUndefined();
   });
 
   it("flags approximate totals when any agent's usage was estimated", () => {
     const state = build([
-      { type: "run-started", runId: "r", name: "d", at: 0 },
+      { type: "run-started", runId: "r" as RunId, name: "d", at: 0 },
       { type: "agent-queued", key: "0", label: "a", phase: "P", at: 0 },
       { type: "agent-finished", key: "0", usage: { inputTokens: 5, outputTokens: 5, approximate: true }, cached: false, at: 1 },
     ]);
@@ -105,7 +106,7 @@ describe("selectRunReport", () => {
 
   it("reports a still-running run with running status and no wall time", () => {
     const state = build([
-      { type: "run-started", runId: "r", name: "d", at: 1000 },
+      { type: "run-started", runId: "r" as RunId, name: "d", at: 1000 },
       { type: "agent-queued", key: "0", label: "a", phase: "P", at: 1000 },
       { type: "agent-started", key: "0", at: 1100 },
     ]);
@@ -116,11 +117,11 @@ describe("selectRunReport", () => {
 
   it("counts failed agents and accepts a failed status override", () => {
     const state = build([
-      { type: "run-started", runId: "r", name: "d", at: 0 },
+      { type: "run-started", runId: "r" as RunId, name: "d", at: 0 },
       { type: "agent-queued", key: "0", label: "a", phase: "P", at: 0 },
       { type: "agent-started", key: "0", at: 1 },
       { type: "agent-failed", key: "0", error: { kind: "AdapterSpawn", adapter: "claude", cause: "boom" }, at: 2 },
-      { type: "run-finished", runId: "r", at: 3 },
+      { type: "run-finished", runId: "r" as RunId, at: 3 },
     ]);
     const report = selectRunReport(state, { status: "failed" });
     expect(report.status).toBe("failed");
@@ -130,7 +131,7 @@ describe("selectRunReport", () => {
 
   it("only includes phases that actually ran", () => {
     const state = build([
-      { type: "run-started", runId: "r", name: "d", at: 0 },
+      { type: "run-started", runId: "r" as RunId, name: "d", at: 0 },
       // Seeded declared phases (no agents).
       { type: "phase-started", phase: "Discover", at: 0 },
       { type: "phase-started", phase: "Transform", at: 0 },
@@ -138,7 +139,7 @@ describe("selectRunReport", () => {
       { type: "agent-queued", key: "0", label: "a", phase: "Transform", at: 1 },
       { type: "agent-started", key: "0", at: 2 },
       { type: "agent-finished", key: "0", usage: { inputTokens: 1, outputTokens: 1 }, cached: false, at: 3 },
-      { type: "run-finished", runId: "r", at: 4 },
+      { type: "run-finished", runId: "r" as RunId, at: 4 },
     ]);
     expect(selectRunReport(state).phases.map((p) => p.title)).toEqual(["Transform"]);
   });

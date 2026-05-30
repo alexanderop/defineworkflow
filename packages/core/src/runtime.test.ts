@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import type { RunId } from "./brand.js";
 import { z } from "zod";
 import { createRuntime } from "./runtime.js";
 import { createScriptedRunner } from "./scripted-runner.js";
@@ -19,7 +20,7 @@ function harness(responses = {}, opts = {}) {
     budgetTotal: null,
     args: { topic: "vue" },
     cwd: "/tmp",
-    runId: "r1",
+    runId: "r1" as RunId,
     emit: (e) => events.push(e),
     now: () => clock++,
   });
@@ -101,7 +102,7 @@ describe("resolveRunner: per-call adapter dispatch", () => {
       budgetTotal: null,
       args: {},
       cwd: "/tmp",
-      runId: "r1",
+      runId: "r1" as RunId,
       emit: (e) => events.push(e),
       now: () => 0,
       resolveRunner: (id) => (id === "b" ? runnerB : undefined),
@@ -133,7 +134,7 @@ describe("runtime stop/pause hooks", () => {
       budgetTotal: null,
       args: {},
       cwd: "/tmp",
-      runId: "r1",
+      runId: "r1" as RunId,
       emit: (e) => events.push(e),
       now: () => 0,
       signal: controller.signal,
@@ -156,7 +157,7 @@ describe("runtime stop/pause hooks", () => {
       budgetTotal: null,
       args: {},
       cwd: "/tmp",
-      runId: "r1",
+      runId: "r1" as RunId,
       emit: (e) => events.push(e),
       now: () => 0,
       gate: () => gatePromise,
@@ -202,7 +203,7 @@ describe("makeIsolatedCwd: worktree isolation hook", () => {
       budgetTotal: null,
       args: {},
       cwd: "/tmp",
-      runId: "r1",
+      runId: "r1" as RunId,
       emit: () => {},
       now: () => 0,
       makeIsolatedCwd: async (key) => ({ cwd: "/wt/" + key, cleanup }),
@@ -235,7 +236,7 @@ describe("makeIsolatedCwd: worktree isolation hook", () => {
       budgetTotal: null,
       args: {},
       cwd: "/tmp",
-      runId: "r1",
+      runId: "r1" as RunId,
       emit: () => {},
       now: () => 0,
       makeIsolatedCwd,
@@ -271,7 +272,7 @@ describe("runtime.agent progress + labels", () => {
       budgetTotal: null,
       args: {},
       cwd: "/tmp",
-      runId: "r1",
+      runId: "r1" as RunId,
       emit: (e) => events.push(e),
       now,
     });

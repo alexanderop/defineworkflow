@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import type { RunReport } from "@workflow/core";
 import { renderReportText } from "./report-text.js";
 
 const base: RunReport = {
-  runId: "r1",
+  runId: "r1" as RunId,
   name: "refactor-imports",
   status: "finished",
   startedAt: 0,

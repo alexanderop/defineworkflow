@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import { createRuntime, createScriptedRunner, createJournal, createSemaphore } from "@workflow/core";
 import { loadMeta, loadWorkflow } from "./loader.js";
 
@@ -29,7 +30,7 @@ describe("loadWorkflow", () => {
       budgetTotal: null,
       args: { topic: "vue" },
       cwd: "/tmp",
-      runId: "r1",
+      runId: "r1" as RunId,
       emit: () => {},
       now: () => 0,
     });
@@ -61,12 +62,63 @@ export default defineWorkflow({
       budgetTotal: null,
       args: null,
       cwd: "/tmp",
-      runId: "r-define",
+      runId: "r-define" as RunId,
       emit: () => {},
       now: () => 0,
     });
 
     await expect(loaded.run(runtime, undefined)).resolves.toEqual({ out: "hit" });
+  });
+
+  it("routes askUserQuestion() to the runtime's askUser handler", async () => {
+    const loaded = loadWorkflow(`export const meta = { name: "q", description: "d", harness: "claude" }
+const ans = await askUserQuestion({ key: "deploy-target", question: "Where?" });
+return { ans };`);
+
+    const runtime = createRuntime({
+      runner: createScriptedRunner({}),
+      semaphore: createSemaphore(4),
+      journal: createJournal(),
+      maxAgents: 1000,
+      budgetTotal: null,
+      args: null,
+      cwd: "/tmp",
+      runId: "rq" as RunId,
+      emit: () => {},
+      now: () => 0,
+      askUser: async (req) => `chose ${req.key}`,
+    });
+
+    await expect(loaded.run(runtime, undefined)).resolves.toEqual({ ans: "chose deploy-target" });
+  });
+
+  it("provides askUserQuestion on a defineWorkflow run context", async () => {
+    const loaded = loadWorkflow(`import { defineWorkflow } from "workflow";
+export default defineWorkflow({
+  name: "q2",
+  description: "d",
+  harness: "claude",
+  async run({ askUserQuestion }) {
+    const ans = await askUserQuestion({ key: "k", question: "?" });
+    return { ans };
+  },
+});`);
+
+    const runtime = createRuntime({
+      runner: createScriptedRunner({}),
+      semaphore: createSemaphore(4),
+      journal: createJournal(),
+      maxAgents: 1000,
+      budgetTotal: null,
+      args: null,
+      cwd: "/tmp",
+      runId: "rq2" as RunId,
+      emit: () => {},
+      now: () => 0,
+      askUser: async (req) => `picked ${req.key}`,
+    });
+
+    await expect(loaded.run(runtime, undefined)).resolves.toEqual({ ans: "picked k" });
   });
 
   it("validates an agent's structured output against a plain JSON Schema", async () => {
@@ -85,7 +137,7 @@ return res;`;
       budgetTotal: null,
       args: null,
       cwd: "/tmp",
-      runId: "r2",
+      runId: "r2" as RunId,
       emit: () => {},
       now: () => 0,
     });
@@ -109,7 +161,7 @@ return await agent("do it", { label: "a", schema: Out });`;
       budgetTotal: null,
       args: null,
       cwd: "/tmp",
-      runId: "r3",
+      runId: "r3" as RunId,
       emit: () => {},
       now: () => 0,
     });

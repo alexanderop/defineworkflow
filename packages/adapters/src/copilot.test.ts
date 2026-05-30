@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import type { AgentProgress } from "@workflow/core";
 import { createCopilotAdapter } from "./copilot.js";
 import { createFakeProcessRunner } from "./fake-process-runner.js";
@@ -21,7 +22,7 @@ describe("copilot adapter", () => {
     const progress: AgentProgress[] = [];
     const res = await adapter.run(
       { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", label: "a", signal: new AbortController().signal },
-      { runId: "r", seq: 0, onProgress: (p) => progress.push(p) },
+      { runId: "r" as RunId, seq: 0, onProgress: (p) => progress.push(p) },
     );
     expect(res._unsafeUnwrap().data).toEqual({ n: 7 });
     expect(res._unsafeUnwrap().usage.outputTokens).toBe(42);
@@ -44,7 +45,7 @@ describe("copilot adapter", () => {
     const adapter = createCopilotAdapter({ processRunner: fake, maxRetries: 2 });
     const res = await adapter.run(
       { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
-      { runId: "r", seq: 0 },
+      { runId: "r" as RunId, seq: 0 },
     );
     expect(res._unsafeUnwrapErr().kind).toBe("SchemaValidation");
     expect(n).toBe(2);
@@ -55,7 +56,7 @@ describe("copilot adapter", () => {
     const adapter = createCopilotAdapter({ processRunner: fake });
     const res = await adapter.run(
       { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
-      { runId: "r", seq: 0 },
+      { runId: "r" as RunId, seq: 0 },
     );
     expect(res.isErr()).toBe(true);
     expect(res._unsafeUnwrapErr().kind).toBe("AdapterSpawn");

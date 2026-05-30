@@ -32,6 +32,7 @@ function safeParseJson(text: string): unknown {
 export function createAnthropicComplete(apiKey: string | undefined, model?: string): RawApiAdapterDeps["complete"] | undefined {
   if (!apiKey) return undefined;
   return async (req) => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- optional dep loaded via dynamic import; narrowed to the structural shape we use
     const mod = (await import("@anthropic-ai/sdk").catch(() => null)) as { default?: AnthropicCtor } | null;
     const Ctor = mod?.default;
     if (!Ctor) throw new Error("@anthropic-ai/sdk is not installed");

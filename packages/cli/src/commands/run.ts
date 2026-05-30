@@ -5,13 +5,16 @@ import { loadMeta } from "../loader.js";
 import { decideConsent, promptConsent } from "../consent.js";
 import { resolveHarness, buildRunner } from "../adapter-select.js";
 import { genRunId } from "../run-id.js";
-import type { RunMeta } from "../registry.js";
+import type { RunMeta, ScriptHash } from "../registry.js";
 import { runForeground } from "../execute.js";
 import { formatError } from "../format-error.js";
+import { parseAnswers } from "../ask-user.js";
 
 export interface RunArgs {
   readonly script: string;
   readonly argsJson?: string | undefined;
+  /** Pre-supplied answers for askUserQuestion() as a flat JSON object (from `--answers`). */
+  readonly answersJson?: string | undefined;
   readonly detach: boolean;
   readonly yes: boolean;
   /** Run against a fabricating mock runner: no real agents, no tokens — a token-free dev loop. */
@@ -19,9 +22,9 @@ export interface RunArgs {
 }
 
 export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> {
-  const source = deps.readTextFile(args.script);
+  const source = deps.io.readText(args.script);
   if (source === undefined) {
-    deps.print(`error: cannot read script ${args.script}\n`);
+    deps.ui.print(`error: cannot read script ${args.script}\n`);
     return 1;
   }
 
@@ -30,21 +33,28 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
     try {
       parsedArgs = JSON.parse(args.argsJson);
     } catch {
-      deps.print("error: --args is not valid JSON\n");
+      deps.ui.print("error: --args is not valid JSON\n");
       return 1;
     }
   }
+
+  const answersResult = parseAnswers(args.answersJson);
+  if (answersResult.isErr()) {
+    deps.ui.print(`error: ${answersResult.error}\n`);
+    return 1;
+  }
+  const answers = answersResult.value;
 
   let meta;
   try {
     meta = loadMeta(source);
   } catch (e) {
-    deps.print(`error: ${(e as Error).message}\n`);
+    deps.ui.print(`error: ${e instanceof Error ? e.message : String(e)}\n`);
     return 1;
   }
 
   if (deps.config.disableWorkflows) {
-    deps.print("error: workflows are disabled (WORKFLOW_DISABLE / config.disableWorkflows)\n");
+    deps.ui.print("error: workflows are disabled (WORKFLOW_DISABLE / config.disableWorkflows)\n");
     return 1;
   }
 
@@ -52,19 +62,19 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
   if (!args.mock) {
     const decision = decideConsent({
       config: deps.config,
-      project: deps.cwd,
+      project: deps.env.cwd,
       name: meta.name,
       yes: args.yes,
-      isTTY: deps.isTTY,
-      ci: deps.ci,
+      isTTY: deps.env.isTTY,
+      ci: deps.env.ci,
     });
     if (decision === "prompt") {
-      const consent = await promptConsent(meta, source, deps.consentIO);
+      const consent = await promptConsent(meta, source, deps.consent.io);
       if (!consent.allow) {
-        deps.print("aborted\n");
+        deps.ui.print("aborted\n");
         return 1;
       }
-      if (consent.remember) deps.persistConsent(deps.cwd, meta.name);
+      if (consent.remember) deps.consent.persist(deps.env.cwd, meta.name);
     }
   }
 
@@ -72,24 +82,24 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
   // be installed: we use a fabricating runner instead of building the real adapter.
   const harnessResult = resolveHarness(meta.harness);
   if (harnessResult.isErr()) {
-    deps.print(`error: ${formatError(harnessResult.error)}\n`);
+    deps.ui.print(`error: ${formatError(harnessResult.error)}\n`);
     return 1;
   }
   const adapter: AdapterId = harnessResult.value;
 
   let runner;
   if (args.mock) {
-    runner = createMockRunner({ delayMs: deps.isTTY ? 120 : 0 });
+    runner = createMockRunner({ delayMs: deps.env.isTTY ? 120 : 0 });
   } else {
-    const runnerResult = buildRunner(adapter, deps.config, { processRunner: deps.processRunner, complete: deps.complete });
+    const runnerResult = buildRunner(adapter, deps.config, { processRunner: deps.adapters.processRunner, complete: deps.adapters.complete });
     if (runnerResult.isErr()) {
-      deps.print(`error: ${formatError(runnerResult.error)}\n`);
+      deps.ui.print(`error: ${formatError(runnerResult.error)}\n`);
       return 1;
     }
     runner = runnerResult.value;
   }
 
-  const runId = genRunId(meta.name, { now: deps.now, rand: deps.rand });
+  const runId = genRunId(meta.name, { now: deps.clock.now, rand: deps.clock.rand });
   const meta0: RunMeta = {
     runId,
     name: meta.name,
@@ -97,22 +107,24 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
     args: parsedArgs,
     adapter,
     status: "running",
-    startedAt: deps.now(),
+    startedAt: deps.clock.now(),
     endedAt: null,
-    pid: args.detach ? null : deps.pid(),
-    scriptHash: deps.hash(source),
+    pid: args.detach ? null : deps.clock.pid(),
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- brand mint: the sha256 hex digest is the ScriptHash
+    scriptHash: deps.clock.hash(source) as ScriptHash,
+    ...(Object.keys(answers).length > 0 ? { answers } : {}),
   };
   deps.registry.init(meta0, source);
 
   // --mock is an interactive dev loop; it always runs in the foreground (detach is ignored).
   if (args.detach && !args.mock) {
-    const pid = deps.spawnDetached(runId);
+    const pid = deps.proc.spawnDetached(runId);
     deps.registry.updateMeta(runId, { pid });
-    deps.print(`${runId}\nwatch with: workflow watch ${runId}\n`);
+    deps.ui.print(`${runId}\nwatch with: workflow watch ${runId}\n`);
     return 0;
   }
 
-  if (args.mock) deps.print(`running '${meta.name}' in --mock mode — no real agents, no tokens spent\n`);
+  if (args.mock) deps.ui.print(`running '${meta.name}' in --mock mode — no real agents, no tokens spent\n`);
   return runForeground(deps, {
     runId,
     source,
@@ -120,6 +132,7 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
     runner,
     adapter: args.mock ? "mock" : adapter,
     seed: [],
+    answers,
     ...(args.mock ? { mock: true } : {}),
   });
 }

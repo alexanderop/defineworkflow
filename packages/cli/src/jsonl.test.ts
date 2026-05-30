@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import type { WorkflowEvent, JournalEntry } from "@workflow/core";
 import { serializeEvent, parseEventLine, parseJournalLine } from "./jsonl.js";
 
 describe("jsonl events", () => {
   it("round-trips an event", () => {
-    const e: WorkflowEvent = { type: "run-started", runId: "r1", name: "demo", at: 5 };
+    const e: WorkflowEvent = { type: "run-started", runId: "r1" as RunId, name: "demo", at: 5 };
     const line = serializeEvent(e);
     expect(line.endsWith("\n")).toBe(true);
     const parsed = parseEventLine(line.trimEnd());

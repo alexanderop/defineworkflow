@@ -1,4 +1,5 @@
 import { validate, compileValidator, isZodSchema, toJsonSchema, type JsonSchema } from "@workflow/schema";
+import type { AgentKey, RunId } from "./brand.js";
 import { createBudget, type Budget } from "./budget.js";
 import { WorkflowThrow, type WorkflowError } from "./errors.js";
 import { truncateRawOutput } from "./raw-output.js";
@@ -34,6 +35,29 @@ export interface AgentOptions {
   readonly instructions?: string;
 }
 
+/** A question raised mid-run; the resolved `askUser` handler turns it into the user's answer. */
+export interface QuestionRequest {
+  readonly key: string;
+  readonly question: string;
+  readonly choices?: readonly string[];
+  readonly allowOther?: boolean;
+  readonly default?: string;
+}
+
+export interface AskUserQuestionOptions {
+  /** Stable key for `--answers` and journaling; falls back to a seq/phase/label-derived key. */
+  readonly key?: string;
+  /** The question text, rendered as markdown in the interactive UI. */
+  readonly question: string;
+  readonly choices?: readonly string[];
+  /** Offer an "Other → type your own" free-text path alongside the choices. */
+  readonly allowOther?: boolean;
+  /** Answer used in non-interactive runs when no pre-supplied answer matches the key. */
+  readonly default?: string;
+  readonly label?: string;
+  readonly phase?: string;
+}
+
 export interface LoadedWorkflow {
   readonly meta: WorkflowMeta;
   run(runtime: Runtime, args?: unknown): Promise<unknown>;
@@ -47,7 +71,7 @@ export interface RuntimeDeps {
   readonly budgetTotal: number | null;
   readonly args: unknown;
   readonly cwd: string;
-  readonly runId: string;
+  readonly runId: RunId;
   readonly emit: (event: WorkflowEvent) => void;
   readonly now: () => number;
   readonly resolveWorkflow?: (name: string, args?: unknown) => Promise<LoadedWorkflow>;
@@ -60,7 +84,9 @@ export interface RuntimeDeps {
   /** Per-agent control: registers each in-flight agent's AbortController under its key for stop/restart. */
   readonly control?: ControlRegistry | undefined;
   /** Worktree isolation: produce an isolated working directory for a given agent key; cleaned up after the agent finishes. */
-  readonly makeIsolatedCwd?: ((key: string) => Promise<{ cwd: string; cleanup: () => Promise<void> }>) | undefined;
+  readonly makeIsolatedCwd?: ((key: AgentKey) => Promise<{ cwd: string; cleanup: () => Promise<void> }>) | undefined;
+  /** Human-in-the-loop: resolve a mid-run question to the user's answer. Required for askUserQuestion(). */
+  readonly askUser?: ((req: QuestionRequest) => Promise<string>) | undefined;
 }
 
 export interface Runtime {
@@ -73,14 +99,27 @@ export interface Runtime {
   phase(title: string): void;
   log(message: string): void;
   workflow(name: string, args?: unknown): Promise<unknown>;
+  askUserQuestion(opts: AskUserQuestionOptions): Promise<string>;
 }
+
+/** The fields a {@link ProfileConfig} may set — also the keys a call site can override. */
+const PROFILE_CONFIG_KEYS = ["adapter", "model", "agentType", "isolation", "instructions"] as const satisfies ReadonlyArray<keyof ProfileConfig>;
 
 /** Keys a call site re-specified that the profile already set with a different value. */
 function profileOverrides(config: ProfileConfig, callOpts: AgentOptions): readonly string[] | undefined {
-  const keys = (Object.keys(config) as Array<keyof ProfileConfig>).filter(
-    (k) => callOpts[k] !== undefined && callOpts[k] !== config[k],
+  const keys = PROFILE_CONFIG_KEYS.filter(
+    (k) => config[k] !== undefined && callOpts[k] !== undefined && callOpts[k] !== config[k],
   );
   return keys.length > 0 ? keys : undefined;
+}
+
+/**
+ * Coerce a non-zod `agent({ schema })` value to a plain JSON Schema object. `isZodSchema` has
+ * already returned false at the call site, so this is a `Record<string, unknown>` in practice;
+ * the spread copies its own enumerable keys without a type assertion.
+ */
+function toJsonSchemaObject(value: JsonSchema | ZodLike): JsonSchema {
+  return { ...value };
 }
 
 export function createRuntime(deps: RuntimeDeps): Runtime {
@@ -88,6 +127,9 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
   let currentPhase = "default";
   let seq = 0;
   let spawned = 0;
+  // Tail of the question lock chain — each askUserQuestion() awaits the prior question before
+  // prompting, so only one prompt is ever open even when raised inside parallel()/pipeline().
+  let questionTail: Promise<void> = Promise.resolve();
 
   const agent = async (
     a: string | Profile,
@@ -101,19 +143,20 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     let opts: AgentOptions;
     let overrides: readonly string[] | undefined;
     if (isProfile(a)) {
-      prompt = b as string;
+      prompt = typeof b === "string" ? b : "";
       const callOpts = c ?? {};
       overrides = profileOverrides(a.config, callOpts);
       opts = { ...a.config, ...callOpts };
     } else {
       prompt = a;
-      opts = (b as AgentOptions | undefined) ?? {};
+      opts = typeof b === "object" ? b : {};
     }
 
     const mySeq = seq++;
     const phase = opts.phase ?? currentPhase;
     const label = opts.label ?? (labelFromPrompt(prompt) || `agent-${mySeq}`);
-    const key = `${mySeq}:${phase}:${label}`;
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- branded AgentKey mint; the composite identity carries the brand only here
+    const key = `${mySeq}:${phase}:${label}` as AgentKey;
     // instructions is a config-level system hint, folded into the request prompt only —
     // after label/key derivation, so it never changes an agent's identity.
     const requestPrompt = opts.instructions ? `${opts.instructions}\n\n${prompt}` : prompt;
@@ -185,7 +228,8 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     let jsonSchema: JsonSchema | undefined;
     if (opts.schema) {
       try {
-        const candidate = isZodSchema(opts.schema) ? toJsonSchema(opts.schema) : (opts.schema as JsonSchema);
+        const rawSchema = opts.schema;
+        const candidate: JsonSchema = isZodSchema(rawSchema) ? toJsonSchema(rawSchema) : toJsonSchemaObject(rawSchema);
         compileValidator(candidate);
         jsonSchema = candidate;
       } catch (cause) {
@@ -315,6 +359,60 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       }),
     );
 
+  const askUserQuestion = async (opts: AskUserQuestionOptions): Promise<string> => {
+    const mySeq = seq++;
+    const phase = opts.phase ?? currentPhase;
+    const label = opts.label ?? (labelFromPrompt(opts.question) || `question-${mySeq}`);
+    const key = opts.key ?? `${mySeq}:${phase}:${label}`;
+
+    // Serialize prompts: only one question competes for the keyboard at a time. Agents already
+    // in flight keep running; concurrent questions queue here in seq (call) order.
+    const prior = questionTail;
+    let releaseLock!: () => void;
+    questionTail = new Promise<void>((res) => {
+      releaseLock = res;
+    });
+    await prior;
+    try {
+      deps.emit({
+        type: "question-asked",
+        key,
+        question: opts.question,
+        ...(opts.choices ? { choices: opts.choices } : {}),
+        ...(opts.allowOther !== undefined ? { allowOther: opts.allowOther } : {}),
+        at: deps.now(),
+      });
+
+      // Resume: a journaled answer returns without re-asking. Questions ride the same seq
+      // counter and journal as agent(), but skip the budget/agent-cap gates — a question
+      // costs no tokens and is not an agent.
+      const cached = deps.journal.lookup(mySeq);
+      if (cached) {
+        const cachedAnswer = cached.data ?? cached.text;
+        const answer = typeof cachedAnswer === "string" ? cachedAnswer : String(cachedAnswer);
+        deps.emit({ type: "question-answered", key, answer, cached: true, at: deps.now() });
+        return answer;
+      }
+
+      if (!deps.askUser) {
+        throw new WorkflowThrow({ kind: "AdapterSpawn", adapter: "askUser", cause: "no askUser handler configured" });
+      }
+      const request: QuestionRequest = {
+        key,
+        question: opts.question,
+        ...(opts.choices ? { choices: opts.choices } : {}),
+        ...(opts.allowOther !== undefined ? { allowOther: opts.allowOther } : {}),
+        ...(opts.default !== undefined ? { default: opts.default } : {}),
+      };
+      const answer = await deps.askUser(request);
+      deps.journal.record({ seq: mySeq, key, text: answer, data: answer, outputTokens: 0 });
+      deps.emit({ type: "question-answered", key, answer, cached: false, at: deps.now() });
+      return answer;
+    } finally {
+      releaseLock();
+    }
+  };
+
   const phase = (title: string): void => {
     currentPhase = title;
     deps.emit({ type: "phase-started", phase: title, at: deps.now() });
@@ -340,9 +438,10 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       workflow: async () => {
         throw new WorkflowThrow({ kind: "AdapterSpawn", adapter: "workflow", cause: "workflow() nesting is one level only" });
       },
+      askUserQuestion,
     };
     return loaded.run(childRuntime, childArgs);
   };
 
-  return { args: deps.args, budget, agent, parallel, pipeline, phase, log, workflow };
+  return { args: deps.args, budget, agent, parallel, pipeline, phase, log, workflow, askUserQuestion };
 }

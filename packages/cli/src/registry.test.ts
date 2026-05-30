@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import type { ScriptHash } from "./registry.js";
+import type { RunId } from "@workflow/core";
 import type { WorkflowEvent } from "@workflow/core";
 import { createRegistry, type RegistryFs, type RunMeta } from "./registry.js";
 
@@ -18,8 +20,8 @@ function memFs(): RegistryFs & { dump(): Record<string, string> } {
 }
 
 const baseMeta: RunMeta = {
-  runId: "demo-1", name: "demo", scriptPath: "/s.ts", args: { topic: "vue" },
-  adapter: "codex", status: "running", startedAt: 100, endedAt: null, pid: 4242, scriptHash: "h",
+  runId: "demo-1" as RunId, name: "demo", scriptPath: "/s.ts", args: { topic: "vue" },
+  adapter: "codex", status: "running", startedAt: 100, endedAt: null, pid: 4242, scriptHash: "h" as ScriptHash,
 };
 
 function setup() {
@@ -50,9 +52,9 @@ describe("registry", () => {
     const { reg } = setup();
     reg.init(baseMeta, "x");
     const events: WorkflowEvent[] = [
-      { type: "run-started", runId: "demo-1", name: "demo", at: 1 },
+      { type: "run-started", runId: "demo-1" as RunId, name: "demo", at: 1 },
       { type: "phase-started", phase: "Search", at: 2 },
-      { type: "run-finished", runId: "demo-1", at: 3 },
+      { type: "run-finished", runId: "demo-1" as RunId, at: 3 },
     ];
     for (const e of events) reg.appendEvent("demo-1", e);
     expect(reg.readEvents("demo-1")).toEqual(events);
@@ -79,7 +81,7 @@ describe("registry", () => {
   it("listRuns returns all runs' meta", () => {
     const { reg } = setup();
     reg.init(baseMeta, "x");
-    reg.init({ ...baseMeta, runId: "demo-2", name: "other" }, "y");
+    reg.init({ ...baseMeta, runId: "demo-2" as RunId, name: "other" }, "y");
     const ids = reg.listRuns().map((m) => m.runId).sort();
     expect(ids).toEqual(["demo-1", "demo-2"]);
   });

@@ -35,9 +35,34 @@ Tests are **colocated** with source as `*.test.ts(x)` inside each package's `src
 - **unit** — `packages/*/src/**/*.test.ts(x)`, excluding `*.e2e.test.ts`
 - **e2e** — `packages/*/src/**/*.e2e.test.ts` only (gated behind `WORKFLOW_E2E=1`)
 
-Add a test next to the code it covers. Use the in-memory test doubles instead of real I/O:
-`createScriptedRunner()` (`@workflow/core`) for a deterministic `AgentRunner`, and the
-`FakeProcessRunner` (`@workflow/adapters`) for adapter tests — don't spawn real CLIs in unit tests.
+Add a test next to the code it covers. Reach for the shared, **deterministic** test helpers in
+**`@workflow/test-support`** (private, never published) instead of hand-rolling fixtures:
+
+- **Reusable fakes** (re-exported through this one import path): `createScriptedRunner()` /
+  `createMockRunner()` (`@workflow/core`) for a deterministic `AgentRunner`, and
+  `createFakeProcessRunner()` (`@workflow/adapters`) for adapter tests — don't spawn real CLIs in
+  unit tests.
+- **Leaf data factories**: `event(type, overrides)` (a type-safe per-variant `WorkflowEvent`
+  builder), `agentResult()`, `usage()`, `agentRequest()`, `runCtx()`, `workflowSource()`. Each is
+  `fixed defaults + a shallow Partial override` — spell out only the fields a test asserts on.
+- **CLI-specific fakes** stay in `packages/cli/src/test-support.ts`: `fakeDeps(overrides)` builds a
+  capability-grouped `AppDeps` (`clock`/`env`/`io`/`adapters`/`ui`/`consent`/`proc` — override a
+  group shallowly, e.g. `fakeDeps({ ui: { start } })`), `memFs()`, and `runMeta()`.
+
+**Determinism is the rule, not a style choice.** Factories never randomize — defaults are fixed
+constants (`at: 0`, `outputTokens: 0`) and there is no shared mutable counter (it would leak state
+across tests and break replay). **Do not add `faker.js`** or any random-data lib; for generative
+coverage use **`fast-check`** (already a devDep — seeded and shrinking, so failures reproduce).
+
+`@workflow/test-support` depends on `@workflow/core`/`@workflow/adapters` (it re-exports their
+fakes), so it must **not** introduce a workspace dependency cycle: a cycle puts `core`/`adapters`/
+`test-support` in one strongly-connected component, and pnpm then builds them **unordered**, so a
+`--dts` build can start before its dependency emits declarations and the clean build fails (it only
+passed locally with a warm `dist/`). Concretely: **`@workflow/core` must never depend on
+`@workflow/test-support`** — `core` is the foundation the helpers are built on. The one `core` test
+that needs leaf factories (`scripted-runner.test.ts`) defines its own local `agentRequest`/`runCtx`
+mirroring the shared ones. Packages *above* `core` (`adapters` tests aside — `ui`, `cli`, …) consume
+`test-support` freely.
 
 ## TypeScript conventions
 
@@ -58,20 +83,34 @@ Schemas are **zod**; `@workflow/schema` is the only place that touches `z.toJSON
 
 ## Architecture
 
-Dependency direction: `schema` → `core` → `adapters` → `cli`, with `ui`, `examples`, and `workflow`
-at the edges.
+Dependency direction: `schema` → `core` → `adapters` → `cli`, with `ui`, `examples`, `workflow`, and
+the test-only `test-support` at the edges.
 Packages are wired by **dependency injection** — `createRuntime()`, the CLI commands (`AppDeps`), and
 the adapters all take their collaborators as arguments, which is what makes them testable with the
-fakes above.
+fakes above. `AppDeps` is **capability-grouped**: services stay top-level (`registry`, `config`) and
+host capabilities are nested roles (`clock`, `env`, `io`, `adapters`, `ui`, `consent`, `proc`), so
+each command declares only the slice it needs via `Pick<AppDeps, …>` and tsc catches accidental new
+dependencies.
 
 ### `packages/core` — the execution engine
 
 `createRuntime(deps)` returns the `Runtime` exposed to workflow scripts:
-`agent()`, `parallel()`, `pipeline()`, `phase()`, `log()`, `workflow()`, and `budget`. Each `agent()`
+`agent()`, `parallel()`, `pipeline()`, `phase()`, `log()`, `workflow()`, `askUserQuestion()`, and
+`budget`. Each `agent()`
 call walks a fixed sequence: increment seq → emit `agent-queued` → check abort → **journal lookup by
 seq** (return cached result on hit — this is how resume works) → budget gate → agent-cap gate →
 acquire **semaphore** slot → convert zod schema to JSON Schema → invoke `runner.run()` → validate
 output → record to journal → emit events → release slot.
+
+`askUserQuestion(opts)` is deterministic human-in-the-loop: it **shares the agent seq counter** and
+walks a subset of that sequence — emit `question-asked` → abort check → **journal lookup by seq**
+(cached answer short-circuits, so resume never re-asks) → skip the budget/cap gates (a question costs
+no tokens, isn't an agent) → acquire a dedicated **question lock** (only one prompt owns the keyboard;
+in-flight agents keep running, concurrent questions queue) → resolve via the injected `deps.askUser`
+handler → record the answer to the journal (`outputTokens: 0`) → emit `question-answered`. The answer
+enters through the event/handler boundary, so replay is byte-identical. In the CLI, foreground runs
+resolve it via the Ink `QuestionPrompt` (a `{type:'answer'}` UI action); headless runs resolve from the
+`--answers` map, then the question's `default`, else fail fast with a `WorkflowError`.
 
 Key invariants when editing the runtime:
 
@@ -108,7 +147,7 @@ and declares each adapter's `capabilities` (native schema, token reporting, tool
 Bin entry `workflow` → `dist/cli.js`. `dispatch(argv, deps)` is a pure router over `AppDeps`:
 
 ```
-workflow run <script> [--args '{...}'] [--detach] [--yes] [--mock]
+workflow run <script> [--args '{...}'] [--detach] [--yes] [--mock] [--answers '{...}']
 workflow watch <id> | list | resume <id> | stop <id> | save <id> | adapters
 workflow <name> [--args ...]      # run a saved workflow by name
 ```
@@ -117,6 +156,11 @@ workflow <name> [--args ...]      # run a saved workflow by name
 of a real harness: every `agent()` returns schema-valid dummy data, so authors can iterate on control
 flow, phases, and the UI with **no agents spawned and no tokens spent**. It always runs foreground,
 skips the consent gate, and the declared harness need not be installed (still validated for typos).
+
+`--answers '{"<key>":"<value>"}'` pre-supplies answers for `askUserQuestion()` calls, keyed by each
+question's `key`. It's the headless story: a non-TTY/`--detach`/CI run resolves each question from this
+map, then the question's `default`, else fails fast (`WorkflowError`) rather than hanging on input. The
+map is threaded onto the run meta so a detached child reads it back; `watch` shows questions read-only.
 
 A workflow's harness is **declared in `meta.harness`** and is the single source of truth — there is no
 auto-detect and no CLI/config override of it. `adapter-select.ts` resolves that to an adapter
@@ -132,12 +176,17 @@ React + **Ink** terminal dashboard. `startUi({ subscribe, … })` subscribes to 
 TTY it renders a throttled (100ms) three-pane layout (phases / agents / detail) driven by `RunState`
 + pure `selectors.ts`, with `navReducer` handling arrow/vim navigation. Non-TTY falls back to
 plain-text log lines (`line-log.ts`). UI interactions are emitted back through an `onAction` callback.
+When `RunState.pendingQuestion` is set (an `askUserQuestion()` is waiting), `App.tsx` swaps to
+`QuestionPrompt.tsx` — markdown question + arrow-selectable choices + an optional "Other" free-text
+input — and routes keypresses there; submitting dispatches a `{type:'answer'}` action. The non-TTY
+log renders questions as `?`/`↳` lines.
 
 ### `packages/workflow` — the authoring entrypoint
 
 The public package (npm name `defineworkflow`) that workflow files import from. It exports `defineWorkflow`,
-the runtime primitive stubs (`agent`/`parallel`/`pipeline`/`phase`/`log`/`workflow`), `z` (the
-engine's zod instance), `args`, `budget`, and types (`AgentOptions`, `HarnessId`, `WorkflowMeta`, …).
+the runtime primitive stubs (`agent`/`parallel`/`pipeline`/`phase`/`log`/`workflow`/`askUserQuestion`),
+`z` (the engine's zod instance), `args`, `budget`, and types (`AgentOptions`, `AskUserQuestionOptions`,
+`HarnessId`, `WorkflowMeta`, …).
 These imports exist purely for TypeScript/editor support — autocomplete and compile-time checks; the
 runner strips them and injects the live runtime values into the sandbox at execution time (see
 `transformScript()` above). It replaces the old ambient `workflow-globals.d.ts` as the source of editor
@@ -160,6 +209,13 @@ prints the returned object on completion (`artifacts.ts` + `emitArtifacts` in `e
 Runnable example workflows (private). `src/haiku.workflow.ts` is the minimal single-`agent()` example
 (a `defineWorkflow` default export); run via `pnpm example` or
 `workflow run packages/examples/src/haiku.workflow.ts --yes`.
+
+### `packages/test-support`
+
+Private, test-only package — the shared home for deterministic test helpers (see *Test layout &
+conventions* above). `src/factories.ts` holds the leaf data factories (`event`, `agentResult`,
+`usage`, `agentRequest`, `runCtx`, `workflowSource`); `src/index.ts` also re-exports the engine's
+reusable fakes so tests have one import path. Never imported by production code.
 
 ## Reference
 

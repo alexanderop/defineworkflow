@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import { render } from "ink-testing-library";
 import { reduce, initialRunState, type WorkflowEvent } from "@workflow/core";
 import { Header } from "./Header.js";
 
 const make = (extra: WorkflowEvent[] = []) =>
   ([
-    { type: "run-started", runId: "r1", name: "deep-research", at: 0 },
+    { type: "run-started", runId: "r1" as RunId, name: "deep-research", at: 0 },
     { type: "agent-queued", key: "k", label: "a", phase: "Search", at: 1 },
     ...extra,
   ] satisfies WorkflowEvent[]).reduce(reduce, initialRunState());
@@ -27,7 +28,7 @@ describe("Header", () => {
   it("shows `done` and an optional description for a finished run", () => {
     const state = make([
       { type: "agent-finished", key: "k", usage: { inputTokens: 0, outputTokens: 1 }, cached: false, at: 2 },
-      { type: "run-finished", runId: "r1", at: 3 },
+      { type: "run-finished", runId: "r1" as RunId, at: 3 },
     ]);
     const { lastFrame } = render(<Header state={state} elapsedMs={50000} description="Find posts from May 2026" />);
     const frame = lastFrame() ?? "";

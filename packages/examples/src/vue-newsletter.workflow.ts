@@ -54,6 +54,8 @@ export default defineWorkflow({
   async run() {
     // Args are optional. Pass {weekStart, weekEnd, label} as ISO dates to scope a week.
     // With no args, agents are told to cover "the past 7 days from today".
+    // `args` is `unknown` (parsed from the CLI `--args` JSON); narrow it to this run's expected shape.
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the unknown CLI args payload
     const a = (args ?? {}) as { weekStart?: string; weekEnd?: string; label?: string };
     const hasRange = Boolean(a.weekStart && a.weekEnd);
     const label = a.label ?? (hasRange ? `Week of ${a.weekStart}–${a.weekEnd}` : "this week");
@@ -139,7 +141,7 @@ export default defineWorkflow({
 
     // `schema` makes each agent() resolve to validated structured output (or null if that
     // agent errored). No JSON.parse — validation already happened in the runtime.
-    const collected = raw.filter((r): r is SourceResult => r != null);
+    const collected = raw.filter((r): r is SourceResult => r !== null);
     const flatItems = collected.flatMap((c) => c.items.map((it) => ({ ...it, source: c.source })));
     log(`collected ${flatItems.length} items across ${collected.length} sources`);
 
@@ -172,6 +174,9 @@ export default defineWorkflow({
       additionalProperties: false,
     };
 
+    // CURATED is a plain JSON Schema (not zod), so agent() resolves to `unknown`; the runtime has
+    // already validated it against CURATED, so narrowing to the matching shape is safe here.
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the schema-validated agent output
     const curated = (await agent(
       `Here are raw newsletter candidate items gathered from multiple sources for the Vue/Nuxt week of ${label}:\n\n${JSON.stringify(flatItems, null, 2)}\n\nCurate them:\n1. Remove duplicates (same release/article surfaced by multiple sources — keep the best canonical URL).\n2. Drop low-quality, off-topic, or spammy entries.\n3. Rank by impact (high first).\n4. Write 3-5 punchy "highlights" bullets capturing the week's biggest stories.\nKeep every URL exactly as provided — do not fabricate or alter links.`,
       { phase: "Curate", schema: CURATED },
@@ -180,10 +185,10 @@ export default defineWorkflow({
     log(`curated to ${curated.items.length} items, ${curated.highlights.length} highlights`);
 
     phase("Write");
-    const newsletter = (await agent(
+    const newsletter = await agent(
       `Write a polished weekly Vue.js / Nuxt newsletter in Markdown for ${label}.\n\nUse this curated data:\n${JSON.stringify(curated, null, 2)}\n\nStructure:\n- A title with the week range and a one-paragraph intro setting the tone.\n- "📌 This Week's Highlights" — the highlights bullets.\n- "🚀 Releases" — version bumps with what changed (group Vue core + Nuxt + tooling).\n- "📝 Articles & Tutorials".\n- "🛠️ Tooling & Ecosystem".\n- "💬 Community & Discussion".\n- "👤 From the Core Team & Community" — people/company news.\n- A short friendly sign-off.\n\nEvery item must be a markdown link to its real URL. Keep summaries tight and developer-focused. Omit any empty section. Output ONLY the markdown newsletter.`,
       { phase: "Write" },
-    )) as string;
+    );
 
     return { newsletter, itemCount: flatItems.length, curated };
   },

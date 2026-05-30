@@ -1,4 +1,5 @@
 import type { Result } from "neverthrow";
+import type { RunId } from "./brand.js";
 import type { WorkflowError } from "./errors.js";
 import type { AgentProgress, AgentUsage, ToolEvent } from "./events.js";
 
@@ -41,7 +42,7 @@ export interface AgentResult {
 }
 
 export interface RunCtx {
-  readonly runId: string;
+  readonly runId: RunId;
   readonly seq: number;
   /** Live progress sink. Streaming adapters call this per tool/token/model update; others skip it. */
   readonly onProgress?: (p: AgentProgress) => void;

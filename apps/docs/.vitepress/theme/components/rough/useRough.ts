@@ -145,7 +145,7 @@ export function svgText(x: number, y: number, content: string, o: TextOptions): 
   el.setAttribute("font-family", o.family);
   el.setAttribute("text-anchor", o.anchor ?? "middle");
   el.setAttribute("dominant-baseline", "central");
-  if (o.weight != null) el.setAttribute("font-weight", String(o.weight));
+  if (o.weight !== undefined) el.setAttribute("font-weight", String(o.weight));
   if (o.italic) el.setAttribute("font-style", "italic");
   el.textContent = content;
   return el;

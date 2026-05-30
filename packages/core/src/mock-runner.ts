@@ -17,14 +17,20 @@ export function mockFromSchema(schema: JsonSchema): unknown {
   const type = schema["type"];
   switch (type) {
     case "object": {
-      const props = (schema["properties"] as Record<string, JsonSchema> | undefined) ?? {};
+      const propsValue = schema["properties"];
+      const props: Record<string, unknown> =
+        typeof propsValue === "object" && propsValue !== null ? { ...propsValue } : {};
       const out: Record<string, unknown> = {};
-      for (const [key, propSchema] of Object.entries(props)) out[key] = mockFromSchema(propSchema);
+      for (const [key, propSchema] of Object.entries(props)) {
+        if (typeof propSchema === "object" && propSchema !== null) {
+          out[key] = mockFromSchema({ ...propSchema });
+        }
+      }
       return out;
     }
     case "array": {
-      const items = schema["items"] as JsonSchema | undefined;
-      return items ? [mockFromSchema(items)] : [];
+      const items = schema["items"];
+      return typeof items === "object" && items !== null ? [mockFromSchema({ ...items })] : [];
     }
     case "string":
       return "mock";

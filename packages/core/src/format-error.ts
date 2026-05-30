@@ -22,6 +22,8 @@ export function formatError(error: WorkflowError): string {
       return error.found === undefined
         ? `HarnessNotDeclared: meta.harness is required — declare one of "claude" | "codex" | "copilot" | "raw-api"`
         : `HarnessNotDeclared: unknown harness ${JSON.stringify(error.found)} — use one of "claude" | "codex" | "copilot" | "raw-api"`;
+    case "UnansweredQuestion":
+      return `UnansweredQuestion: no answer for "${error.key}" in a non-interactive run — pass --answers '{"${error.key}":"…"}' or give the question a default`;
     default:
       return assertNever(error);
   }

@@ -70,6 +70,7 @@ describe("sandbox", () => {
       workflow: async () => null,
       phase: () => {},
       log: () => {},
+      askUserQuestion: async () => "",
       args: null,
       budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
     });
@@ -102,6 +103,7 @@ describe("sandbox", () => {
       workflow: async () => null,
       phase: () => {},
       log: () => {},
+      askUserQuestion: async () => "",
       args: null,
       budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
     });

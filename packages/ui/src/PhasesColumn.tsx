@@ -26,7 +26,8 @@ export function PhasesColumn({ phases, selectedIndex, focused, frame }: PhasesCo
             )}
             <Text {...(selected ? { color: "blueBright" as const } : {})}>
               {" "}
-              {p.title} {p.done}/{p.total}
+              {p.title}
+              {p.total > 0 ? ` ${p.done}/${p.total}` : ""}
             </Text>
           </Box>
         );

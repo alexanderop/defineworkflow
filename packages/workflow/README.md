@@ -59,6 +59,7 @@ stubs used for type-checking and editor autocomplete:
 
 - `defineWorkflow({ name, description, harness, phases?, whenToUse?, run })`
 - `agent()`, `parallel()`, `pipeline()`, `phase()`, `log()`, `workflow()`
+- `askUserQuestion()` — pause mid-run to ask the human a question; the answer is journaled so resume never re-asks
 - `z` (the engine's zod instance), `args`, `budget`
 - types: `AgentOptions`, `HarnessId`, `WorkflowMeta`, …
 

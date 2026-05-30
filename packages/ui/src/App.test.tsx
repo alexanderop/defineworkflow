@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
+import type { RunId } from "@workflow/core";
 import { render } from "ink-testing-library";
 import type { WorkflowEvent } from "@workflow/core";
 import { App, type UiAction } from "./App.js";
 
 const events: WorkflowEvent[] = [
-  { type: "run-started", runId: "r1", name: "deep-research", at: 0 },
+  { type: "run-started", runId: "r1" as RunId, name: "deep-research", at: 0 },
   { type: "phase-started", phase: "Scope", at: 1 },
   { type: "phase-started", phase: "Search", at: 2 },
   { type: "agent-queued", key: "k0", label: "angle-0", phase: "Search", prompt: "Search X", at: 3 },
@@ -24,7 +25,8 @@ describe("App", () => {
     const frame = lastFrame() ?? "";
     expect(frame).toContain("deep-research");
     expect(frame).toContain("Phases");
-    expect(frame).toContain("Scope 0/0");
+    expect(frame).toContain("Scope");
+    expect(frame).not.toContain("Scope 0/0"); // 0-agent phases omit the count
     expect(frame).toContain("Search 1/1");
     expect(frame).toContain("1/1 agent"); // header agent counts
     expect(frame).toContain("Scope · 0 agents"); // agents column header for the selected phase
@@ -67,6 +69,35 @@ describe("App", () => {
       { type: "stop", target: { scope: "run" } },
       { type: "save" },
     ]);
+  });
+
+  it("shows the question prompt and emits an answer action on selection", async () => {
+    const qEvents: WorkflowEvent[] = [
+      { type: "run-started", runId: "r" as RunId, name: "wf", at: 0 },
+      { type: "question-asked", key: "deploy-target", question: "## Where to deploy?", choices: ["staging", "production"], at: 1 },
+    ];
+    const actions: UiAction[] = [];
+    const { lastFrame, stdin } = render(<App events={qEvents} animate={false} onAction={(a) => actions.push(a)} />);
+    await tick();
+    expect(lastFrame() ?? "").toContain("Where to deploy?");
+    stdin.write(KEY.down); // highlight "production"
+    await tick();
+    stdin.write("\r"); // submit
+    await tick();
+    expect(actions).toEqual([{ type: "answer", key: "deploy-target", value: "production" }]);
+  });
+
+  it("stops processing nav keys while a question is pending", async () => {
+    const qEvents: WorkflowEvent[] = [
+      { type: "run-started", runId: "r" as RunId, name: "wf", at: 0 },
+      { type: "question-asked", key: "k", question: "Name?", at: 1 },
+    ];
+    const actions: UiAction[] = [];
+    const { stdin } = render(<App events={qEvents} animate={false} onAction={(a) => actions.push(a)} />);
+    await tick();
+    stdin.write("p"); // would normally pause — must be swallowed by the prompt
+    await tick();
+    expect(actions).toEqual([]);
   });
 
   it("stop targets the selected agent when focus is on agents/detail", async () => {

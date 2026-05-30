@@ -34,7 +34,7 @@ export function profile(config: ProfileConfig): Profile {
 
 /** Type guard: is `value` a {@link Profile} produced by {@link profile}? */
 export function isProfile(value: unknown): value is Profile {
-  return (
-    typeof value === "object" && value !== null && (value as Partial<Profile>).__workflowProfile === true
-  );
+  if (typeof value !== "object" || value === null) return false;
+  const candidate: Partial<Profile> = value;
+  return candidate.__workflowProfile === true;
 }

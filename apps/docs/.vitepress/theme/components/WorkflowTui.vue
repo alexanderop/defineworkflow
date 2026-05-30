@@ -13,6 +13,7 @@ import {
   detailSections,
   totalDurationMs,
   type WorkflowEvent,
+  type AgentStatus,
 } from "../tui-replay";
 import { SCENARIO } from "../tui-scenario";
 
@@ -135,7 +136,8 @@ function metricsFor(key: string): string {
     .join(" · ");
 }
 function glyphFor(status: string): string {
-  return statusGlyph(status as never, frame.value);
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- status arrives as a widened string from RunState; statusGlyph narrows it back to the AgentStatus union at runtime
+  return statusGlyph(status as AgentStatus, frame.value);
 }
 const detailLines = computed(() => (selectedAgent.value ? detailSections(selectedAgent.value, now.value) : ["(no agent selected)"]));
 </script>

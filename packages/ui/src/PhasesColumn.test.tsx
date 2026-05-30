@@ -17,4 +17,14 @@ describe("PhasesColumn", () => {
     expect(frame).toContain("Search 3/5");
     expect(frame).toContain("› ✓ Scope 1/1");
   });
+
+  it("omits the count for phases with no agents", () => {
+    const askPhase: PhaseState[] = [
+      { title: "Ask", total: 0, done: 0, running: 0, tokens: 0, inputTokens: 0, outputTokens: 0 },
+    ];
+    const { lastFrame } = render(<PhasesColumn phases={askPhase} selectedIndex={0} focused frame={0} />);
+    const frame = lastFrame() ?? "";
+    expect(frame).toContain("Ask");
+    expect(frame).not.toContain("0/0");
+  });
 });

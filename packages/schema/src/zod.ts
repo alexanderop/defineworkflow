@@ -7,12 +7,9 @@ import type { JsonSchema } from "./index.js";
  * JSON Schema object has no `parse`/`safeParse`, so the two inputs are unambiguous.
  */
 export function isZodSchema(value: unknown): boolean {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as { parse?: unknown }).parse === "function" &&
-    typeof (value as { safeParse?: unknown }).safeParse === "function"
-  );
+  if (typeof value !== "object" || value === null) return false;
+  const candidate: { parse?: unknown; safeParse?: unknown } = value;
+  return typeof candidate.parse === "function" && typeof candidate.safeParse === "function";
 }
 
 /**
@@ -21,5 +18,10 @@ export function isZodSchema(value: unknown): boolean {
  * which is exactly the draft {@link compileValidator} compiles against.
  */
 export function toJsonSchema(schema: unknown): JsonSchema {
-  return z.toJSONSchema(schema as Parameters<typeof z.toJSONSchema>[0]) as JsonSchema;
+  // `schema` is `unknown` (callers pass a duck-typed zod schema via `isZodSchema`); zod's own
+  // overloads can't narrow it, so this one cast to the input type is unavoidable.
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow unknown to zod's input type
+  const input = schema as Parameters<typeof z.toJSONSchema>[0];
+  const out: JsonSchema = z.toJSONSchema(input);
+  return out;
 }

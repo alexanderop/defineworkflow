@@ -26,6 +26,7 @@ export function loadWorkflow(source: string): LoadedWorkflow {
         workflow: runtime.workflow,
         phase: runtime.phase,
         log: runtime.log,
+        askUserQuestion: runtime.askUserQuestion,
         profile,
         args: runArgs ?? runtime.args,
         budget: runtime.budget,

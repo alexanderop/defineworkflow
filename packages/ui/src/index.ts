@@ -5,6 +5,7 @@ export { PhasesColumn, type PhasesColumnProps } from "./PhasesColumn.js";
 export { AgentsColumn, type AgentsColumnProps } from "./AgentsColumn.js";
 export { DetailPane, type DetailPaneProps } from "./DetailPane.js";
 export { Footer, type FooterProps } from "./Footer.js";
+export { QuestionPrompt, type QuestionPromptProps } from "./QuestionPrompt.js";
 export { Spinner, type SpinnerProps } from "./Spinner.js";
 export { createLineLogger } from "./line-log.js";
 export { renderReportText, type RenderReportOptions } from "./report-text.js";

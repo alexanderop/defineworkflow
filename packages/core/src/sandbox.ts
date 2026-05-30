@@ -12,6 +12,25 @@ export interface SandboxResult {
 type AstNode = { type: string; [key: string]: unknown };
 type LocatedMeta = { readonly node: AstNode; readonly mode: "meta" | "defineWorkflow" };
 
+/** Narrow an unknown AST value to a node — an object carrying a string `type`. */
+function asNode(value: unknown): AstNode | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const candidate: { type?: unknown } = value;
+  if (typeof candidate.type !== "string") return undefined;
+  const node: AstNode = { ...candidate, type: candidate.type };
+  return node;
+}
+
+/** Narrow an unknown AST value to an array of nodes; non-array → empty. Holes survive as undefined. */
+function asNodeArray(value: unknown): Array<AstNode | undefined> {
+  return Array.isArray(value) ? value.map(asNode) : [];
+}
+
+/** Read a child node off `node[key]`, narrowing it the same way as {@link asNode}. */
+function childNode(node: AstNode, key: string): AstNode | undefined {
+  return asNode(node[key]);
+}
+
 /**
  * Transform a workflow script into a runnable async IIFE.
  * - `export const meta = …` becomes a plain `const meta = …`, captured after assignment
@@ -29,7 +48,7 @@ export function transformScript(source: string): string {
       /\bexport\s+default\s+defineWorkflow\s*\(/,
       "const __workflow = globalThis.__workflow = defineWorkflow(",
     );
-    const wrapped = `(async () => {\n${safe}\nreturn await __workflow.run({ agent, parallel, pipeline, workflow, phase, log, args, budget });\n})()`;
+    const wrapped = `(async () => {\n${safe}\nreturn await __workflow.run({ agent, parallel, pipeline, workflow, phase, log, askUserQuestion, args, budget });\n})()`;
     return transformSync(wrapped, { loader: "ts", format: "esm" }).code;
   }
   // Declare `const meta` (so the script body can reference it) AND mirror the same
@@ -61,13 +80,15 @@ function makeBannedDate(): typeof Date {
     }
     // @ts-expect-error forwarding constructor args
     return new RealDate(...args);
-  } as unknown as typeof Date;
+  };
   Banned.now = () => {
     throw new Error("SandboxViolation: Date.now() is not allowed in a workflow");
   };
   Banned.parse = RealDate.parse;
   Banned.UTC = RealDate.UTC;
-  return Banned;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- a hand-rolled Date stand-in for the sandbox cannot be expressed as `typeof Date` without a cast
+  const banned = Banned as unknown as typeof Date;
+  return banned;
 }
 
 const bannedMath = {
@@ -92,7 +113,8 @@ const bannedMath = {
  */
 export function extractMeta(source: string): WorkflowMeta {
   const js = transformScript(source);
-  const program = parse(js, { ecmaVersion: "latest", sourceType: "script" }) as unknown as AstNode;
+  const program = asNode(parse(js, { ecmaVersion: "latest", sourceType: "script" }));
+  if (!program) throw violation("workflow script did not parse to a program node");
   const located = locateMetaLiteral(program);
   const meta =
     located.mode === "defineWorkflow"
@@ -109,34 +131,34 @@ export function extractMeta(source: string): WorkflowMeta {
  *   first statement: VariableDeclaration `const meta = globalThis.__meta = <LIT>`
  */
 function locateMetaLiteral(program: AstNode): LocatedMeta {
-  const top = (program.body as AstNode[] | undefined)?.[0];
-  const call = top?.type === "ExpressionStatement" ? (top.expression as AstNode) : undefined;
-  const arrow = call?.type === "CallExpression" ? (call.callee as AstNode) : undefined;
-  const block = arrow?.type === "ArrowFunctionExpression" ? (arrow.body as AstNode) : undefined;
-  const stmts = (block?.body as AstNode[] | undefined) ?? [];
+  const top = asNodeArray(program.body)[0];
+  const call = top?.type === "ExpressionStatement" ? childNode(top, "expression") : undefined;
+  const arrow = call?.type === "CallExpression" ? childNode(call, "callee") : undefined;
+  const block = arrow?.type === "ArrowFunctionExpression" ? childNode(arrow, "body") : undefined;
+  const stmts = block ? asNodeArray(block.body) : [];
 
   // Skip a leading "use strict" directive esbuild may emit.
   const first = stmts.find(
-    (s) => !(s.type === "ExpressionStatement" && (s.expression as AstNode)?.type === "Literal"),
+    (s) => !(s?.type === "ExpressionStatement" && childNode(s, "expression")?.type === "Literal"),
   );
-  if (first?.type !== "VariableDeclaration" || (first as AstNode).kind !== "const") {
+  if (first?.type !== "VariableDeclaration" || first.kind !== "const") {
     throw new Error("SandboxViolation: workflow metadata must be the first statement in the workflow");
   }
-  const decl = (first.declarations as AstNode[])[0];
-  const id = decl?.id as AstNode | undefined;
+  const decl = asNodeArray(first.declarations)[0];
+  const id = decl ? childNode(decl, "id") : undefined;
   if (!decl || id?.type !== "Identifier") throw new Error("SandboxViolation: the first statement must declare workflow metadata");
   // Unwrap the `globalThis.__meta = <LIT>` assignment the transform injects.
-  let init = decl.init as AstNode | undefined;
-  while (init?.type === "AssignmentExpression") init = init.right as AstNode;
+  let init = childNode(decl, "init");
+  while (init?.type === "AssignmentExpression") init = childNode(init, "right");
   if (!init) throw new Error("SandboxViolation: `meta` must have a literal value");
   if (id.name === "meta") return { node: init, mode: "meta" };
   if (id.name === "__workflow") {
     if (init.type !== "CallExpression") throw violation("defineWorkflow metadata must be a call");
-    const callee = init.callee as AstNode | undefined;
+    const callee = childNode(init, "callee");
     if (callee?.type !== "Identifier" || callee.name !== "defineWorkflow") {
       throw violation("default workflow export must call defineWorkflow");
     }
-    const firstArg = (init.arguments as AstNode[] | undefined)?.[0];
+    const firstArg = asNodeArray(init.arguments)[0];
     if (!firstArg) throw violation("defineWorkflow requires a metadata object");
     return { node: firstArg, mode: "defineWorkflow" };
   }
@@ -146,14 +168,19 @@ function locateMetaLiteral(program: AstNode): LocatedMeta {
 function evaluateWorkflowDefinitionLiteral(node: AstNode): unknown {
   if (node.type !== "ObjectExpression") throw violation("defineWorkflow argument must be an object literal");
   const out: Record<string, unknown> = {};
-  for (const prop of node.properties as AstNode[]) {
+  for (const prop of asNodeArray(node.properties)) {
+    if (!prop) throw violation("only plain properties allowed in defineWorkflow metadata");
     if (prop.type === "SpreadElement") throw violation("spread not allowed in defineWorkflow metadata");
     if (prop.type !== "Property") throw violation("only plain properties allowed in defineWorkflow metadata");
     if (prop.computed) throw violation("computed keys not allowed in defineWorkflow metadata");
-    const key = propertyKey(prop.key as AstNode, "defineWorkflow");
+    const keyNode = childNode(prop, "key");
+    if (!keyNode) throw violation("only plain properties allowed in defineWorkflow metadata");
+    const key = propertyKey(keyNode, "defineWorkflow");
     if (key === "run") continue;
     if (prop.kind !== "init" || prop.method) throw violation(`methods/accessors not allowed in defineWorkflow.${key}`);
-    out[key] = evaluateLiteral(prop.value as AstNode, `defineWorkflow.${key}`);
+    const valueNode = childNode(prop, "value");
+    if (!valueNode) throw violation(`non-literal value in defineWorkflow.${key}`);
+    out[key] = evaluateLiteral(valueNode, `defineWorkflow.${key}`);
   }
   return out;
 }
@@ -164,35 +191,42 @@ function evaluateLiteral(node: AstNode, path: string): unknown {
   switch (node.type) {
     case "ObjectExpression": {
       const out: Record<string, unknown> = {};
-      for (const prop of node.properties as AstNode[]) {
+      for (const prop of asNodeArray(node.properties)) {
+        if (!prop) throw violation(`only plain properties allowed in ${path}`);
         if (prop.type === "SpreadElement") throw violation(`spread not allowed in ${path}`);
         if (prop.type !== "Property") throw violation(`only plain properties allowed in ${path}`);
         if (prop.computed) throw violation(`computed keys not allowed in ${path}`);
         if (prop.kind !== "init" || prop.method) throw violation(`methods/accessors not allowed in ${path}`);
-        const key = propertyKey(prop.key as AstNode, path);
+        const keyNode = childNode(prop, "key");
+        if (!keyNode) throw violation(`only plain properties allowed in ${path}`);
+        const key = propertyKey(keyNode, path);
         if (key === "__proto__" || key === "constructor" || key === "prototype") {
           throw violation(`reserved key name not allowed in ${path}: ${key}`);
         }
-        out[key] = evaluateLiteral(prop.value as AstNode, `${path}.${key}`);
+        const valueNode = childNode(prop, "value");
+        if (!valueNode) throw violation(`non-literal value in ${path}.${key}`);
+        out[key] = evaluateLiteral(valueNode, `${path}.${key}`);
       }
       return out;
     }
     case "ArrayExpression":
-      return (node.elements as Array<AstNode | null>).map((el, i) => {
+      return asNodeArray(node.elements).map((el, i) => {
         if (!el) throw violation(`sparse arrays not allowed in ${path}`);
         if (el.type === "SpreadElement") throw violation(`spread not allowed in ${path}`);
         return evaluateLiteral(el, `${path}[${i}]`);
       });
     case "Literal":
       return node.value;
-    case "TemplateLiteral":
-      if ((node.expressions as unknown[]).length > 0) throw violation(`template interpolation not allowed in ${path}`);
-      return (node.quasis as AstNode[])
-        .map((q) => (q.value as { cooked?: string; raw: string }).cooked ?? (q.value as { raw: string }).raw)
+    case "TemplateLiteral": {
+      const expressions = Array.isArray(node.expressions) ? node.expressions : [];
+      if (expressions.length > 0) throw violation(`template interpolation not allowed in ${path}`);
+      return asNodeArray(node.quasis)
+        .map((q) => quasiValue(q))
         .join("");
+    }
     case "UnaryExpression": {
-      const arg = node.argument as AstNode;
-      if (node.operator === "-" && arg.type === "Literal" && typeof arg.value === "number") return -arg.value;
+      const arg = childNode(node, "argument");
+      if (node.operator === "-" && arg?.type === "Literal" && typeof arg.value === "number") return -arg.value;
       throw violation(`only negative-number unary allowed in ${path}`);
     }
     default:
@@ -200,8 +234,18 @@ function evaluateLiteral(node: AstNode, path: string): unknown {
   }
 }
 
+/** Read a template-literal quasi's cooked (fallback raw) string, tolerating either shape. */
+function quasiValue(quasi: AstNode | undefined): string {
+  const value = quasi?.value;
+  if (typeof value !== "object" || value === null) return "";
+  const parts: { cooked?: unknown; raw?: unknown } = value;
+  if (typeof parts.cooked === "string") return parts.cooked;
+  if (typeof parts.raw === "string") return parts.raw;
+  return "";
+}
+
 function propertyKey(node: AstNode, path: string): string {
-  if (node.type === "Identifier") return node.name as string;
+  if (node.type === "Identifier" && typeof node.name === "string") return node.name;
   if (node.type === "Literal" && (typeof node.value === "string" || typeof node.value === "number")) {
     return String(node.value);
   }
@@ -210,27 +254,32 @@ function propertyKey(node: AstNode, path: string): string {
 
 function validateMeta(meta: unknown): WorkflowMeta {
   if (!meta || typeof meta !== "object") throw violation("meta must be an object");
-  const m = meta as Record<string, unknown>;
-  if (typeof m.name !== "string" || !m.name.trim()) throw violation("meta.name must be a non-empty string");
-  if (typeof m.description !== "string" || !m.description.trim()) {
+  const m: Record<string, unknown> = { ...meta };
+  const { name, description, whenToUse, harness, phases, output } = m;
+  if (typeof name !== "string" || !name.trim()) throw violation("meta.name must be a non-empty string");
+  if (typeof description !== "string" || !description.trim()) {
     throw violation("meta.description must be a non-empty string");
   }
-  if (m.whenToUse !== undefined && typeof m.whenToUse !== "string") {
+  if (whenToUse !== undefined && typeof whenToUse !== "string") {
     throw violation("meta.whenToUse must be a string");
   }
   // Harness is NOT validated here: the sandbox only enforces determinism. The
   // declared `meta.harness` is the single source of truth, but validating it
   // (→ `HarnessNotDeclared`) is the CLI layer's job (`resolveHarness`), so a
   // missing/unknown value is passed through untouched for that gate to report.
-  if (m.phases !== undefined && !Array.isArray(m.phases)) throw violation("meta.phases must be an array");
-  if (m.output !== undefined && typeof m.output !== "string") throw violation("meta.output must be a string");
+  if (phases !== undefined && !Array.isArray(phases)) throw violation("meta.phases must be an array");
+  if (output !== undefined && typeof output !== "string") throw violation("meta.output must be a string");
+  // `harness` flows through unvalidated (CLI's job). The HarnessId brand is a
+  // narrowing the sandbox deliberately doesn't enforce, so accept it as-declared.
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- harness is validated downstream by the CLI; the sandbox passes the declared value through
+  const declaredHarness = harness as HarnessId;
   return {
-    name: m.name,
-    description: m.description,
-    ...(m.whenToUse !== undefined ? { whenToUse: m.whenToUse } : {}),
-    harness: m.harness as HarnessId,
-    ...(m.phases !== undefined ? { phases: m.phases as readonly unknown[] } : {}),
-    ...(m.output !== undefined ? { output: m.output as string } : {}),
+    name,
+    description,
+    ...(whenToUse !== undefined ? { whenToUse } : {}),
+    harness: declaredHarness,
+    ...(phases !== undefined && Array.isArray(phases) ? { phases } : {}),
+    ...(output !== undefined && typeof output === "string" ? { output } : {}),
   };
 }
 

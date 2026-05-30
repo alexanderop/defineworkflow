@@ -13,7 +13,7 @@ import { resolveSavedWorkflow } from "./resolve.js";
 export const USAGE = `workflow — deterministic multi-agent workflow runner
 
 Usage:
-  workflow run <script> [--args '{...}'] [--detach] [--yes] [--mock]
+  workflow run <script> [--args '{...}'] [--answers '{...}'] [--detach] [--yes] [--mock]
   workflow watch <id>            attach the UI to a running/finished run
   workflow list                  list runs (status, tokens, elapsed)
   workflow resume <id>           replay the journal, run the rest live
@@ -35,6 +35,7 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
       strict: false,
       options: {
         args: { type: "string" },
+        answers: { type: "string" },
         model: { type: "string" },
         detach: { type: "boolean" },
         yes: { type: "boolean" },
@@ -43,7 +44,7 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
       },
     });
   } catch (e) {
-    deps.print(`error: ${(e as Error).message}\n`);
+    deps.ui.print(`error: ${e instanceof Error ? e.message : String(e)}\n`);
     return 1;
   }
 
@@ -51,19 +52,20 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
   const command = positionals[0];
 
   if (values["help"] || command === undefined) {
-    deps.print(USAGE);
+    deps.ui.print(USAGE);
     return command === undefined && !values["help"] ? 1 : 0;
   }
 
   const runFlags = {
     argsJson: str(values["args"]),
+    answersJson: str(values["answers"]),
     detach: values["detach"] === true,
     yes: values["yes"] === true,
     mock: values["mock"] === true,
   };
   const requireId = (label: string): string | undefined => {
     const id = positionals[1];
-    if (id === undefined) deps.print(`error: ${label} requires a run id\n`);
+    if (id === undefined) deps.ui.print(`error: ${label} requires a run id\n`);
     return id;
   };
 
@@ -71,7 +73,7 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
     case "run": {
       const script = positionals[1];
       if (script === undefined) {
-        deps.print("error: run requires a script path\n");
+        deps.ui.print("error: run requires a script path\n");
         return 1;
       }
       return runCommand({ script, ...runFlags }, deps);
@@ -102,9 +104,9 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
       return adaptersCommand(deps);
     default: {
       // Treat an unknown command as a saved/bundled workflow name.
-      const resolved = resolveSavedWorkflow(command, { homeDir: deps.homeDir, cwd: deps.cwd, readFile: deps.readTextFile });
+      const resolved = resolveSavedWorkflow(command, { homeDir: deps.env.homeDir, cwd: deps.env.cwd, readFile: deps.io.readText });
       if (!resolved) {
-        deps.print(`error: unknown command or workflow '${command}'\n`);
+        deps.ui.print(`error: unknown command or workflow '${command}'\n`);
         return 1;
       }
       return runCommand({ script: resolved.path, ...runFlags }, deps);

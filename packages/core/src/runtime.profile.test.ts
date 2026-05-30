@@ -1,4 +1,5 @@
 import { ok } from "neverthrow";
+import type { RunId } from "./brand.js";
 import { describe, expect, it } from "vitest";
 import { createRuntime, type RuntimeDeps } from "./runtime.js";
 import { createSemaphore } from "./semaphore.js";
@@ -30,7 +31,7 @@ const baseDeps = (runner: RuntimeDeps["runner"], over: Partial<RuntimeDeps> = {}
   budgetTotal: null,
   args: undefined,
   cwd: "/tmp",
-  runId: "test-run",
+  runId: "test-run" as RunId,
   emit: () => {},
   now: () => 0,
   ...over,

@@ -96,9 +96,14 @@ async function redraw(): Promise<void> {
     import("@dagrejs/dagre"),
   ]);
   // @dagrejs/dagre is CJS; its ESM interop exposes the API under `default`
-  // (with `graphlib.Graph` + `layout`), not as flat named exports.
+  // (with `graphlib.Graph` + `layout`), not as flat named exports — and the
+  // shipped types model the named-export shape, not the runtime `default`
+  // wrapper, so reconciling the two requires interop casts.
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- CJS/ESM interop: runtime exposes the API under `.default`, which the dagre types don't declare
   const dagre = (dagreMod as { default?: unknown }).default ?? dagreMod;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the interop value to the dagre graphlib surface this component uses
   const { Graph } = (dagre as { graphlib: { Graph: new (o?: object) => DagreGraph } }).graphlib;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the interop value to dagre's layout function
   const layout = (dagre as { layout: (g: DagreGraph) => void }).layout;
 
   const pal = palette.value;
@@ -150,7 +155,7 @@ async function redraw(): Promise<void> {
   // --- edges (drawn under nodes) -------------------------------------------
   for (const e of edges) {
     const ge = g.edge(e.from, e.to);
-    const points = (ge?.points ?? []) as Point[];
+    const points: Point[] = ge?.points ?? [];
     if (points.length < 2) continue;
     const seed = seedFrom(`${e.from}->${e.to}`);
     const line = rc.path(polylinePath(points), {

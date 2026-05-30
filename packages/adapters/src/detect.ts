@@ -18,7 +18,9 @@ export const CAPABILITIES: Readonly<Record<AdapterId, Capabilities>> = {
   "raw-api": { nativeSchema: true, reportsTokens: true, toolEvents: false },
 };
 
-const CLI_BINS: Readonly<Record<string, string>> = { claude: "claude", codex: "codex", copilot: "copilot" };
+type CliAdapterId = Exclude<AdapterId, "raw-api">;
+const CLI_BINS: Readonly<Record<CliAdapterId, string>> = { claude: "claude", codex: "codex", copilot: "copilot" };
+const CLI_ADAPTER_IDS: readonly CliAdapterId[] = ["claude", "codex", "copilot"];
 
 async function binExists(bin: string): Promise<boolean> {
   const dirs = (process.env.PATH ?? "").split(delimiter).filter(Boolean);
@@ -41,8 +43,8 @@ export interface DetectDeps {
 export async function detectAdapters(deps: DetectDeps = {}): Promise<readonly AdapterId[]> {
   const exists = deps.exists ?? binExists;
   const found: AdapterId[] = [];
-  for (const [id, bin] of Object.entries(CLI_BINS)) {
-    if (await exists(bin)) found.push(id as AdapterId);
+  for (const id of CLI_ADAPTER_IDS) {
+    if (await exists(CLI_BINS[id])) found.push(id);
   }
   return found;
 }

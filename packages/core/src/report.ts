@@ -1,3 +1,4 @@
+import type { RunId } from "./brand.js";
 import type { AgentState, RunState } from "./events.js";
 
 export type RunReportStatus = "finished" | "running" | "failed";
@@ -47,7 +48,7 @@ export interface AgentReport {
 }
 
 export interface RunReport {
-  readonly runId: string;
+  readonly runId: RunId;
   readonly name: string;
   readonly status: RunReportStatus;
   readonly startedAt?: number;

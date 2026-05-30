@@ -120,6 +120,8 @@ export default defineWorkflow({
       testsStillPass: z.boolean().describe("true if the tests still pass after refactoring"),
     });
 
+    // `args` is `unknown` (parsed from the CLI `--args` JSON); narrow it to this run's expected shape.
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the unknown CLI args payload
     const a = (args ?? {}) as { feature?: string; workdir?: string };
     const feature = a.feature ?? "a token-bucket rate limiter for a public REST API";
     // Absolute, throwaway workspace. Constant by default (the sandbox forbids
@@ -178,6 +180,8 @@ export default defineWorkflow({
 
         // Stage 1 — TDD: real red → green inside the subtask's own /tmp directory.
         (_prev, subtask) => {
+          // pipeline() stages receive `unknown`; each schema above guarantees this stage's shape.
+          // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the unknown pipeline item
           const s = subtask as Subtask;
           const dir = `${workspace}/${s.id}`;
           return agent(
@@ -196,6 +200,7 @@ export default defineWorkflow({
 
         // Stage 2 — Review: a fresh agent reads the files and RE-RUNS the tests.
         (prev) => {
+          // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the unknown prev-stage result
           const { subtask, dir, tdd } = prev as { subtask: Subtask; dir: string; tdd: TddResult };
           // Apply the `reviewer` profile: its `instructions` persona is prepended to this
           // prompt automatically, so the prompt itself only carries the per-subtask task.
@@ -213,6 +218,7 @@ export default defineWorkflow({
 
         // Stage 3 — Refactor: edit the files in place; skip the agent if approved clean.
         (prev) => {
+          // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the unknown prev-stage result
           const { subtask, dir, tdd, review } = prev as {
             subtask: Subtask;
             dir: string;
@@ -226,7 +232,10 @@ export default defineWorkflow({
               subtask,
               dir,
               review,
-              refactor: { changelog: ["no changes — approved as-is"], testsStillPass: review.testsPass } as Refactor,
+              refactor: {
+                changelog: ["no changes — approved as-is"],
+                testsStillPass: review.testsPass,
+              } satisfies Refactor,
             });
           }
           return agent(
@@ -241,13 +250,13 @@ export default defineWorkflow({
 
       // A stage that throws drops its subtask to null — filter those out.
       const done = built.filter(
-        (b): b is { subtask: Subtask; dir: string; review: Review; refactor: Refactor } => b != null,
+        (b): b is { subtask: Subtask; dir: string; review: Review; refactor: Refactor } => b !== null,
       );
       log(`built ${done.length}/${subtasks.length} subtasks`);
 
       // ── 6. Integrate ──────────────────────────────────────────────────────────────
       phase("Integrate");
-      const report = (await agent(
+      const report = await agent(
         `${sandboxRule}\n\n` +
           `The feature "${prd.title}" was built across these subtask directories under "${workspace}". ` +
           `You may read them to verify. Write a concise delivery report in Markdown.\n\n` +
@@ -267,7 +276,7 @@ export default defineWorkflow({
           `\n\nStructure: a short summary, an "Acceptance Criteria" checklist mapped from the PRD, a per-subtask ` +
           `section (final state + tests pass/fail), and a "Follow-ups / Risks" section. Output ONLY the markdown.`,
         { label: "integrate", phase: "Integrate" },
-      )) as string;
+      );
 
       return {
         report,

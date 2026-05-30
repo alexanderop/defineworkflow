@@ -34,7 +34,8 @@ export function compileValidator(schema: JsonSchema): Validator {
       const where = e.instancePath || "(root)";
       // Ajv's "must NOT have additional properties" message omits the offending key;
       // surface it (it lives in params) so weak-model debugging shows what to drop.
-      const offending = (e.params as { additionalProperty?: string } | undefined)?.additionalProperty;
+      const params: { additionalProperty?: string } | undefined = e.params;
+      const offending = params?.additionalProperty;
       const suffix = offending !== undefined ? ` "${offending}"` : "";
       return `${where} ${e.message ?? "invalid"}${suffix}`;
     });

@@ -3,6 +3,7 @@ import type { AgentOptions, Budget, Profile, ProfileConfig, Runtime, WorkflowMet
 
 export type {
   AgentOptions,
+  AskUserQuestionOptions,
   HarnessId,
   JsonSchema,
   LoadedWorkflow,
@@ -22,6 +23,7 @@ export interface WorkflowContext {
   readonly workflow: Runtime["workflow"];
   readonly phase: Runtime["phase"];
   readonly log: Runtime["log"];
+  readonly askUserQuestion: Runtime["askUserQuestion"];
   readonly args: unknown;
   readonly budget: Budget;
 }
@@ -71,6 +73,14 @@ export const pipeline: Runtime["pipeline"] = runtimeOnly;
 export const phase: Runtime["phase"] = runtimeOnly;
 export const log: Runtime["log"] = runtimeOnly;
 export const workflow: Runtime["workflow"] = runtimeOnly;
+
+/**
+ * Ask the human a question mid-run and await their answer. The question text is rendered as
+ * markdown; pass `choices` for selectable options and `allowOther` for a free-text escape hatch.
+ * The answer is journaled, so a resumed run returns it without re-asking. Authoring stub only —
+ * the CLI injects the live runtime at execution time.
+ */
+export const askUserQuestion: Runtime["askUserQuestion"] = runtimeOnly;
 
 export const args: unknown = undefined;
 export const budget: Budget = {
