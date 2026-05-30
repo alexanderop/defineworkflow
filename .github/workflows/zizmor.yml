@@ -29,6 +29,10 @@ jobs:
       - uses: zizmorcore/zizmor-action@b1d7e1fb5de872772f31590499237e7cce841e8e # v0.5.3
         with:
           persona: pedantic
+          # Scan only our own workflows. `repos/` holds read-only reference
+          # subtrees (ink, etc.) whose workflows are upstream's, not ours to
+          # harden — mirrors `.github/codeql/codeql-config.yml`'s `paths-ignore`.
+          inputs: ./.github/workflows/
           # Annotations need no special permissions (unlike SARIF upload).
           annotations: true
           advanced-security: false

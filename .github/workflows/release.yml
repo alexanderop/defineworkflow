@@ -36,6 +36,12 @@ on:
         required: true
         type: string
 
+# Never run two publishes of the same tag concurrently, and never cancel an
+# in-flight publish.
+concurrency:
+  group: release-publish-${{ inputs.tag }}
+  cancel-in-progress: false
+
 permissions: {}
 
 jobs:
