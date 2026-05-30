@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { extractMeta, runInSandbox, type LoadedWorkflow, type Runtime, type SandboxResult } from "@workflow/core";
+import { extractMeta, profile, runInSandbox, type LoadedWorkflow, type Runtime, type SandboxResult } from "@workflow/core";
 
 /** Read a workflow's `meta` without executing its body (used by the consent flow). */
 export function loadMeta(source: string): SandboxResult["meta"] {
@@ -26,6 +26,7 @@ export function loadWorkflow(source: string): LoadedWorkflow {
         workflow: runtime.workflow,
         phase: runtime.phase,
         log: runtime.log,
+        profile,
         args: runArgs ?? runtime.args,
         budget: runtime.budget,
       };

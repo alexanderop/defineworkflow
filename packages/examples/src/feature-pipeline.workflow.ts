@@ -30,7 +30,7 @@
 // in the file. Only type-only declarations (the `interface`s below, erased at
 // compile time) may precede it — so the zod schemas are declared inside `run()`.
 
-import { agent, args, defineWorkflow, log, phase, pipeline, z } from "defineworkflow";
+import { agent, args, defineWorkflow, log, phase, pipeline, profile, z } from "defineworkflow";
 
 // Type-only shapes (erased by the compiler) used to cast the `unknown` results that
 // flow between pipeline stages. These mirror the zod schemas declared inside run().
@@ -136,6 +136,17 @@ export default defineWorkflow({
       `Use Node.js with the built-in test runner ("node --test", no npm install, no external deps). ` +
       `Tests are *.test.mjs; implementation is plain .mjs ES modules.`;
 
+    // A reusable agent profile for the Review stage: bundle the reviewer persona once as
+    // `instructions` (prepended to the request prompt) instead of repeating it in the prompt.
+    // Profiles are pure, within-file config; the call site stays a normal `agent()` call.
+    // NOTE: profile() must be created INSIDE run() — like the zod schemas above — because the
+    // engine requires `defineWorkflow(...)` to be the file's first runtime statement.
+    const reviewer = profile({
+      instructions:
+        "You are a meticulous senior software reviewer. Judge correctness, edge cases, and missing " +
+        "test coverage above all else; call out blockers plainly and don't rubber-stamp. Ignore pure style nits.",
+    });
+
     try {
       // ── 1. PRD ──────────────────────────────────────────────────────────────────
       phase("PRD");
@@ -186,9 +197,12 @@ export default defineWorkflow({
         // Stage 2 — Review: a fresh agent reads the files and RE-RUNS the tests.
         (prev) => {
           const { subtask, dir, tdd } = prev as { subtask: Subtask; dir: string; tdd: TddResult };
+          // Apply the `reviewer` profile: its `instructions` persona is prepended to this
+          // prompt automatically, so the prompt itself only carries the per-subtask task.
           return agent(
+            reviewer,
             `${sandboxRule}\n\n` +
-              `You are a senior reviewer. The implementation for "${subtask.title}" lives in "${dir}".\n` +
+              `The implementation for "${subtask.title}" lives in "${dir}".\n` +
               `1. Read the files there.\n2. Re-run the tests (\`${tdd.testCommand}\`) and record whether they pass.\n` +
               `3. Critique correctness, edge cases, missing tests, and design — be specific and actionable.\n` +
               `Approve only if the tests pass AND it's genuinely ready.\n\n` +

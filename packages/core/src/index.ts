@@ -16,6 +16,7 @@ export {
   type SelectRunReportOptions,
 } from "./report.js";
 export { createBudget, type Budget } from "./budget.js";
+export { profile, isProfile, type Profile, type ProfileConfig } from "./profile.js";
 export { createSemaphore, type Semaphore } from "./semaphore.js";
 export { createJournal, type Journal, type JournalEntry } from "./journal.js";
 export { runInSandbox, extractMeta, transformScript, type SandboxResult } from "./sandbox.js";

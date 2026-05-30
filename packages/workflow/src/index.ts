@@ -1,11 +1,13 @@
 import { z } from "zod";
-import type { AgentOptions, Budget, Runtime, WorkflowMeta } from "@workflow/core";
+import type { AgentOptions, Budget, Profile, ProfileConfig, Runtime, WorkflowMeta } from "@workflow/core";
 
 export type {
   AgentOptions,
   HarnessId,
   JsonSchema,
   LoadedWorkflow,
+  Profile,
+  ProfileConfig,
   Runtime,
   WorkflowMeta,
 } from "@workflow/core";
@@ -43,10 +45,25 @@ function runtimeOnly(): never {
  * type (validated at runtime); without one, the agent's raw text as `unknown`.
  * Authoring stub only — the CLI injects the live runtime at execution time.
  */
+export function agent<T>(profile: Profile, prompt: string, opts: AgentOptions & { schema: z.ZodType<T> }): Promise<T>;
+export function agent(profile: Profile, prompt: string, opts?: AgentOptions): Promise<unknown>;
 export function agent<T>(prompt: string, opts: AgentOptions & { schema: z.ZodType<T> }): Promise<T>;
 export function agent(prompt: string, opts?: AgentOptions): Promise<unknown>;
-export function agent(_prompt: string, _opts?: AgentOptions): Promise<unknown> {
+export function agent(_a: string | Profile, _b?: string | AgentOptions, _c?: AgentOptions): Promise<unknown> {
   return runtimeOnly();
+}
+
+/**
+ * Bundle reusable agent defaults into a {@link Profile}, applied at a call site as
+ * `agent(reviewer, prompt, opts)`. Pure: freezes a copy of `config`. Per-call fields
+ * (`label`, `phase`, `schema`) are intentionally absent from {@link ProfileConfig}.
+ *
+ * This is a standalone re-implementation of the engine's `profile()` (the runner strips the
+ * `workflow` import and injects the live one) — kept here so authoring works outside the
+ * sandbox without bundling `@workflow/core`. The `__workflowProfile` brand must match core.
+ */
+export function profile(config: ProfileConfig): Profile {
+  return { __workflowProfile: true, config: Object.freeze({ ...config }) };
 }
 
 export const parallel: Runtime["parallel"] = runtimeOnly;

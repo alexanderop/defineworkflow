@@ -25,7 +25,7 @@ export interface AgentUsage {
 export type WorkflowEvent =
   | { readonly type: "run-started"; readonly runId: string; readonly name: string; readonly budgetTotal?: number | null; readonly at: number }
   | { readonly type: "phase-started"; readonly phase: string; readonly at: number }
-  | { readonly type: "agent-queued"; readonly key: string; readonly label: string; readonly phase: string; readonly prompt?: string; readonly at: number }
+  | { readonly type: "agent-queued"; readonly key: string; readonly label: string; readonly phase: string; readonly prompt?: string; readonly overrides?: readonly string[]; readonly at: number }
   | { readonly type: "agent-started"; readonly key: string; readonly at: number }
   | { readonly type: "agent-tool"; readonly key: string; readonly tool: ToolEvent; readonly at: number }
   | { readonly type: "agent-progress"; readonly key: string; readonly tokens?: number; readonly model?: string; readonly at: number }
