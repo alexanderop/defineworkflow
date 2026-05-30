@@ -38,4 +38,4 @@ export function createJournal(seed = []) {
   why the [sandbox](/guide/sandbox) bans those outright.
 
 Runs are stored under `~/.workflow/runs/{runId}/` as the event log + journal. That on-disk pair is the
-source of truth that powers `workflow watch`, `workflow resume`, and `workflow save`.
+source of truth that powers `defineworkflow watch`, `defineworkflow resume`, and `defineworkflow save`.

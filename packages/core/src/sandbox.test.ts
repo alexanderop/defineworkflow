@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { runInSandbox, extractMeta } from "./sandbox.js";
+import { profile, isProfile } from "./profile.js";
 
 describe("sandbox", () => {
   it("extracts meta and returns the script's return value", async () => {
@@ -39,6 +40,43 @@ describe("sandbox", () => {
     });
     expect(result.meta.name).toBe("demo");
     expect(result.returnValue).toEqual({ answer: 42 });
+  });
+
+  it("strips `import { profile }` and resolves the injected profile global", async () => {
+    const src = `
+      import { agent, defineWorkflow, profile } from "defineworkflow";
+
+      export default defineWorkflow({
+        name: "with-profile",
+        description: "uses a profile",
+        harness: "claude",
+        phases: [{ title: "Run" }],
+        async run() {
+          const reviewer = profile({ model: "sonnet", instructions: "Be terse." });
+          return await agent(reviewer, "review this");
+        },
+      });
+    `;
+    const seen: unknown[] = [];
+    const result = await runInSandbox(src, {
+      defineWorkflow: (workflow: unknown) => workflow,
+      profile,
+      agent: async (first: unknown) => {
+        seen.push(first);
+        return "ok";
+      },
+      parallel: async () => [],
+      pipeline: async () => [],
+      workflow: async () => null,
+      phase: () => {},
+      log: () => {},
+      args: null,
+      budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
+    });
+    expect(result.returnValue).toBe("ok");
+    // The stripped import resolved to the injected global, producing a branded Profile that
+    // flowed through as agent()'s first argument.
+    expect(isProfile(seen[0])).toBe(true);
   });
 
   it("runs a workflow exported with defineWorkflow()", async () => {

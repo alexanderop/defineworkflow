@@ -90,6 +90,63 @@ describe("event reducer", () => {
     expect(state.agents.get("0")?.endedAt).toBe(5);
   });
 
+  it("splits input/output tokens per agent, phase and run", () => {
+    const events: WorkflowEvent[] = [
+      { type: "run-started", runId: "r", name: "d", at: 0 },
+      { type: "phase-started", phase: "P", at: 1 },
+      { type: "agent-queued", key: "0", label: "a", phase: "P", at: 2 },
+      { type: "agent-started", key: "0", at: 3 },
+      { type: "agent-finished", key: "0", usage: { inputTokens: 30, outputTokens: 12 }, cached: false, at: 4 },
+    ];
+    const state = events.reduce(reduce, initialRunState());
+    const a = state.agents.get("0")!;
+    expect(a.inputTokens).toBe(30);
+    expect(a.outputTokens).toBe(12);
+    expect(a.tokens).toBe(42);
+    const phase = state.phases.get("P")!;
+    expect(phase.inputTokens).toBe(30);
+    expect(phase.outputTokens).toBe(12);
+    expect(state.totalInputTokens).toBe(30);
+    expect(state.totalOutputTokens).toBe(12);
+  });
+
+  it("records queuedAt and marks cached agents", () => {
+    const events: WorkflowEvent[] = [
+      { type: "agent-queued", key: "0", label: "a", phase: "P", at: 10 },
+      { type: "agent-finished", key: "0", usage: { inputTokens: 0, outputTokens: 7 }, cached: true, at: 20 },
+    ];
+    const state = events.reduce(reduce, initialRunState());
+    const a = state.agents.get("0")!;
+    expect(a.queuedAt).toBe(10);
+    expect(a.cached).toBe(true);
+  });
+
+  it("defaults cached to false for a real agent finish", () => {
+    const events: WorkflowEvent[] = [
+      { type: "agent-queued", key: "0", label: "a", phase: "P", at: 0 },
+      { type: "agent-finished", key: "0", usage: { inputTokens: 1, outputTokens: 2 }, cached: false, at: 1 },
+    ];
+    const state = events.reduce(reduce, initialRunState());
+    expect(state.agents.get("0")?.cached).toBe(false);
+  });
+
+  it("flags approximate token usage on the agent", () => {
+    const events: WorkflowEvent[] = [
+      { type: "agent-queued", key: "0", label: "a", phase: "P", at: 0 },
+      { type: "agent-finished", key: "0", usage: { inputTokens: 1, outputTokens: 2, approximate: true }, cached: false, at: 1 },
+    ];
+    const state = events.reduce(reduce, initialRunState());
+    expect(state.agents.get("0")?.approximate).toBe(true);
+  });
+
+  it("stores the run's budget total from run-started", () => {
+    const events: WorkflowEvent[] = [
+      { type: "run-started", runId: "r", name: "d", budgetTotal: 500_000, at: 0 },
+    ];
+    const state = events.reduce(reduce, initialRunState());
+    expect(state.budgetTotal).toBe(500_000);
+  });
+
   it("preserves the error on agent-failed", () => {
     const events: WorkflowEvent[] = [
       { type: "agent-queued", key: "0", label: "a", phase: "P", at: 0 },

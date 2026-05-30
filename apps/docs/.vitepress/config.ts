@@ -5,7 +5,7 @@ const REPO = "clanker-workflow";
 const GH_USER = "alexanderop";
 
 export default defineConfig({
-  title: "workflow",
+  title: "defineworkflow",
   description: "A deterministic, crash-safe multi-agent workflow engine — explained under the hood.",
   base: `/${REPO}/`,
   cleanUrls: true,
@@ -26,16 +26,20 @@ export default defineConfig({
   ],
 
   themeConfig: {
-    siteTitle: "workflow",
+    siteTitle: "defineworkflow",
     nav: [
       { text: "Guide", link: "/guide/", activeMatch: "/guide/" },
+      { text: "Terminal UI", link: "/guide/terminal-ui" },
       { text: "Adapters", link: "/adapters" },
       { text: "CLI", link: "/cli" },
     ],
     sidebar: [
       {
         text: "Introduction",
-        items: [{ text: "What is workflow?", link: "/guide/" }],
+        items: [
+          { text: "What is workflow?", link: "/guide/" },
+          { text: "The terminal UI (playground)", link: "/guide/terminal-ui" },
+        ],
       },
       {
         text: "Under the hood",

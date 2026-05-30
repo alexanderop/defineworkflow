@@ -12,14 +12,16 @@ const agents = [0, 1, 2, 3, 4];
       <div class="left">
         <div class="wf-eyebrow">deterministic · crash-safe · harness-agnostic</div>
         <h1 class="title">
-          workflow<span class="comma">,</span><br />
+          defineworkflow<span class="comma">,</span><br />
           <span class="glow">under the hood</span>
         </h1>
         <p class="sub">
           A workflow is a plain JS/TS script that orchestrates coding-agent calls —
-          <code>agent()</code>, <code>parallel()</code>, <code>pipeline()</code> — with
-          <b>durable execution</b>. Every agent result is journaled by sequence number, so a run
-          replays from a checkpoint <i>without re-invoking the model</i>.
+          <code>agent()</code>, <code>parallel()</code>, <code>pipeline()</code> — on
+          <b>any harness you choose</b>. Run the same script on Claude, Codex, Copilot, or the
+          raw API — and <i>mix them in a single run</i>, one agent on Codex, the next on Claude.
+          Underneath, every result is journaled by sequence number, so a run replays from a
+          checkpoint <i>without re-invoking the model</i>.
         </p>
         <div class="cta">
           <a class="btn primary" :href="withBase('/guide/')">Read the internals →</a>

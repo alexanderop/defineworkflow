@@ -4,7 +4,7 @@ import type { AgentState } from "@workflow/core";
 import { AgentsColumn } from "./AgentsColumn.js";
 
 function agent(label: string, status: AgentState["status"], extra: Partial<AgentState> = {}): AgentState {
-  return { key: label, label, phase: "Search", prompt: "", resultText: "", status, tokens: 0, tools: [], ...extra };
+  return { key: label, label, phase: "Search", prompt: "", resultText: "", status, tokens: 0, inputTokens: 0, outputTokens: 0, cached: false, tools: [], ...extra };
 }
 
 describe("AgentsColumn", () => {

@@ -86,7 +86,7 @@ describe("selectors", () => {
   it("agentRow shows live tokens while running", () => {
     const running: AgentState = {
       key: "k1", label: "live", phase: "Search", prompt: "", resultText: "",
-      status: "running", tokens: 0, tools: [], startedAt: 135, liveTokens: 20400,
+      status: "running", tokens: 0, inputTokens: 0, outputTokens: 0, cached: false, tools: [], startedAt: 135, liveTokens: 20400,
     };
     expect(agentRow(running, 135 + 21000).tokens).toBe("20.4k");
     expect(agentRow(running, 135 + 21000).elapsed).toBe("21s");

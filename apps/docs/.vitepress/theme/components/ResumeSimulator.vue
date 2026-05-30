@@ -96,7 +96,7 @@ function run() {
       </div>
       <div class="meter"><div :style="{ width: savedPct + '%' }" /></div>
       <button class="btn primary" :disabled="running" @click="run">
-        {{ running ? "resuming…" : "▶ workflow resume <id>" }}
+        {{ running ? "resuming…" : "▶ defineworkflow resume <id>" }}
       </button>
       <p class="note">
         Same-session, same script + args ⇒ 100% cache hit. The first edited/new agent() call and

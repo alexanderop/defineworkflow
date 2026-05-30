@@ -7,6 +7,7 @@ import type { Journal } from "./journal.js";
 import type { AgentRequest, AgentRunner, WorkflowMeta } from "./types.js";
 import type { AgentProgress, WorkflowEvent } from "./events.js";
 import type { ControlRegistry } from "./control.js";
+import { isProfile, type Profile, type ProfileConfig } from "./profile.js";
 
 /** Derive a readable label from a prompt's first non-empty line (truncated), for unlabeled agents. */
 export function labelFromPrompt(prompt: string, max = 48): string {
@@ -29,6 +30,8 @@ export interface AgentOptions {
   readonly agentType?: string;
   readonly adapter?: string;
   readonly isolation?: "worktree";
+  /** A persona / system hint prepended to the request prompt. */
+  readonly instructions?: string;
 }
 
 export interface LoadedWorkflow {
@@ -64,11 +67,20 @@ export interface Runtime {
   readonly args: unknown;
   readonly budget: Budget;
   agent(prompt: string, opts?: AgentOptions): Promise<unknown>;
+  agent(profile: Profile, prompt: string, opts?: AgentOptions): Promise<unknown>;
   parallel<T>(thunks: ReadonlyArray<() => Promise<T>>): Promise<Array<T | null>>;
   pipeline(items: readonly unknown[], ...stages: ReadonlyArray<(prev: unknown, item: unknown, index: number) => Promise<unknown>>): Promise<Array<unknown | null>>;
   phase(title: string): void;
   log(message: string): void;
   workflow(name: string, args?: unknown): Promise<unknown>;
+}
+
+/** Keys a call site re-specified that the profile already set with a different value. */
+function profileOverrides(config: ProfileConfig, callOpts: AgentOptions): readonly string[] | undefined {
+  const keys = (Object.keys(config) as Array<keyof ProfileConfig>).filter(
+    (k) => callOpts[k] !== undefined && callOpts[k] !== config[k],
+  );
+  return keys.length > 0 ? keys : undefined;
 }
 
 export function createRuntime(deps: RuntimeDeps): Runtime {
@@ -77,11 +89,34 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
   let seq = 0;
   let spawned = 0;
 
-  const agent = async (prompt: string, opts: AgentOptions = {}): Promise<unknown> => {
+  const agent = async (
+    a: string | Profile,
+    b?: string | AgentOptions,
+    c?: AgentOptions,
+  ): Promise<unknown> => {
+    // Resolve the two call shapes — agent(prompt, opts) and agent(profile, prompt, opts) —
+    // into a single (prompt, opts). A profile is static config merged *before* the request
+    // is built, so call-site opts win and everything downstream is unchanged.
+    let prompt: string;
+    let opts: AgentOptions;
+    let overrides: readonly string[] | undefined;
+    if (isProfile(a)) {
+      prompt = b as string;
+      const callOpts = c ?? {};
+      overrides = profileOverrides(a.config, callOpts);
+      opts = { ...a.config, ...callOpts };
+    } else {
+      prompt = a;
+      opts = (b as AgentOptions | undefined) ?? {};
+    }
+
     const mySeq = seq++;
     const phase = opts.phase ?? currentPhase;
     const label = opts.label ?? (labelFromPrompt(prompt) || `agent-${mySeq}`);
     const key = `${mySeq}:${phase}:${label}`;
+    // instructions is a config-level system hint, folded into the request prompt only —
+    // after label/key derivation, so it never changes an agent's identity.
+    const requestPrompt = opts.instructions ? `${opts.instructions}\n\n${prompt}` : prompt;
 
     // Live progress sink: tool calls become `agent-tool`; token/model updates become
     // `agent-progress`, coalesced to ≤1/sec. Tokens are tracked monotonically and the
@@ -109,7 +144,7 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       });
     };
 
-    deps.emit({ type: "agent-queued", key, label, phase, prompt, at: deps.now() });
+    deps.emit({ type: "agent-queued", key, label, phase, prompt, ...(overrides ? { overrides } : {}), at: deps.now() });
 
     // Run-scoped stop: a fired signal short-circuits before any work is scheduled.
     if (deps.signal?.aborted) {
@@ -190,7 +225,7 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
           deps.emit({ type: "agent-started", key, at: deps.now() });
           try {
             const request: AgentRequest = {
-              prompt,
+              prompt: requestPrompt,
               label,
               cwd,
               signal,

@@ -4,8 +4,8 @@ import type { PhaseState } from "@workflow/core";
 import { PhasesColumn } from "./PhasesColumn.js";
 
 const phases: PhaseState[] = [
-  { title: "Scope", total: 1, done: 1, running: 0, tokens: 10 },
-  { title: "Search", total: 5, done: 3, running: 1, tokens: 200 },
+  { title: "Scope", total: 1, done: 1, running: 0, tokens: 10, inputTokens: 6, outputTokens: 4 },
+  { title: "Search", total: 5, done: 3, running: 1, tokens: 200, inputTokens: 140, outputTokens: 60 },
 ];
 
 describe("PhasesColumn", () => {

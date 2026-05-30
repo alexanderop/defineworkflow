@@ -1,7 +1,8 @@
 import { render } from "ink";
 import { createElement } from "react";
-import type { WorkflowEvent } from "@workflow/core";
+import { initialRunState, reduce, selectRunReport, type WorkflowEvent } from "@workflow/core";
 import { App, type UiAction } from "./App.js";
+import { RunReport } from "./RunReport.js";
 import { createLineLogger } from "./line-log.js";
 import { throttle } from "./throttle.js";
 
@@ -35,6 +36,15 @@ export function startUi(opts: StartUiOptions): UiHandle {
   }
 
   const events: WorkflowEvent[] = [...initial];
+
+  // Watching a run that has already finished: there is nothing live to stream, so render a
+  // static end-of-run report instead of the three-pane App.
+  const initialState = events.reduce(reduce, initialRunState());
+  if (initialState.status === "finished") {
+    const instance = render(createElement(RunReport, { report: selectRunReport(initialState) }));
+    return { unmount: () => instance.unmount() };
+  }
+
   const instance = render(createElement(App, { events, adapter: opts.adapter, onAction: opts.onAction }));
   const rerenderNow = (): void => {
     instance.rerender(createElement(App, { events: [...events], adapter: opts.adapter, onAction: opts.onAction }));

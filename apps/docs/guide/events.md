@@ -49,7 +49,7 @@ type WorkflowEvent =
 ## Why a pure reducer
 
 Because `RunState` is a pure fold over events, the same reducer rebuilds state from a **live** stream
-(the running UI) or a **replayed** one (open a finished run with `workflow watch`). Note the
+(the running UI) or a **replayed** one (open a finished run with `defineworkflow watch`). Note the
 `cached` flag on `agent-finished`: a journal replay still emits the event, but the reducer doesn't
 decrement `running` for it — so resumed runs account correctly.
 

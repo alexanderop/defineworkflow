@@ -102,4 +102,22 @@ describe("runForeground with --mock", () => {
     const finished = events.filter((e) => e.type === "agent-finished");
     expect(finished.length).toBe(2);
   });
+
+  it("prints a run report when the foreground run finishes", async () => {
+    const registry = createRegistry({ root: "/tmp/runs", fs: memRegistryFs() });
+    const runId = "mocktest-2";
+    const meta: RunMeta = { runId, name: "mocktest", scriptPath: "s.ts", args: null, adapter: "claude", status: "running", startedAt: 0, endedAt: null, pid: null, scriptHash: "h" };
+    registry.init(meta, SOURCE);
+    const events: WorkflowEvent[] = [];
+    const prints: string[] = [];
+    const deps = { ...fakeDeps(registry, events), print: (t: string) => void prints.push(t) } as AppDeps;
+
+    await runForeground(deps, { runId, source: SOURCE, args: null, runner: createMockRunner(), adapter: "mock", seed: [], mock: true });
+
+    const out = prints.join("");
+    expect(out).toContain("Run  mocktest");
+    expect(out).toContain("finished");
+    expect(out).toContain("Tokens");
+    expect(out).toContain("Agents");
+  });
 });

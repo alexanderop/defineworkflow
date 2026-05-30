@@ -28,7 +28,7 @@
   },
   "type": "module",
   "bin": {
-    "defineworkflow": "./bin/defineworkflow.js"
+    "defineworkflow": "bin/defineworkflow.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
