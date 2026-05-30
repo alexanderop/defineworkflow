@@ -6,3 +6,6 @@ coverage/
 *.tsbuildinfo
 .workflow/
 .superpowers/
+
+# local agent worktree state
+.claude/worktrees/
