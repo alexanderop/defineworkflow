@@ -1,6 +1,6 @@
 import { ok, err } from "neverthrow";
 import type { Result } from "neverthrow";
-import type { WorkflowError } from "@workflow/core";
+import { truncateRawOutput, type WorkflowError } from "@workflow/core";
 
 export interface Attempt {
   readonly text: string;
@@ -29,6 +29,7 @@ export async function runWithSchemaRetry(
   const { validate } = spec;
   let hint: string | undefined;
   let lastIssues: readonly string[] = [];
+  let lastText = "";
   const attempts = Math.max(1, spec.maxRetries);
 
   for (let i = 0; i < attempts; i++) {
@@ -41,8 +42,11 @@ export async function runWithSchemaRetry(
       return ok({ text: a.text, data: a.data, usage: a.usage });
     }
     lastIssues = issues;
+    lastText = a.text;
     hint = `Your previous response did not match the required schema. Issues: ${issues.join("; ")}. Return ONLY valid JSON matching the schema.`;
   }
 
-  return err({ kind: "SchemaValidation", issues: lastIssues, attempts });
+  // Surface what the model actually returned so a schema miss is debuggable
+  // (especially weaker models that answer in prose instead of JSON).
+  return err({ kind: "SchemaValidation", issues: lastIssues, attempts, rawOutput: truncateRawOutput(lastText) });
 }

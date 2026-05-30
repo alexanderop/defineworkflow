@@ -1,0 +1,52 @@
+name: release-please
+
+# Automated versioning. On every push to main, release-please reads the
+# conventional commits since the last release and maintains an open
+# "chore: release vX.Y.Z" PR containing the computed version bump + changelog.
+#
+# Merging that PR:
+#   1. bumps packages/workflow/package.json + .release-please-manifest.json,
+#   2. writes packages/workflow/CHANGELOG.md,
+#   3. creates the git tag (vX.Y.Z) and the GitHub Release,
+#   4. triggers the `publish` job below, which calls release.yml to publish
+#      to npm with provenance.
+#
+# Note: releases created via GITHUB_TOKEN do NOT trigger other workflows, so we
+# call release.yml directly (workflow_call) instead of relying on a
+# `release: published` event.
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  release-please:
+    name: Maintain release PR
+    runs-on: ubuntu-latest
+    if: github.repository == 'alexanderop/clanker-workflow'
+    permissions:
+      contents: write # create release commits, tags, and GitHub Releases
+      pull-requests: write # create/update the release PR
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    name: Publish release
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: read
+      id-token: write # forwarded to release.yml for OIDC trusted publishing
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+    secrets: inherit

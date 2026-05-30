@@ -7,6 +7,7 @@ describe("Footer", () => {
     const { lastFrame } = render(<Footer focus="phases" />);
     const frame = lastFrame() ?? "";
     expect(frame).toContain("select");
+    expect(frame).toContain("stop workflow");
     expect(frame).toContain("save");
     expect(frame).not.toContain("scroll");
   });
@@ -16,6 +17,6 @@ describe("Footer", () => {
     const frame = lastFrame() ?? "";
     expect(frame).toContain("scroll");
     expect(frame).toContain("prompt");
-    expect(frame).toContain("pause");
+    expect(frame).not.toContain("pause");
   });
 });

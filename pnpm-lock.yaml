@@ -14,6 +14,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^2.1.0
         version: 2.1.9(vitest@2.1.9(@types/node@22.19.19))
+      fast-check:
+        specifier: ^4.8.0
+        version: 4.8.0
       lefthook:
         specifier: ^1.10.0
         version: 1.13.6
@@ -57,16 +60,9 @@ importers:
       '@workflow/schema':
         specifier: workspace:*
         version: link:../schema
-      ajv:
-        specifier: ^8.17.0
-        version: 8.20.0
       neverthrow:
         specifier: ^8.1.0
         version: 8.2.0
-    devDependencies:
-      zod:
-        specifier: ^4.0.0
-        version: 4.4.3
     optionalDependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.40.0
@@ -112,21 +108,22 @@ importers:
       neverthrow:
         specifier: ^8.1.0
         version: 8.2.0
+    devDependencies:
       zod:
         specifier: ^4.0.0
         version: 4.4.3
 
   packages/examples:
     devDependencies:
-      '@workflow/cli':
+      defineworkflow:
         specifier: workspace:*
-        version: link:../cli
-      zod:
-        specifier: ^4.0.0
-        version: 4.4.3
+        version: link:../workflow
 
   packages/schema:
     dependencies:
+      ajv:
+        specifier: ^8.17.0
+        version: 8.20.0
       neverthrow:
         specifier: ^8.1.0
         version: 8.2.0
@@ -152,6 +149,55 @@ importers:
       ink-testing-library:
         specifier: ^4.0.0
         version: 4.0.0(@types/react@18.3.29)
+
+  packages/workflow:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.40.0
+        version: 0.40.1
+      acorn:
+        specifier: ^8.16.0
+        version: 8.16.0
+      ajv:
+        specifier: ^8.17.0
+        version: 8.20.0
+      esbuild:
+        specifier: ^0.24.0
+        version: 0.24.2
+      ink:
+        specifier: ^5.0.1
+        version: 5.2.1(@types/react@18.3.29)(react@18.3.1)
+      neverthrow:
+        specifier: ^8.1.0
+        version: 8.2.0
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
+    devDependencies:
+      '@workflow/adapters':
+        specifier: workspace:*
+        version: link:../adapters
+      '@workflow/cli':
+        specifier: workspace:*
+        version: link:../cli
+      '@workflow/core':
+        specifier: workspace:*
+        version: link:../core
+      '@workflow/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@workflow/ui':
+        specifier: workspace:*
+        version: link:../ui
+      tsup:
+        specifier: ^8.3.0
+        version: 8.5.1(postcss@8.5.15)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
 
 packages:
 
@@ -1441,6 +1487,10 @@ packages:
     resolution: {integrity: sha512-knvyeauYhqjOYvQ66MznSMs83wmHrCycNEN6Ao+2AeYEfxUIkuiVxdEa1qlGEPK+We3n0THiDciYSsCcgW/DoA==}
     engines: {node: '>=12.0.0'}
 
+  fast-check@4.8.0:
+    resolution: {integrity: sha512-GOJ158CUMnN6cSahsv4+ExARvIDuzzinFjkp0E9WtiBa5zcVeLozVkWaE4IzFcc+Y48Wp1EDlUZsXRyAztQcSg==}
+    engines: {node: '>=12.17.0'}
+
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
@@ -1891,6 +1941,9 @@ packages:
 
   property-information@7.1.0:
     resolution: {integrity: sha512-TwEZ+X+yCJmYfL7TPUOcvBZ4QfoT5YenQiJuX//0th53DE6w0xxLEtfK3iyryQFddXuvkIk51EEgrJQ0WJkOmQ==}
+
+  pure-rand@8.4.0:
+    resolution: {integrity: sha512-IoM8YF/jY0hiugFo/wOWqfmarlE6J0wc6fDK1PhftMk7MGhVZl88sZimmqBBFomLOCSmcCCpsfj7wXASCpvK9A==}
 
   react-reconciler@0.29.2:
     resolution: {integrity: sha512-zZQqIiYgDCTP/f1N/mAR10nJGrPD2ZR+jDSEsKWJHYC7Cm2wodlwbR3upZRdC3cjIjSlTLNVyO7Iu0Yy7t2AYg==}
@@ -2428,7 +2481,6 @@ snapshots:
       node-fetch: 2.7.0
     transitivePeerDependencies:
       - encoding
-    optional: true
 
   '@babel/helper-string-parser@7.29.7': {}
 
@@ -2930,12 +2982,10 @@ snapshots:
     dependencies:
       '@types/node': 22.19.19
       form-data: 4.0.5
-    optional: true
 
   '@types/node@18.19.130':
     dependencies:
       undici-types: 5.26.5
-    optional: true
 
   '@types/node@22.19.19':
     dependencies:
@@ -3119,14 +3169,12 @@ snapshots:
   abort-controller@3.0.0:
     dependencies:
       event-target-shim: 5.0.1
-    optional: true
 
   acorn@8.16.0: {}
 
   agentkeepalive@4.6.0:
     dependencies:
       humanize-ms: 1.2.1
-    optional: true
 
   ajv@8.20.0:
     dependencies:
@@ -3170,8 +3218,7 @@ snapshots:
 
   assertion-error@2.0.1: {}
 
-  asynckit@0.4.0:
-    optional: true
+  asynckit@0.4.0: {}
 
   auto-bind@5.0.1: {}
 
@@ -3200,7 +3247,6 @@ snapshots:
     dependencies:
       es-errors: 1.3.0
       function-bind: 1.1.2
-    optional: true
 
   ccount@2.0.1: {}
 
@@ -3248,7 +3294,6 @@ snapshots:
   combined-stream@1.0.8:
     dependencies:
       delayed-stream: 1.0.0
-    optional: true
 
   comma-separated-tokens@2.0.3: {}
 
@@ -3278,8 +3323,7 @@ snapshots:
 
   deep-eql@5.0.2: {}
 
-  delayed-stream@1.0.0:
-    optional: true
+  delayed-stream@1.0.0: {}
 
   dequal@2.0.3: {}
 
@@ -3292,7 +3336,6 @@ snapshots:
       call-bind-apply-helpers: 1.0.2
       es-errors: 1.3.0
       gopd: 1.2.0
-    optional: true
 
   eastasianwidth@0.2.0: {}
 
@@ -3308,18 +3351,15 @@ snapshots:
 
   environment@1.1.0: {}
 
-  es-define-property@1.0.1:
-    optional: true
+  es-define-property@1.0.1: {}
 
-  es-errors@1.3.0:
-    optional: true
+  es-errors@1.3.0: {}
 
   es-module-lexer@1.7.0: {}
 
   es-object-atoms@1.1.2:
     dependencies:
       es-errors: 1.3.0
-    optional: true
 
   es-set-tostringtag@2.1.0:
     dependencies:
@@ -3327,7 +3367,6 @@ snapshots:
       get-intrinsic: 1.3.0
       has-tostringtag: 1.0.2
       hasown: 2.0.4
-    optional: true
 
   es-toolkit@1.47.0: {}
 
@@ -3422,10 +3461,13 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.9
 
-  event-target-shim@5.0.1:
-    optional: true
+  event-target-shim@5.0.1: {}
 
   expect-type@1.3.0: {}
+
+  fast-check@4.8.0:
+    dependencies:
+      pure-rand: 8.4.0
 
   fast-deep-equal@3.1.3: {}
 
@@ -3450,8 +3492,7 @@ snapshots:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
 
-  form-data-encoder@1.7.2:
-    optional: true
+  form-data-encoder@1.7.2: {}
 
   form-data@4.0.5:
     dependencies:
@@ -3460,19 +3501,16 @@ snapshots:
       es-set-tostringtag: 2.1.0
       hasown: 2.0.4
       mime-types: 2.1.35
-    optional: true
 
   formdata-node@4.4.1:
     dependencies:
       node-domexception: 1.0.0
       web-streams-polyfill: 4.0.0-beta.3
-    optional: true
 
   fsevents@2.3.3:
     optional: true
 
-  function-bind@1.1.2:
-    optional: true
+  function-bind@1.1.2: {}
 
   get-east-asian-width@1.6.0: {}
 
@@ -3488,13 +3526,11 @@ snapshots:
       has-symbols: 1.1.0
       hasown: 2.0.4
       math-intrinsics: 1.1.0
-    optional: true
 
   get-proto@1.0.1:
     dependencies:
       dunder-proto: 1.0.1
       es-object-atoms: 1.1.2
-    optional: true
 
   glob@10.5.0:
     dependencies:
@@ -3505,25 +3541,21 @@ snapshots:
       package-json-from-dist: 1.0.1
       path-scurry: 1.11.1
 
-  gopd@1.2.0:
-    optional: true
+  gopd@1.2.0: {}
 
   hachure-fill@0.5.2: {}
 
   has-flag@4.0.0: {}
 
-  has-symbols@1.1.0:
-    optional: true
+  has-symbols@1.1.0: {}
 
   has-tostringtag@1.0.2:
     dependencies:
       has-symbols: 1.1.0
-    optional: true
 
   hasown@2.0.4:
     dependencies:
       function-bind: 1.1.2
-    optional: true
 
   hast-util-to-html@9.0.5:
     dependencies:
@@ -3552,7 +3584,6 @@ snapshots:
   humanize-ms@1.2.1:
     dependencies:
       ms: 2.1.3
-    optional: true
 
   indent-string@5.0.0: {}
 
@@ -3713,8 +3744,7 @@ snapshots:
 
   mark.js@8.11.1: {}
 
-  math-intrinsics@1.1.0:
-    optional: true
+  math-intrinsics@1.1.0: {}
 
   mdast-util-to-hast@13.2.1:
     dependencies:
@@ -3745,13 +3775,11 @@ snapshots:
 
   micromark-util-types@2.0.2: {}
 
-  mime-db@1.52.0:
-    optional: true
+  mime-db@1.52.0: {}
 
   mime-types@2.1.35:
     dependencies:
       mime-db: 1.52.0
-    optional: true
 
   mimic-fn@2.1.0: {}
 
@@ -3790,13 +3818,11 @@ snapshots:
     optionalDependencies:
       '@rollup/rollup-linux-x64-gnu': 4.60.4
 
-  node-domexception@1.0.0:
-    optional: true
+  node-domexception@1.0.0: {}
 
   node-fetch@2.7.0:
     dependencies:
       whatwg-url: 5.0.0
-    optional: true
 
   object-assign@4.1.1: {}
 
@@ -3882,6 +3908,8 @@ snapshots:
   preact@10.29.2: {}
 
   property-information@7.1.0: {}
+
+  pure-rand@8.4.0: {}
 
   react-reconciler@0.29.2(react@18.3.1):
     dependencies:
@@ -4111,8 +4139,7 @@ snapshots:
 
   tinyspy@3.0.2: {}
 
-  tr46@0.0.3:
-    optional: true
+  tr46@0.0.3: {}
 
   tree-kill@1.2.2: {}
 
@@ -4154,8 +4181,7 @@ snapshots:
 
   ufo@1.6.4: {}
 
-  undici-types@5.26.5:
-    optional: true
+  undici-types@5.26.5: {}
 
   undici-types@6.21.0: {}
 
@@ -4313,17 +4339,14 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
-  web-streams-polyfill@4.0.0-beta.3:
-    optional: true
+  web-streams-polyfill@4.0.0-beta.3: {}
 
-  webidl-conversions@3.0.1:
-    optional: true
+  webidl-conversions@3.0.1: {}
 
   whatwg-url@5.0.0:
     dependencies:
       tr46: 0.0.3
       webidl-conversions: 3.0.1
-    optional: true
 
   which@2.0.2:
     dependencies:

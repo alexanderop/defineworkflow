@@ -13,6 +13,64 @@ describe("sandbox", () => {
     expect(result.returnValue).toEqual({ a: 42 });
   });
 
+  it("preserves meta.output when declared", () => {
+    const src = `export const meta = { name: "n", description: "d", harness: "claude", output: "./newsletters", phases: [] };\nreturn 1;`;
+    expect(extractMeta(src).output).toBe("./newsletters");
+  });
+
+  it("rejects a non-string meta.output", () => {
+    const src = `export const meta = { name: "n", description: "d", harness: "claude", output: 42, phases: [] };\nreturn 1;`;
+    expect(() => extractMeta(src)).toThrow(/meta\.output/);
+  });
+
+  it("allows authoring imports from the published defineworkflow package", async () => {
+    const src = `
+      import { agent, phase, type WorkflowMeta, type JsonSchema } from "defineworkflow";
+
+      export const meta = { name: "demo", description: "d", harness: "claude", phases: [{ title: "Run" }] } satisfies WorkflowMeta;
+      phase("Run");
+      const Out: JsonSchema = { type: "object", properties: { answer: { type: "number" } }, required: ["answer"] };
+      const result = await agent("answer", { schema: Out });
+      return result;
+    `;
+    const result = await runInSandbox(src, {
+      agent: async () => ({ answer: 42 }),
+      phase: () => {},
+    });
+    expect(result.meta.name).toBe("demo");
+    expect(result.returnValue).toEqual({ answer: 42 });
+  });
+
+  it("runs a workflow exported with defineWorkflow()", async () => {
+    const src = `
+      import { defineWorkflow, agent } from "workflow";
+
+      export default defineWorkflow({
+        name: "defined",
+        description: "defined workflow",
+        harness: "claude",
+        phases: [{ title: "Run" }],
+        async run() {
+          const out = await agent("hello", { label: "a" });
+          return { out };
+        },
+      });
+    `;
+    const result = await runInSandbox(src, {
+      defineWorkflow: (workflow: unknown) => workflow,
+      agent: async () => "hit",
+      parallel: async () => [],
+      pipeline: async () => [],
+      workflow: async () => null,
+      phase: () => {},
+      log: () => {},
+      args: null,
+      budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
+    });
+    expect(result.meta).toMatchObject({ name: "defined", harness: "claude", phases: [{ title: "Run" }] });
+    expect(result.returnValue).toEqual({ out: "hit" });
+  });
+
   it("throws SandboxViolation when the script calls Date.now()", async () => {
     const src = `export const meta = { name: "x", description: "x", harness: "claude", phases: [] };\n const t = Date.now(); return t;`;
     await expect(runInSandbox(src, {})).rejects.toThrow(/SandboxViolation|Date.now/);
@@ -30,6 +88,14 @@ describe("sandbox", () => {
     expect(result.returnValue).toBe(1);
   });
 
+  it("treats export default as the workflow return value", async () => {
+    const src = `export const meta = { name: "n", description: "n", harness: "claude", phases: [] } satisfies WorkflowMeta;
+const answer = await getValue();
+export default { answer };`;
+    const result = await runInSandbox(src, { getValue: async () => 42 });
+    expect(result.returnValue).toEqual({ answer: 42 });
+  });
+
   it("captures meta whose strings contain semicolons", async () => {
     const src = `export const meta = { name: "n", description: "do a; then b", harness: "claude", phases: [] };\nreturn 2;`;
     const result = await runInSandbox(src, {});
@@ -41,11 +107,12 @@ describe("sandbox", () => {
 
 describe("extractMeta", () => {
   it("reads meta without executing agent calls", () => {
-    const src = `export const meta = { name: "demo", description: "d", harness: "claude", phases: [{ title: "A" }] } as const
+    const src = `export const meta = { name: "demo", description: "d", whenToUse: "demo work", harness: "claude", phases: [{ title: "A" }] } as const
 const x = await agent("should never run");
 return x;`;
     const meta = extractMeta(src);
     expect(meta.name).toBe("demo");
+    expect(meta.whenToUse).toBe("demo work");
     expect(meta.phases).toEqual([{ title: "A" }]);
   });
 

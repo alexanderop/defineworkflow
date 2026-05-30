@@ -22,9 +22,9 @@ export function DetailPane({ agent, scroll, rows, focused, now, expanded }: Deta
   const indicator = scrollable ? `${scroll + 1}–${end} of ${total} ↓` : undefined;
 
   return (
-    <Box flexDirection="column" flexGrow={1} borderStyle="round" borderColor={focused ? "cyan" : "gray"} paddingX={1}>
+    <Box flexDirection="column" flexGrow={1} paddingX={1}>
       {visible.map((line, i) => (
-        <Text key={scroll + i} wrap="truncate">
+        <Text key={scroll + i} wrap="truncate" {...(focused && i === 0 ? { color: "green" as const } : {})}>
           {line === "" ? " " : line}
         </Text>
       ))}

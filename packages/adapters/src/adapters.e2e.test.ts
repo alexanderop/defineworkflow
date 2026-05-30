@@ -1,6 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { z } from "zod";
-import { toJsonSchema } from "@workflow/schema";
 import { createProcessRunner } from "./process-runner.js";
 import { detectAdapters } from "./detect.js";
 import { createClaudeAdapter } from "./claude.js";
@@ -11,7 +9,7 @@ const ENABLED = process.env.WORKFLOW_E2E === "1";
 const d = ENABLED ? describe : describe.skip;
 
 d("real-CLI adapter smoke (costs tokens)", () => {
-  const schema = toJsonSchema(z.object({ answer: z.number() }))._unsafeUnwrap();
+  const schema = { type: "object", properties: { answer: { type: "number" } }, required: ["answer"] };
   const prompt = "Return JSON with key 'answer' set to the number 42. Output only the JSON.";
 
   it("detects installed harnesses", async () => {

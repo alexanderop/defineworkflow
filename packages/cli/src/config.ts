@@ -79,5 +79,5 @@ export function effectiveConcurrency(cfg: WorkflowConfig, cores: number): number
 }
 
 export function effectiveMaxAgents(cfg: WorkflowConfig): number {
-  return Math.min(cfg.maxAgents ?? 1000, 1000);
+  return clamp(cfg.maxAgents ?? 1000, 1, 1000);
 }

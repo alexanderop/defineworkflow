@@ -2,12 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-This is **workflow-monorepo** — a deterministic multi-agent workflow engine. A workflow is a plain
-JS/TS script that orchestrates coding-agent invocations (`agent()`, `parallel()`, `pipeline()`) with
-durable, crash-safe execution: every agent result is journaled by sequence number, so a run can be
-replayed from a checkpoint without re-invoking the model. Scripts run in a VM sandbox, agents are
-dispatched through pluggable harness adapters (Claude/Codex/Copilot CLIs or the raw Anthropic API),
-and progress is streamed to a React+Ink terminal UI.
+This is **workflow-monorepo** — a deterministic multi-agent workflow engine. A workflow is a TS file
+that imports from the `workflow` package and exports a `defineWorkflow({ …, async run() { … } })`
+default, orchestrating coding-agent invocations (`agent()`, `parallel()`, `pipeline()`) with durable,
+crash-safe execution: every agent result is journaled by sequence number, so a run can be replayed
+from a checkpoint without re-invoking the model. Scripts run in a VM sandbox, agents are dispatched
+through pluggable harness adapters (Claude/Codex/Copilot CLIs or the raw Anthropic API), and progress
+is streamed to a React+Ink terminal UI.
 
 pnpm workspaces (pnpm ≥11), ESM-only, Node ≥20. Packages build with **tsup**, test with **vitest**,
 lint with **oxlint**, and git hooks run via **lefthook**.
@@ -57,7 +58,8 @@ Schemas are **zod**; `@workflow/schema` is the only place that touches `z.toJSON
 
 ## Architecture
 
-Dependency direction: `schema` → `core` → `adapters` → `cli`, with `ui` and `examples` at the edges.
+Dependency direction: `schema` → `core` → `adapters` → `cli`, with `ui`, `examples`, and `workflow`
+at the edges.
 Packages are wired by **dependency injection** — `createRuntime()`, the CLI commands (`AppDeps`), and
 the adapters all take their collaborators as arguments, which is what makes them testable with the
 fakes above.
@@ -74,10 +76,12 @@ output → record to journal → emit events → release slot.
 Key invariants when editing the runtime:
 
 - **Determinism / sandbox** (`sandbox.ts`): scripts run in a Node `vm` context. `transformScript()`
-  rewrites `export const meta = …` and wraps the body in an async IIFE; `extractMeta()` runs the
-  script with sentinel-throwing stubs to read `meta` cheaply (used for the consent gate before a real
-  run). `Date.now()`, `Math.random()`, and argless `new Date()` are **forbidden** inside the sandbox —
-  they would break journal replay. Don't add nondeterministic globals.
+  rewrites `export default defineWorkflow(...)` (so `run()` is invoked with the live runtime) and the
+  legacy `export const meta = …` form, strips `import ... from "workflow"` lines, and wraps the body in
+  an async IIFE; `extractMeta()` runs the script with sentinel-throwing stubs to read the metadata
+  cheaply (used for the consent gate before a real run — for a `defineWorkflow` file it reads the
+  metadata object passed in). `Date.now()`, `Math.random()`, and argless `new Date()` are **forbidden**
+  inside the sandbox — they would break journal replay. Don't add nondeterministic globals.
 - **Budget** is a *soft* gate, not a reservation — under concurrency a run can overshoot because
   several agents read `remaining()` before any records. `remaining()` is `Infinity` when no cap is set.
 - **Nested workflows** are one level deep only: `workflow()` creates a child runtime that **shares the
@@ -104,10 +108,15 @@ and declares each adapter's `capabilities` (native schema, token reporting, tool
 Bin entry `workflow` → `dist/cli.js`. `dispatch(argv, deps)` is a pure router over `AppDeps`:
 
 ```
-workflow run <script> [--args '{...}'] [--detach] [--yes]
+workflow run <script> [--args '{...}'] [--detach] [--yes] [--mock]
 workflow watch <id> | list | resume <id> | stop <id> | save <id> | adapters
 workflow <name> [--args ...]      # run a saved workflow by name
 ```
+
+`--mock` runs the whole workflow against a fabricating runner (`createMockRunner` in core) instead
+of a real harness: every `agent()` returns schema-valid dummy data, so authors can iterate on control
+flow, phases, and the UI with **no agents spawned and no tokens spent**. It always runs foreground,
+skips the consent gate, and the declared harness need not be installed (still validated for typos).
 
 A workflow's harness is **declared in `meta.harness`** and is the single source of truth — there is no
 auto-detect and no CLI/config override of it. `adapter-select.ts` resolves that to an adapter
@@ -124,10 +133,33 @@ TTY it renders a throttled (100ms) three-pane layout (phases / agents / detail) 
 + pure `selectors.ts`, with `navReducer` handling arrow/vim navigation. Non-TTY falls back to
 plain-text log lines (`line-log.ts`). UI interactions are emitted back through an `onAction` callback.
 
+### `packages/workflow` — the authoring entrypoint
+
+The public package (npm name `defineworkflow`) that workflow files import from. It exports `defineWorkflow`,
+the runtime primitive stubs (`agent`/`parallel`/`pipeline`/`phase`/`log`/`workflow`), `z` (the
+engine's zod instance), `args`, `budget`, and types (`AgentOptions`, `HarnessId`, `WorkflowMeta`, …).
+These imports exist purely for TypeScript/editor support — autocomplete and compile-time checks; the
+runner strips them and injects the live runtime values into the sandbox at execution time (see
+`transformScript()` above). It replaces the old ambient `workflow-globals.d.ts` as the source of editor
+types, and also provides the `defineworkflow` CLI bin. `agent({ schema })` accepts either a plain JSON
+Schema object or a **zod schema** (`z.object({ … })`): a zod schema makes `agent()` return the schema's
+inferred output type (e.g. `await agent(p, { schema: z.object({ n: z.number() }) })` resolves to
+`{ n: number }`), while a plain JSON Schema resolves to `unknown`. The runtime normalizes zod →
+JSON Schema via `@workflow/schema`'s `toJsonSchema` before validating (`isZodSchema` duck-types it).
+`defineWorkflow` makes the metadata type-safe: e.g.
+`harness` only accepts `"claude" | "codex" | "copilot" | "raw-api"`, so tsc rejects typos. The
+metadata fields are `name`, `description`, `harness`, `phases`, the optional `whenToUse?: string`
+(a hint shown in the saved/bundled workflow list), and the optional `output?: string`. When `output`
+is set, a finished run's return value is persisted there — `result.json` holds the value verbatim and
+each top-level string field is also extracted to its own file (`<key>.<ext>`, extension sniffed from
+content); when omitted, the return value is only printed to the terminal. Either way the CLI always
+prints the returned object on completion (`artifacts.ts` + `emitArtifacts` in `execute.ts`).
+
 ### `packages/examples`
 
-Runnable example workflows (private). `src/haiku.workflow.ts` is the minimal single-`agent()` example;
-run via `pnpm example` or `workflow run packages/examples/src/haiku.workflow.ts --yes`.
+Runnable example workflows (private). `src/haiku.workflow.ts` is the minimal single-`agent()` example
+(a `defineWorkflow` default export); run via `pnpm example` or
+`workflow run packages/examples/src/haiku.workflow.ts --yes`.
 
 ## Reference
 
@@ -137,3 +169,9 @@ run via `pnpm example` or `workflow run packages/examples/src/haiku.workflow.ts 
   something. `index.md` is auto-maintained — don't edit it by hand.
 - `docs/superpowers/specs/` and `docs/superpowers/plans/` — design specs and implementation plans
   (orchestrator design, per-package plans, the VitePress docs-site design).
+
+## Reference repositories
+
+Source-of-truth code for libraries we depend on. Treat as **read-only reference material** — do not edit files under `repos/`. When asked about a library listed below, explore its source here first instead of guessing or relying on training data.
+
+- `repos/ink/` — https://github.com/vadimdemedes/ink.git @ master (squashed)

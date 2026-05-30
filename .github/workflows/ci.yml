@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same ref (e.g. new push to a PR branch).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: this workflow only needs to read the repo. Jobs that need
+# more must opt in explicitly.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0 # full history so --changed can diff against the base
+          persist-credentials: false # don't leave the git token on disk
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # `pnpm-workspace.yaml` `allowBuilds` allowlists which dependencies may run
+      # build/postinstall scripts (only esbuild + lefthook) — pnpm 11's built-in
+      # supply-chain guard, so a frozen install can't execute arbitrary scripts.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Lint + typecheck run across the whole repo: oxlint is fast, and typecheck
+      # builds every package's dist (which dependents and the e2e project need).
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # Run ONLY the unit tests affected by this change.
+      #
+      # `vitest --changed <ref>` selects test files via the module import graph,
+      # so editing one package runs that package's tests plus any dependents that
+      # import it. forceRerunTriggers (package.json, vitest.config.*) fall back to
+      # the full suite when a shared config/manifest changes.
+      #
+      # On a PR we diff against the merge-base with the target branch; on a push
+      # to main we diff against the previous commit.
+      # GitHub context values are passed via `env:` (never interpolated directly
+      # into the script) to avoid template-injection — see zizmor's template-injection rule.
+      - name: Run affected unit tests
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            CHANGED_SINCE="$(git merge-base "origin/$BASE_REF" HEAD)"
+          else
+            CHANGED_SINCE="$BEFORE_SHA"
+          fi
+          echo "Running unit tests changed since: $CHANGED_SINCE"
+          pnpm vitest run --project unit --changed "$CHANGED_SINCE" --passWithNoTests

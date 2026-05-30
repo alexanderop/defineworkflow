@@ -1,33 +1,54 @@
-import { z } from "zod";
+import Ajv2020 from "ajv/dist/2020.js";
 import { ok, err, type Result } from "neverthrow";
 
 /**
- * Re-export the exact zod instance this package uses for `toJsonSchema`/`validate`.
- * The sandbox injects this as the `z` global so a workflow-built schema is guaranteed
- * to share one zod instance with the converter (`z.toJSONSchema` reads schema internals,
- * so a version mismatch would silently break conversion).
+ * A workflow's `agent({ schema })` is a plain JSON Schema object — the same shape
+ * the harness CLIs consume (`claude --json-schema`, codex's schema file) and the
+ * serializable form that crosses the vm-sandbox / process boundaries. This package
+ * is the single home for validating model output against that schema.
  */
-export { z };
-
 export type JsonSchema = Record<string, unknown>;
+
+export { isZodSchema, toJsonSchema } from "./zod.js";
 
 export type SchemaError =
   | { readonly kind: "Conversion"; readonly cause: string }
   | { readonly kind: "Validation"; readonly issues: readonly string[] };
 
-export function toJsonSchema(schema: z.ZodType): Result<JsonSchema, SchemaError> {
+/** Validates parsed data against a schema; returns issue strings on failure, or null when valid. */
+export type Validator = (data: unknown) => readonly string[] | null;
+
+/**
+ * Compile a JSON Schema into a reusable validator. Uses the 2020-12 Ajv build because
+ * that's the draft most schema tooling (incl. zod's `toJSONSchema`) emits — the default
+ * draft-07 Ajv throws "no schema with key or ref .../draft/2020-12/schema" on those.
+ */
+export function compileValidator(schema: JsonSchema): Validator {
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
+  const validateFn = ajv.compile(schema);
+  return (data: unknown): readonly string[] | null => {
+    if (data === undefined) return ["no JSON value found in output"];
+    const valid = validateFn(data);
+    if (valid) return null;
+    return (validateFn.errors ?? []).map((e) => {
+      const where = e.instancePath || "(root)";
+      // Ajv's "must NOT have additional properties" message omits the offending key;
+      // surface it (it lives in params) so weak-model debugging shows what to drop.
+      const offending = (e.params as { additionalProperty?: string } | undefined)?.additionalProperty;
+      const suffix = offending !== undefined ? ` "${offending}"` : "";
+      return `${where} ${e.message ?? "invalid"}${suffix}`;
+    });
+  };
+}
+
+/** Validate a value against a JSON Schema. A malformed schema surfaces as a `Conversion` error. */
+export function validate(schema: JsonSchema, value: unknown): Result<unknown, SchemaError> {
+  let issues: readonly string[] | null;
   try {
-    return ok(z.toJSONSchema(schema) as JsonSchema);
+    issues = compileValidator(schema)(value);
   } catch (e) {
     return err({ kind: "Conversion", cause: e instanceof Error ? e.message : String(e) });
   }
-}
-
-export function validate<T>(schema: z.ZodType<T>, value: unknown): Result<T, SchemaError> {
-  const parsed = schema.safeParse(value);
-  if (parsed.success) return ok(parsed.data);
-  return err({
-    kind: "Validation",
-    issues: parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`),
-  });
+  if (issues === null) return ok(value);
+  return err({ kind: "Validation", issues });
 }

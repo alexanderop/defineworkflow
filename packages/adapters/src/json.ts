@@ -1,4 +1,4 @@
-import Ajv from "ajv";
+import { compileValidator, type JsonSchema } from "@workflow/schema";
 import type { Validator } from "./coercion.js";
 
 /** Extract a JSON value from CLI text: prefer a ```json fenced block, else the first balanced {...} or [...]. */
@@ -19,13 +19,6 @@ export function extractJson(text: string): unknown {
 }
 
 /** Compile a JSON Schema into the `Validator` shape the coercion loop expects. */
-export function compileJsonSchemaValidator(schema: Record<string, unknown>): Validator {
-  const ajv = new Ajv({ allErrors: true, strict: false });
-  const validateFn = ajv.compile(schema);
-  return (data: unknown): readonly string[] | null => {
-    if (data === undefined) return ["no JSON value found in output"];
-    const valid = validateFn(data);
-    if (valid) return null;
-    return (validateFn.errors ?? []).map((e) => `${e.instancePath || "(root)"} ${e.message ?? "invalid"}`);
-  };
+export function compileJsonSchemaValidator(schema: JsonSchema): Validator {
+  return compileValidator(schema);
 }

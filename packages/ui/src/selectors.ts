@@ -1,4 +1,5 @@
 import type { RunState, AgentState, PhaseState, ToolEvent, AgentStatus, WorkflowEvent } from "@workflow/core";
+import { formatError } from "@workflow/core";
 import { formatTokens, formatDuration, formatModel } from "./format.js";
 
 export function orderedPhases(state: RunState): readonly PhaseState[] {
@@ -108,6 +109,12 @@ export function detailSections(agent: AgentState, now: number, expanded: boolean
     .join(" · ");
   lines.push(metrics);
   lines.push("");
+
+  if (agent.status === "failed" && agent.error) {
+    lines.push("Error");
+    for (const l of formatError(agent.error).split("\n")) lines.push(`  ${l}`);
+    lines.push("");
+  }
 
   const promptLines = agent.prompt.split("\n");
   lines.push(`Prompt · ${promptLines.length} line${promptLines.length === 1 ? "" : "s"} · ⏎ ${expanded ? "collapse" : "expand"}`);

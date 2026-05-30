@@ -1,4 +1,5 @@
 import type { WorkflowError } from "./errors.js";
+import { assertNever } from "./exhaustive.js";
 
 export interface ToolEvent {
   readonly name: string;
@@ -53,6 +54,8 @@ export interface AgentState {
   readonly model?: string;
   /** Cumulative output tokens observed while running (monotonic). */
   readonly liveTokens?: number;
+  /** Set when status is "failed" — the typed reason the agent failed. */
+  readonly error?: WorkflowError;
 }
 
 export interface PhaseState {
@@ -190,7 +193,7 @@ export function reduce(state: RunState, event: WorkflowEvent): RunState {
       const a = state.agents.get(event.key);
       if (!a) return state;
       const agents = new Map(state.agents);
-      agents.set(event.key, { ...a, status: "failed", endedAt: event.at });
+      agents.set(event.key, { ...a, status: "failed", error: event.error, endedAt: event.at });
       return {
         ...state,
         agents,
@@ -201,5 +204,7 @@ export function reduce(state: RunState, event: WorkflowEvent): RunState {
       return { ...state, logs: [...state.logs, event.message] };
     case "run-finished":
       return { ...state, status: "finished", endedAt: event.at };
+    default:
+      return assertNever(event);
   }
 }

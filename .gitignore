@@ -9,3 +9,9 @@ coverage/
 
 # local agent worktree state
 .claude/worktrees/
+
+# local pnpm store
+.pnpm-store/
+
+# generated example workflow output
+packages/examples/newsletters/

@@ -1,11 +1,12 @@
-import { createControlRegistry } from "@workflow/core";
+import { assertNever, createControlRegistry } from "@workflow/core";
 import type { AgentRunner, JournalEntry, WorkflowEvent } from "@workflow/core";
 import type { AppDeps } from "./app.js";
 import { buildRunnerMap } from "./adapter-select.js";
 import { effectiveConcurrency, effectiveMaxAgents } from "./config.js";
-import { runWorkflow } from "./orchestrator.js";
+import { runWorkflow, type RunResult } from "./orchestrator.js";
 import type { RunStatus } from "./registry.js";
 import { formatError } from "./format-error.js";
+import { buildArtifacts, resolveOutputDir, writeArtifacts } from "./artifacts.js";
 import { buildWorkflowResolver } from "./resolve-workflow.js";
 import { createWorktreeFactory } from "./worktree.js";
 
@@ -16,6 +17,8 @@ export interface ExecuteParams {
   readonly runner: AgentRunner;
   readonly adapter: string;
   readonly seed: readonly JournalEntry[];
+  /** When set, per-call `agent({ adapter })` overrides also resolve to `runner` (the mock), so a --mock run spawns no real adapter. */
+  readonly mock?: boolean;
 }
 
 /** A simple pause gate: agents hold while paused, released on resume. */
@@ -34,6 +37,22 @@ function createGate(): { gate: () => Promise<void>; toggle: () => boolean } {
       return paused;
     },
   };
+}
+
+/**
+ * Surface a finished run's return value. The object is always printed to the terminal;
+ * when the workflow declared `meta.output`, it is also persisted there (`result.json`
+ * verbatim plus each top-level string field as its own file).
+ */
+function emitArtifacts(deps: AppDeps, run: RunResult): void {
+  const set = buildArtifacts(run.returnValue);
+  if (!set) return;
+  deps.print(`\n${set.terminal}\n`);
+  const dir = resolveOutputDir(run.output, deps.cwd);
+  if (dir) {
+    const names = writeArtifacts(set, dir, deps.writeTextFile);
+    deps.print(`\nartifacts → ${dir} (${names.join(", ")})\n`);
+  }
 }
 
 /** Run with the live Ink UI attached (run + resume foreground). Returns a process exit code. */
@@ -74,11 +93,17 @@ export async function runForeground(deps: AppDeps, params: ExecuteParams): Promi
           saveRun(deps, params.runId);
           note("saved workflow script");
           break;
+        default:
+          assertNever(action);
       }
     },
   });
 
-  const { resolveRunner } = buildRunnerMap(deps.detected, deps.config, { processRunner: deps.processRunner, complete: deps.complete });
+  // In --mock mode every per-call adapter override resolves to the mock runner too,
+  // so no real harness is ever dispatched; otherwise build the real per-call adapter map.
+  const resolveRunner = params.mock
+    ? () => params.runner
+    : buildRunnerMap(deps.detected, deps.config, { processRunner: deps.processRunner, complete: deps.complete }).resolveRunner;
   const makeIsolatedCwd = createWorktreeFactory({ processRunner: deps.processRunner, baseCwd: deps.cwd, tmpRoot: deps.tmpDir, runId: params.runId, warn: note });
 
   const result = await runWorkflow({
@@ -109,6 +134,7 @@ export async function runForeground(deps: AppDeps, params: ExecuteParams): Promi
     deps.print(`run ${status}: ${formatError(result.error)}\n`);
     return 1;
   }
+  emitArtifacts(deps, result.value);
   return 0;
 }
 
@@ -143,7 +169,9 @@ export async function runHeadless(deps: AppDeps, params: ExecuteParams, controll
 
   const status: RunStatus = controller.signal.aborted ? "stopped" : result.isOk() ? "finished" : "failed";
   deps.registry.updateMeta(params.runId, { status, endedAt: deps.now() });
-  return result.isErr() ? 1 : 0;
+  if (result.isErr()) return 1;
+  emitArtifacts(deps, result.value);
+  return 0;
 }
 
 /** Persist a run's script snapshot as a saved workflow (project `.workflow` if present, else personal). */

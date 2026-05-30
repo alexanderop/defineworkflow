@@ -3,7 +3,13 @@ export type { Result, ResultAsync } from "neverthrow";
 
 export type WorkflowError =
   | { readonly kind: "AdapterSpawn"; readonly adapter: string; readonly cause: string }
-  | { readonly kind: "SchemaValidation"; readonly issues: readonly string[]; readonly attempts: number }
+  | {
+      readonly kind: "SchemaValidation";
+      readonly issues: readonly string[];
+      readonly attempts: number;
+      /** The model's actual final output from the last attempt — what failed to match the schema. */
+      readonly rawOutput?: string;
+    }
   | { readonly kind: "SandboxViolation"; readonly api: string }
   | { readonly kind: "JournalCorrupt"; readonly runId: string; readonly detail: string }
   | { readonly kind: "BudgetExhausted"; readonly spent: number; readonly total: number }

@@ -11,16 +11,26 @@ export interface PhasesColumnProps {
 
 export function PhasesColumn({ phases, selectedIndex, focused, frame }: PhasesColumnProps) {
   return (
-    <Box flexDirection="column" width={24} borderStyle="round" borderColor={focused ? "cyan" : "gray"} paddingX={1}>
-      <Text bold>PHASES</Text>
-      {phases.map((p, i) => (
-        <Box key={p.title}>
-          <Text inverse={i === selectedIndex}>
-            {p.title} {p.done}/{p.total}{" "}
-          </Text>
-          {p.running > 0 ? <Spinner frame={frame} /> : null}
-        </Box>
-      ))}
+    <Box flexDirection="column" width={24} paddingX={1}>
+      <Text bold>Phases</Text>
+      {phases.map((p, i) => {
+        const selected = i === selectedIndex;
+        const complete = p.total > 0 && p.done >= p.total && p.running === 0;
+        return (
+          <Box key={p.title}>
+            <Text {...(selected && focused ? { color: "blueBright" as const } : {})}>{selected ? "› " : "  "}</Text>
+            {p.running > 0 ? (
+              <Spinner frame={frame} />
+            ) : (
+              <Text color={complete ? "green" : "gray"}>{complete ? "✓" : " "}</Text>
+            )}
+            <Text {...(selected ? { color: "blueBright" as const } : {})}>
+              {" "}
+              {p.title} {p.done}/{p.total}
+            </Text>
+          </Box>
+        );
+      })}
     </Box>
   );
 }

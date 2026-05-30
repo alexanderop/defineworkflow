@@ -5,7 +5,9 @@
     "no-param-reassign": "error",
     "prefer-const": "error",
     "no-var": "error",
-    "eqeqeq": "error"
+    "eqeqeq": "error",
+    "default-case": "error",
+    "default-case-last": "error"
   },
   "ignorePatterns": ["dist", "coverage", "node_modules"]
 }

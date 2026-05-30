@@ -9,11 +9,12 @@ const phases: PhaseState[] = [
 ];
 
 describe("PhasesColumn", () => {
-  it("renders the PHASES header and each phase with done/total counts", () => {
+  it("renders the Phases header and each phase with done/total counts", () => {
     const { lastFrame } = render(<PhasesColumn phases={phases} selectedIndex={0} focused frame={0} />);
     const frame = lastFrame() ?? "";
-    expect(frame).toContain("PHASES");
+    expect(frame).toContain("Phases");
     expect(frame).toContain("Scope 1/1");
     expect(frame).toContain("Search 3/5");
+    expect(frame).toContain("› ✓ Scope 1/1");
   });
 });

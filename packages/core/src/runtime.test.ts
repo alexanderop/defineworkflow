@@ -34,10 +34,38 @@ describe("runtime.agent", () => {
     expect(out).toBe("hello");
   });
 
-  it("returns validated typed data when a schema is given", async () => {
+  it("returns validated data when a JSON Schema is given", async () => {
+    const { rt } = harness({ "a": { data: { n: 7 } } });
+    const out = await rt.agent("give n", {
+      label: "a",
+      schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"] },
+    });
+    expect(out).toEqual({ n: 7 });
+  });
+
+  it("accepts a zod schema, converting it before validating the agent's data", async () => {
     const { rt } = harness({ "a": { data: { n: 7 } } });
     const out = await rt.agent("give n", { label: "a", schema: z.object({ n: z.number() }) });
     expect(out).toEqual({ n: 7 });
+  });
+
+  it("rejects data that violates a zod schema with a SchemaValidation error", async () => {
+    const { rt } = harness({ "a": { text: "n is five", data: { n: "five" } } });
+    await expect(
+      rt.agent("give n", { label: "a", schema: z.object({ n: z.number() }) }),
+    ).rejects.toMatchObject({ workflowError: { kind: "SchemaValidation" } });
+  });
+
+  it("surfaces the model's raw output when re-validation fails", async () => {
+    const { rt } = harness({ "a": { text: "I think n is five", data: { n: "five" } } });
+    await expect(
+      rt.agent("give n", {
+        label: "a",
+        schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"] },
+      }),
+    ).rejects.toMatchObject({
+      workflowError: { kind: "SchemaValidation", rawOutput: "I think n is five" },
+    });
   });
 
   it("records spend against the budget", async () => {

@@ -3,10 +3,11 @@
 <p class="wf-eyebrow">deterministic multi-agent workflow engine</p>
 
 **workflow** is a deterministic, crash-safe engine for orchestrating coding agents. A *workflow* is a
-plain JS/TS script — no DSL, no YAML — that calls a handful of primitives to fan work out across
-agents and fold the results back together. The engine makes that script **durable** (every result is
-journaled and replayable), **observable** (a typed event stream drives the UI), and **concurrent**
-(a semaphore throttles how many agents run at once).
+TypeScript file — no DSL, no YAML — that imports from the `workflow` package and exports a
+`defineWorkflow({ ..., run() })`, calling a handful of primitives to fan work out across agents and
+fold the results back together. The engine makes that workflow **durable** (every result is journaled
+and replayable), **observable** (a typed event stream drives the UI), and **concurrent** (a semaphore
+throttles how many agents run at once).
 
 > You don't call models directly. You describe orchestration; the engine runs your script inside a
 > sandbox and hands it a `Runtime` of primitives.
@@ -40,7 +41,8 @@ resumes from the longest unchanged prefix without re-invoking the model.
 
 ## The primitives
 
-The runtime injects these as globals into your script's sandbox — there are no imports:
+You import these from the `workflow` package for autocomplete and compile-time checks; at run time the
+engine strips that import and injects the live runtime values into your sandbox:
 
 | Primitive | What it does |
 |---|---|
@@ -55,22 +57,26 @@ The runtime injects these as globals into your script's sandbox — there are no
 ## A first workflow
 
 ```ts
-export const meta = {
+import { agent, defineWorkflow, parallel, phase } from "defineworkflow"
+
+export default defineWorkflow({
   name: "research-bugs",
   description: "Find bugs across the codebase, then verify each one",
   harness: "claude",
   phases: [{ title: "Find" }, { title: "Verify" }],
-}
 
-phase("Find")
-const found = await agent("List suspicious files.", { schema: BUGS })
+  async run() {
+    phase("Find")
+    const found = await agent("List suspicious files.", { schema: BUGS })
 
-phase("Verify")
-const checked = await parallel(
-  found.bugs.map((b) => () => agent(`Is this real? ${b.desc}`, { schema: VERDICT })),
-)
+    phase("Verify")
+    const checked = await parallel(
+      found.bugs.map((b) => () => agent(`Is this real? ${b.desc}`, { schema: VERDICT })),
+    )
 
-return checked.filter(Boolean).filter((v) => v.real)
+    return checked.filter(Boolean).filter((v) => v.real)
+  },
+})
 ```
 
 Two things make this honest engineering rather than a prompt toy:

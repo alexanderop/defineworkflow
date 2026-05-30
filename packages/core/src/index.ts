@@ -1,4 +1,7 @@
 export * from "./errors.js";
+export * from "./exhaustive.js";
+export { formatError } from "./format-error.js";
+export { truncateRawOutput, MAX_RAW_OUTPUT } from "./raw-output.js";
 export * from "./types.js";
 export * from "./events.js";
 export { createBudget, type Budget } from "./budget.js";
@@ -13,5 +16,7 @@ export {
   type AgentOptions,
   type LoadedWorkflow,
 } from "./runtime.js";
+export type { JsonSchema } from "@workflow/schema";
 export { createScriptedRunner, type ScriptedRunner, type ScriptedResponse } from "./scripted-runner.js";
+export { createMockRunner, mockFromSchema, type MockRunnerOptions } from "./mock-runner.js";
 export { createControlRegistry, type AgentControl, type ControlRegistry } from "./control.js";

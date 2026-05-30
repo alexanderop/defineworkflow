@@ -2,10 +2,30 @@
 
 Runnable example workflows for the workflow engine.
 
-A **workflow** is a `.ts` script that does `export const meta = {…}` and then calls the
-runtime globals (`agent`, `parallel`, `pipeline`, `phase`, `log`, `workflow`, `args`,
-`budget`, `z`) — no imports. The runner injects those at execution time and runs the script in
-a sandbox, returning its trailing `return` value.
+A **workflow** is a `.ts` file that imports from `workflow`, exports
+`defineWorkflow({ ... })`, and puts executable logic in `run()`. The imports are for
+TypeScript/editor support; the runner strips them and injects the live runtime values in a
+sandbox.
+
+Use `defineWorkflow` for editor autocomplete and compile-time checks:
+
+```ts
+import { agent, defineWorkflow } from "workflow";
+
+export default defineWorkflow({
+  name: "haiku",
+  description: "Ask an agent to write a haiku",
+  harness: "claude",
+
+  async run() {
+    const poem = await agent("Write a haiku");
+    return { poem };
+  },
+});
+```
+
+That makes `harness` type-safe: only `"claude"`, `"codex"`, `"copilot"`, or `"raw-api"`
+are valid.
 
 `z` is the engine's zod instance: build a schema with it and pass it as
 `agent(prompt, { schema })` to force a structured, validated return value (the typed object,
@@ -20,8 +40,8 @@ not raw text).
 
 ## Running
 
-The CLI auto-detects an agent harness on your `PATH` (`claude` → `codex` → `copilot` →
-`raw-api` fallback). Make sure `@workflow/cli` is built first (`pnpm build`).
+The workflow declares its harness in `meta.harness`; there is no CLI/config override or
+auto-detect for a run. Make sure `workflow` is built first (`pnpm build`).
 
 ```bash
 # convenience script in this package
@@ -30,8 +50,7 @@ pnpm --filter @workflow/examples haiku
 # or run any script by path with the CLI directly
 workflow run packages/examples/src/haiku.workflow.ts --yes
 
-# pick a specific adapter / pass args
-workflow run packages/examples/src/haiku.workflow.ts --adapter claude --yes
+# pass args
 workflow run packages/examples/src/haiku.workflow.ts --args '{"topic":"retries"}' --yes
 ```
 

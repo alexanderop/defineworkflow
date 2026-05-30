@@ -41,6 +41,15 @@ describe("navReducer", () => {
     expect(last.agentIndex).toBe(4); // clamped at agentCount - 1
   });
 
+  it("down/up scroll the detail pane (not select) while focused on detail", () => {
+    const onDetail = { focus: "detail" as const, phaseIndex: 0, agentIndex: 2, scroll: 0, expanded: false };
+    const down = navReducer(onDetail, { type: "down" }, ctx);
+    expect(down).toMatchObject({ scroll: 1, agentIndex: 2 }); // scrolls, leaves selection alone
+    const max = [...Array(10)].reduce((s) => navReducer(s, { type: "down" }, ctx), onDetail);
+    expect(max.scroll).toBe(4); // clamped at maxScroll
+    expect(navReducer(onDetail, { type: "up" }, ctx).scroll).toBe(0); // clamped at 0
+  });
+
   it("scrollDown/scrollUp move and clamp the detail scroll within maxScroll", () => {
     const s1 = navReducer(initialNav, { type: "scrollDown" }, ctx);
     expect(s1.scroll).toBe(1);

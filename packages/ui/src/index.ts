@@ -6,7 +6,7 @@ export { AgentsColumn, type AgentsColumnProps } from "./AgentsColumn.js";
 export { DetailPane, type DetailPaneProps } from "./DetailPane.js";
 export { Footer, type FooterProps } from "./Footer.js";
 export { Spinner, type SpinnerProps } from "./Spinner.js";
-export { lineLogLine } from "./line-log.js";
+export { createLineLogger } from "./line-log.js";
 export { formatTokens, formatElapsed, formatDuration, formatModel, statusGlyph, SPINNER_FRAMES } from "./format.js";
 export {
   orderedPhases,

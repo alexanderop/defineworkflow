@@ -101,6 +101,18 @@ describe("selectors", () => {
     expect(lines).toContain("  result line 1");
   });
 
+  it("detailSections shows an Error section with the failure reason for a failed agent", () => {
+    const failed: AgentState = {
+      ...agent,
+      status: "failed",
+      error: { kind: "AdapterSpawn", adapter: "claude", cause: "exit 1: rate limited" },
+    };
+    const lines = detailSections(failed, 9999, false);
+    expect(lines[0]).toBe("Failed · Opus 4.8 (1M context)");
+    expect(lines).toContain("Error");
+    expect(lines).toContain("  AdapterSpawn (claude): exit 1: rate limited");
+  });
+
   it("elapsedMs is last event at minus first event at", () => {
     expect(elapsedMs(events)).toBe(60);
     expect(elapsedMs([])).toBe(0);

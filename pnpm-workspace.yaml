@@ -6,3 +6,21 @@ packages:
 allowBuilds:
   esbuild: true
   lefthook: true
+
+# Supply-chain guard: fail an install when a package version's publish trust
+# level (Trusted Publisher > Provenance > none) is weaker than a previously
+# installed version — a classic compromised-maintainer signal. Add specific
+# exclusions to `trustPolicyExclude` only for legitimate CI/CD migrations.
+trustPolicy: no-downgrade
+
+# undici-types@6.21.0 (transitive via @types/node) dropped provenance attestation
+# vs. earlier releases. Verified legitimate: published by Matteo Collina (Node.js
+# TSC / undici lead) and Ethan Arrowood — a publishing-config change, not a takeover.
+trustPolicyExclude:
+  - "undici-types@6.21.0"
+  # chokidar@4.0.3 (transitive via tsup) dropped provenance vs. earlier releases.
+  # Verified legitimate: published by Paul Miller (paulmillr), chokidar's maintainer.
+  - "chokidar@4.0.3"
+  # vite@5.4.21 (transitive via vitest) moved from trusted-publisher to provenance
+  # tier. Verified legitimate: published by the core Vite team (Evan You, patak, antfu).
+  - "vite@5.4.21"

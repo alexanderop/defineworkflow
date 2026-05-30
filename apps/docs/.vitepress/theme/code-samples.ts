@@ -2,22 +2,27 @@
 // Kept verbatim from the source so the docs never drift into hand-waving.
 
 export const samples: Record<string, string> = {
-  workflow: `export const meta = {
+  workflow: `import { agent, defineWorkflow, parallel, phase } from "defineworkflow"
+
+export default defineWorkflow({
   name: "research-bugs",
   description: "Find bugs across the codebase, then verify each one",
+  harness: "claude",
   phases: [{ title: "Find" }, { title: "Verify" }],
-}
 
-phase("Find")
-const found = await agent("List suspicious files.", { schema: BUGS })
+  async run() {
+    phase("Find")
+    const found = await agent("List suspicious files.", { schema: BUGS })
 
-phase("Verify")
-const checked = await parallel(
-  found.bugs.map((b) => () =>
-    agent("Is this real? " + b.desc, { schema: VERDICT })),
-)
+    phase("Verify")
+    const checked = await parallel(
+      found.bugs.map((b) => () =>
+        agent("Is this real? " + b.desc, { schema: VERDICT })),
+    )
 
-return checked.filter(Boolean).filter((v) => v.real)`,
+    return checked.filter(Boolean).filter((v) => v.real)
+  },
+})`,
 
   seq: `const agent = async (prompt, opts = {}) => {
   const mySeq = seq++;                       // monotonic, per-runtime

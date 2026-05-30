@@ -39,9 +39,39 @@ describe("loadWorkflow", () => {
     expect(runner.callCount()).toBe(1);
   });
 
-  it("injects `z` so a sandbox-built schema validates the agent's structured output", async () => {
+  it("runs a defineWorkflow default export", async () => {
+    const loaded = loadWorkflow(`import { defineWorkflow, agent } from "workflow";
+
+export default defineWorkflow({
+  name: "defined",
+  description: "d",
+  harness: "claude",
+  async run() {
+    const out = await agent("find", { label: "a" });
+    return { out };
+  },
+});`);
+
+    const runner = createScriptedRunner({ a: { text: "hit" } });
+    const runtime = createRuntime({
+      runner,
+      semaphore: createSemaphore(4),
+      journal: createJournal(),
+      maxAgents: 1000,
+      budgetTotal: null,
+      args: null,
+      cwd: "/tmp",
+      runId: "r-define",
+      emit: () => {},
+      now: () => 0,
+    });
+
+    await expect(loaded.run(runtime, undefined)).resolves.toEqual({ out: "hit" });
+  });
+
+  it("validates an agent's structured output against a plain JSON Schema", async () => {
     const SCHEMA_SCRIPT = `export const meta = { name: "s", description: "d", harness: "claude" }
-const Out = z.object({ ok: z.boolean(), n: z.number() });
+const Out = { type: "object", properties: { ok: { type: "boolean" }, n: { type: "number" } }, required: ["ok", "n"] };
 const res = await agent("do it", { label: "a", schema: Out });
 return res;`;
     const loaded = loadWorkflow(SCHEMA_SCRIPT);
@@ -66,7 +96,7 @@ return res;`;
 
   it("surfaces a SchemaValidation error when output does not match the sandbox-built schema", async () => {
     const SCHEMA_SCRIPT = `export const meta = { name: "s", description: "d", harness: "claude" }
-const Out = z.object({ n: z.number() });
+const Out = { type: "object", properties: { n: { type: "number" } }, required: ["n"] };
 return await agent("do it", { label: "a", schema: Out });`;
     const loaded = loadWorkflow(SCHEMA_SCRIPT);
 

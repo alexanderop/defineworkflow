@@ -4,62 +4,84 @@ import type { AgentRunner, AgentRequest, AgentResult, RunCtx, WorkflowError } fr
 import type { ProcessRunner } from "./process-runner.js";
 import { createClaudeTranslator } from "./claude-stream.js";
 import { CAPABILITIES } from "./detect.js";
+import { runWithSchemaRetry } from "./coercion.js";
+import { compileJsonSchemaValidator, extractJson } from "./json.js";
 
 export interface ClaudeAdapterDeps {
   readonly processRunner: ProcessRunner;
   readonly bin?: string;
+  readonly maxRetries?: number;
 }
 
 export function createClaudeAdapter(deps: ClaudeAdapterDeps): AgentRunner {
   const bin = deps.bin ?? "claude";
+  const maxRetries = deps.maxRetries ?? 2;
   return {
     id: "claude",
     capabilities: CAPABILITIES.claude,
     run: async (req: AgentRequest, ctx: RunCtx): Promise<Result<AgentResult, WorkflowError>> => {
-      // Streaming JSON gives intermediate tool/token/model events for live progress.
-      // YOLO mode: a headless `-p` agent can't answer permission prompts, and
-      // `acceptEdits` blocks WebSearch/WebFetch — so skip all permission checks.
-      const args = ["-p", req.prompt, "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions", "--add-dir", req.cwd];
-      if (req.schema) args.push("--json-schema", JSON.stringify(req.schema));
-      if (req.model) args.push("--model", req.model);
+      let spawnError: WorkflowError | undefined;
+      const validate = req.schema ? compileJsonSchemaValidator(req.schema) : undefined;
 
-      const translator = createClaudeTranslator();
-      const out = await deps.processRunner.run({
-        command: bin,
-        args,
-        cwd: req.cwd,
-        signal: req.signal,
-        onLine: (line) => {
-          for (const p of translator.push(line)) ctx.onProgress?.(p);
-        },
-      });
-      if (out.code !== 0) {
-        return err({ kind: "AdapterSpawn", adapter: "claude", cause: out.stderr || `exit ${out.code}` });
+      let result: Awaited<ReturnType<typeof runWithSchemaRetry>>;
+      try {
+        result = await runWithSchemaRetry({
+          validate,
+          maxRetries,
+          attempt: async (hint) => {
+            const prompt = hint ? `${req.prompt}\n\n${hint}` : req.prompt;
+            // Streaming JSON gives intermediate tool/token/model events for live progress.
+            // YOLO mode: a headless `-p` agent can't answer permission prompts, and
+            // `acceptEdits` blocks WebSearch/WebFetch — so skip all permission checks.
+            const args = ["-p", prompt, "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions", "--add-dir", req.cwd];
+            if (req.schema) args.push("--json-schema", JSON.stringify(req.schema));
+            if (req.model) args.push("--model", req.model);
+
+            const translator = createClaudeTranslator();
+            const out = await deps.processRunner.run({
+              command: bin,
+              args,
+              cwd: req.cwd,
+              signal: req.signal,
+              onLine: (line) => {
+                for (const p of translator.push(line)) ctx.onProgress?.(p);
+              },
+            });
+            if (out.code !== 0) {
+              spawnError = { kind: "AdapterSpawn", adapter: "claude", cause: out.stderr || `exit ${out.code}` };
+              throw new Error("claude spawn failed");
+            }
+
+            const final = translator.result();
+            if (final.isError) {
+              spawnError = { kind: "AdapterSpawn", adapter: "claude", cause: final.errorMessage ?? "claude reported is_error" };
+              throw new Error("claude reported is_error");
+            }
+
+            // `structured_output` is the already-parsed object when --json-schema works.
+            // Claude Code may still exit 0 with prose in `result`; treat that as a
+            // validation miss so the schema retry loop can reprompt instead of surfacing
+            // a misleading spawn failure.
+            const data = req.schema ? (final.data ?? extractJson(final.text)) : final.data;
+            return {
+              text: final.text,
+              data,
+              usage: { inputTokens: final.usage.inputTokens, outputTokens: final.usage.outputTokens },
+            };
+          },
+        });
+      } catch (e) {
+        if (spawnError) return err(spawnError);
+        return err({ kind: "AdapterSpawn", adapter: "claude", cause: e instanceof Error ? e.message : String(e) });
       }
+      if (spawnError) return err(spawnError);
+      if (result.isErr()) return err(result.error);
 
-      const final = translator.result();
-      if (final.isError) {
-        return err({ kind: "AdapterSpawn", adapter: "claude", cause: final.errorMessage ?? "claude reported is_error" });
-      }
-
-      // `structured_output` is the already-parsed object when --json-schema is used;
-      // otherwise fall back to parsing the result text as JSON for the requested schema.
-      let data = final.data;
-      if (req.schema && data === undefined) {
-        if (final.text.trim() === "") {
-          return err({ kind: "AdapterSpawn", adapter: "claude", cause: "schema requested but no structured_output or JSON result present" });
-        }
-        try {
-          data = JSON.parse(final.text);
-        } catch {
-          return err({ kind: "AdapterSpawn", adapter: "claude", cause: "result was not valid JSON for the requested schema" });
-        }
-      }
-
+      const r = result.value;
       return ok({
-        text: final.text,
-        ...(data !== undefined ? { data } : {}),
-        usage: { inputTokens: final.usage.inputTokens, outputTokens: final.usage.outputTokens },
+        text: r.text,
+        ...(r.data !== undefined ? { data: r.data } : {}),
+        usage: r.usage,
         toolCalls: [],
       });
     },

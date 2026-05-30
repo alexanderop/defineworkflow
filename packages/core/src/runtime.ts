@@ -1,7 +1,7 @@
-import { z } from "zod";
-import { toJsonSchema, validate } from "@workflow/schema";
+import { validate, compileValidator, isZodSchema, toJsonSchema, type JsonSchema } from "@workflow/schema";
 import { createBudget, type Budget } from "./budget.js";
 import { WorkflowThrow, type WorkflowError } from "./errors.js";
+import { truncateRawOutput } from "./raw-output.js";
 import type { Semaphore } from "./semaphore.js";
 import type { Journal } from "./journal.js";
 import type { AgentRequest, AgentRunner, WorkflowMeta } from "./types.js";
@@ -15,10 +15,16 @@ export function labelFromPrompt(prompt: string, max = 48): string {
   return firstLine.length > max ? `${firstLine.slice(0, max - 1)}…` : firstLine;
 }
 
+/** A zod schema, structurally — accepted by `agent({ schema })` and converted to JSON Schema at runtime. */
+export interface ZodLike {
+  parse(value: unknown): unknown;
+  safeParse(value: unknown): unknown;
+}
+
 export interface AgentOptions {
   readonly label?: string;
   readonly phase?: string;
-  readonly schema?: z.ZodType;
+  readonly schema?: JsonSchema | ZodLike;
   readonly model?: string;
   readonly agentType?: string;
   readonly adapter?: string;
@@ -137,15 +143,21 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     }
     spawned++;
 
-    let jsonSchema: Record<string, unknown> | undefined;
+    // `opts.schema` is either a plain JSON Schema or a zod schema; normalize zod to JSON
+    // Schema up front (the serializable form harnesses + AJV consume). Compile it here so a
+    // malformed schema surfaces as a clean SchemaValidation error rather than an opaque
+    // adapter-spawn failure when the adapter later tries to compile it.
+    let jsonSchema: JsonSchema | undefined;
     if (opts.schema) {
-      const converted = toJsonSchema(opts.schema);
-      if (converted.isErr()) {
-        const e: WorkflowError = { kind: "SchemaValidation", issues: [converted.error.kind === "Conversion" ? converted.error.cause : "conversion failed"], attempts: 0 };
+      try {
+        const candidate = isZodSchema(opts.schema) ? toJsonSchema(opts.schema) : (opts.schema as JsonSchema);
+        compileValidator(candidate);
+        jsonSchema = candidate;
+      } catch (cause) {
+        const e: WorkflowError = { kind: "SchemaValidation", issues: [cause instanceof Error ? cause.message : String(cause)], attempts: 0 };
         deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
         throw new WorkflowThrow(e);
       }
-      jsonSchema = converted.value;
     }
 
     // Pause gate: hold here while paused, then re-check stop (a pause may have spanned a stop).
@@ -199,10 +211,15 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
             for (const tool of res.toolCalls) deps.emit({ type: "agent-tool", key, tool, at: deps.now() });
 
             let value: unknown = res.text;
-            if (opts.schema) {
-              const validated = validate(opts.schema, res.data);
+            if (jsonSchema) {
+              const validated = validate(jsonSchema, res.data);
               if (validated.isErr()) {
-                const e: WorkflowError = { kind: "SchemaValidation", issues: validated.error.kind === "Validation" ? validated.error.issues : ["validation failed"], attempts: 1 };
+                const e: WorkflowError = {
+                  kind: "SchemaValidation",
+                  issues: validated.error.kind === "Validation" ? validated.error.issues : ["validation failed"],
+                  attempts: 1,
+                  rawOutput: truncateRawOutput(res.text),
+                };
                 deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
                 throw new WorkflowThrow(e);
               }

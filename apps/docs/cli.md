@@ -42,7 +42,8 @@ workflow watch <id>
 
 `workflow resume <id>` rebuilds the journal from disk and continues from the longest unchanged prefix —
 see [Journal & resume](/guide/journal-resume). `workflow save <id>` promotes a run's script to a named
-workflow you can later invoke as `workflow <name>`.
+workflow you can later invoke as `workflow <name>`. The optional `whenToUse` meta hint, if set, is
+shown alongside each entry in the saved/bundled workflow listing.
 
 ## Configuration
 

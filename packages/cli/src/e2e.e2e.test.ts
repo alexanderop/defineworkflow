@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { z } from "zod";
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
@@ -42,11 +41,11 @@ function nodeRegistryFs(): RegistryFs {
   };
 }
 
-// Engine path (createRuntime) is used directly rather than runWorkflow(sandbox), because a
-// schema-bearing agent requires zod, which the vm sandbox does not expose to workflow scripts.
+// Engine path (createRuntime) is used directly rather than runWorkflow(sandbox) only to keep the
+// test self-contained; a schema-bearing agent works in a sandbox script too (schema is a plain object).
 d("real-CLI e2e per installed adapter (costs tokens; WORKFLOW_E2E=1)", () => {
   const CANDIDATES: readonly AdapterId[] = ["claude", "codex", "copilot"];
-  const schema = z.object({ answer: z.number() });
+  const schema = { type: "object", properties: { answer: { type: "number" } }, required: ["answer"] };
   const prompt = "Return JSON with key 'answer' set to the number 42. Output only the JSON.";
 
   for (const id of CANDIDATES) {

@@ -35,6 +35,8 @@ export interface RunWorkflowDeps {
 export interface RunResult {
   readonly returnValue: unknown;
   readonly status: "finished";
+  /** The workflow's declared `meta.output`, if any — where to persist artifacts. */
+  readonly output: string | undefined;
 }
 
 /**
@@ -78,7 +80,7 @@ export async function runWorkflow(deps: RunWorkflowDeps): Promise<Result<RunResu
   try {
     const returnValue = await loaded.run(runtime, deps.args);
     deps.emit({ type: "run-finished", runId: deps.runId, at: deps.now() });
-    return ok({ returnValue, status: "finished" });
+    return ok({ returnValue, status: "finished", output: loaded.meta.output });
   } catch (e) {
     deps.emit({ type: "run-finished", runId: deps.runId, at: deps.now() });
     const error: WorkflowError =

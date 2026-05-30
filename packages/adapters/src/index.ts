@@ -13,7 +13,7 @@ export { createClaudeTranslator } from "./claude-stream.js";
 export { createCodexTranslator } from "./codex-stream.js";
 export { createCopilotTranslator } from "./copilot-stream.js";
 
-import type { AgentRunner } from "@workflow/core";
+import { assertNever, type AgentRunner } from "@workflow/core";
 import type { ProcessRunner } from "./process-runner.js";
 import { createClaudeAdapter } from "./claude.js";
 import { createCodexAdapter } from "./codex.js";
@@ -31,5 +31,7 @@ export function createAdapter(
       return createCodexAdapter(deps);
     case "copilot":
       return createCopilotAdapter(deps);
+    default:
+      return assertNever(id);
   }
 }

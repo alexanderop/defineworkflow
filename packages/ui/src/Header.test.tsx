@@ -17,9 +17,11 @@ describe("Header", () => {
     const frame = lastFrame() ?? "";
     expect(frame).toContain("deep-research");
     expect(frame).toContain("1/1 agent");
-    expect(frame).toContain("2:41");
+    expect(frame).toContain("2m41s");
     expect(frame).toContain("codex");
     expect(frame).not.toContain("done"); // still running
+    expect(frame).not.toContain("╭");
+    expect(frame).not.toContain("╰");
   });
 
   it("shows `done` and an optional description for a finished run", () => {

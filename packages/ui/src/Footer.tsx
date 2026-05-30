@@ -5,8 +5,8 @@ export interface FooterProps {
   readonly focus: FocusColumn;
 }
 
-const LIST_KEYS = "↑↓ select · → drill in · esc back · s save";
-const DETAIL_KEYS = "↑↓ agent · j/k scroll · ⏎ prompt · p pause · esc back · s save";
+const LIST_KEYS = "↑↓ select · x stop workflow · p pause · esc back · s save";
+const DETAIL_KEYS = "↑↓ / j k scroll · ↵ prompt · esc back · s save";
 
 /** Contextual key hints: list level vs. the agent detail pane. */
 export function Footer({ focus }: FooterProps) {

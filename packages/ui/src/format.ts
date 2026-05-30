@@ -1,4 +1,4 @@
-import type { AgentStatus } from "@workflow/core";
+import { assertNever, type AgentStatus } from "@workflow/core";
 
 export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 
@@ -55,5 +55,7 @@ export function statusGlyph(status: AgentStatus, frame = 0): string {
       return "▱";
     case "running":
       return spinnerFrame(frame);
+    default:
+      return assertNever(status);
   }
 }

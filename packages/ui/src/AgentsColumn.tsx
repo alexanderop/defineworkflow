@@ -17,7 +17,7 @@ export function AgentsColumn({ agents, selectedIndex, focused, phaseTitle, frame
   const start = Math.max(0, Math.min(selectedIndex - Math.floor(maxVisible / 2), Math.max(0, agents.length - maxVisible)));
   const visible = agents.slice(start, start + maxVisible);
   return (
-    <Box flexDirection="column" flexGrow={1} borderStyle="round" borderColor={focused ? "cyan" : "gray"} paddingX={1}>
+    <Box flexDirection="column" flexGrow={1} paddingX={1}>
       <Text bold>
         {phaseTitle} · {agents.length} agent{agents.length === 1 ? "" : "s"}
       </Text>
@@ -31,9 +31,12 @@ export function AgentsColumn({ agents, selectedIndex, focused, phaseTitle, frame
           .join(" · ");
         return (
           <Box key={a.key} justifyContent="space-between">
-            <Text inverse={index === selectedIndex} wrap="truncate">
-              {glyph} {row.label}
-              {row.model ? <Text dimColor> {row.model}</Text> : null}
+            <Text {...(index === selectedIndex && focused ? { color: "blueBright" as const } : {})} wrap="truncate">
+              {index === selectedIndex ? "›" : " "}{" "}
+              <Text {...(a.status === "done" ? { color: "green" as const } : {})}>{glyph}</Text> {row.label}
+            </Text>
+            <Text dimColor wrap="truncate">
+              {row.model}
             </Text>
             <Text dimColor>{metrics}</Text>
           </Box>

@@ -23,11 +23,14 @@ describe("App", () => {
     const { lastFrame } = render(<App events={events} adapter="codex" animate={false} now={10} />);
     const frame = lastFrame() ?? "";
     expect(frame).toContain("deep-research");
-    expect(frame).toContain("PHASES");
+    expect(frame).toContain("Phases");
     expect(frame).toContain("Scope 0/0");
     expect(frame).toContain("Search 1/1");
     expect(frame).toContain("1/1 agent"); // header agent counts
     expect(frame).toContain("Scope · 0 agents"); // agents column header for the selected phase
+    expect(frame).not.toContain("╭");
+    expect(frame).not.toContain("╰");
+    expect(frame).not.toContain("found stuff"); // overview mode does not render the detail pane
   });
 
   it("right-arrow focuses agents so the selected phase's agents show, then detail", async () => {
@@ -41,7 +44,12 @@ describe("App", () => {
     expect(lastFrame() ?? "").toContain("angle-0");
     stdin.write(KEY.right); // focus detail
     await tick();
-    expect(lastFrame() ?? "").toContain("found stuff");
+    const frame = lastFrame() ?? "";
+    expect(frame).toContain("Search · 1 agent");
+    expect(frame).toContain("angle-0");
+    expect(frame).toContain("Completed");
+    expect(frame).toContain("found stuff");
+    expect(frame).not.toContain("Phases");
   });
 
   it("emits pause/stop/save actions via onAction", async () => {

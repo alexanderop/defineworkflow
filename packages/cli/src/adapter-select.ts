@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "neverthrow";
-import type { AgentRunner, WorkflowError } from "@workflow/core";
+import { assertNever, type AgentRunner, type WorkflowError } from "@workflow/core";
 import {
   createClaudeAdapter,
   createCodexAdapter,
@@ -47,6 +47,8 @@ export function buildRunner(id: AdapterId, cfg: WorkflowConfig, deps: BuildRunne
         return err({ kind: "AdapterSpawn", adapter: "raw-api", cause: "no completion function configured (set ANTHROPIC_API_KEY or pick a CLI adapter)" });
       }
       return ok(createRawApiAdapter({ complete: deps.complete }));
+    default:
+      return assertNever(id);
   }
 }
 

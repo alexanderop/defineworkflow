@@ -1,4 +1,5 @@
 import type { AdapterId } from "@workflow/adapters";
+import { createMockRunner } from "@workflow/core";
 import type { AppDeps } from "../app.js";
 import { loadMeta } from "../loader.js";
 import { decideConsent, promptConsent } from "../consent.js";
@@ -13,6 +14,8 @@ export interface RunArgs {
   readonly argsJson?: string | undefined;
   readonly detach: boolean;
   readonly yes: boolean;
+  /** Run against a fabricating mock runner: no real agents, no tokens — a token-free dev loop. */
+  readonly mock?: boolean;
 }
 
 export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> {
@@ -45,33 +48,45 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
     return 1;
   }
 
-  const decision = decideConsent({
-    config: deps.config,
-    project: deps.cwd,
-    name: meta.name,
-    yes: args.yes,
-    isTTY: deps.isTTY,
-    ci: deps.ci,
-  });
-  if (decision === "prompt") {
-    const consent = await promptConsent(meta, source, deps.consentIO);
-    if (!consent.allow) {
-      deps.print("aborted\n");
-      return 1;
+  // A --mock run spawns no real agents and spends no tokens, so there is nothing to consent to.
+  if (!args.mock) {
+    const decision = decideConsent({
+      config: deps.config,
+      project: deps.cwd,
+      name: meta.name,
+      yes: args.yes,
+      isTTY: deps.isTTY,
+      ci: deps.ci,
+    });
+    if (decision === "prompt") {
+      const consent = await promptConsent(meta, source, deps.consentIO);
+      if (!consent.allow) {
+        deps.print("aborted\n");
+        return 1;
+      }
+      if (consent.remember) deps.persistConsent(deps.cwd, meta.name);
     }
-    if (consent.remember) deps.persistConsent(deps.cwd, meta.name);
   }
 
+  // The declared harness is still validated (catches typos), but in --mock mode it need not
+  // be installed: we use a fabricating runner instead of building the real adapter.
   const harnessResult = resolveHarness(meta.harness);
   if (harnessResult.isErr()) {
     deps.print(`error: ${formatError(harnessResult.error)}\n`);
     return 1;
   }
   const adapter: AdapterId = harnessResult.value;
-  const runnerResult = buildRunner(adapter, deps.config, { processRunner: deps.processRunner, complete: deps.complete });
-  if (runnerResult.isErr()) {
-    deps.print(`error: ${formatError(runnerResult.error)}\n`);
-    return 1;
+
+  let runner;
+  if (args.mock) {
+    runner = createMockRunner({ delayMs: deps.isTTY ? 120 : 0 });
+  } else {
+    const runnerResult = buildRunner(adapter, deps.config, { processRunner: deps.processRunner, complete: deps.complete });
+    if (runnerResult.isErr()) {
+      deps.print(`error: ${formatError(runnerResult.error)}\n`);
+      return 1;
+    }
+    runner = runnerResult.value;
   }
 
   const runId = genRunId(meta.name, { now: deps.now, rand: deps.rand });
@@ -89,12 +104,22 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
   };
   deps.registry.init(meta0, source);
 
-  if (args.detach) {
+  // --mock is an interactive dev loop; it always runs in the foreground (detach is ignored).
+  if (args.detach && !args.mock) {
     const pid = deps.spawnDetached(runId);
     deps.registry.updateMeta(runId, { pid });
     deps.print(`${runId}\nwatch with: workflow watch ${runId}\n`);
     return 0;
   }
 
-  return runForeground(deps, { runId, source, args: parsedArgs, runner: runnerResult.value, adapter, seed: [] });
+  if (args.mock) deps.print(`running '${meta.name}' in --mock mode — no real agents, no tokens spent\n`);
+  return runForeground(deps, {
+    runId,
+    source,
+    args: parsedArgs,
+    runner,
+    adapter: args.mock ? "mock" : adapter,
+    seed: [],
+    ...(args.mock ? { mock: true } : {}),
+  });
 }

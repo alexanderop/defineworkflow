@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { loadConfig, effectiveConcurrency, effectiveMaxAgents, type ConfigDeps } from "./config.js";
+import fc from "fast-check";
+import {
+  loadConfig,
+  concurrencyCap,
+  effectiveConcurrency,
+  effectiveMaxAgents,
+  type ConfigDeps,
+} from "./config.js";
 
 function deps(files: Record<string, string>, env: Record<string, string | undefined> = {}, cores = 12): ConfigDeps {
   return {
@@ -66,5 +73,47 @@ describe("caps", () => {
     expect(effectiveMaxAgents({ maxAgents: 5000 })).toBe(1000);
     expect(effectiveMaxAgents({})).toBe(1000);
     expect(effectiveMaxAgents({ maxAgents: 50 })).toBe(50);
+  });
+});
+
+describe("caps (property-based)", () => {
+  // These are pure numeric clamps; the bounds must hold for any input, including hostile ones.
+  it("concurrencyCap always lands in [1, 16]", () => {
+    fc.assert(
+      fc.property(fc.integer(), (cores) => {
+        const cap = concurrencyCap(cores);
+        expect(cap).toBeGreaterThanOrEqual(1);
+        expect(cap).toBeLessThanOrEqual(16);
+      }),
+    );
+  });
+
+  it("effectiveConcurrency stays within [1, concurrencyCap(cores)]", () => {
+    fc.assert(
+      fc.property(fc.option(fc.integer(), { nil: undefined }), fc.integer(), (concurrency, cores) => {
+        const result = effectiveConcurrency(concurrency === undefined ? {} : { concurrency }, cores);
+        expect(result).toBeGreaterThanOrEqual(1);
+        expect(result).toBeLessThanOrEqual(concurrencyCap(cores));
+      }),
+    );
+  });
+
+  it("effectiveConcurrency honours an in-range request verbatim", () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 2, max: 1024 }), fc.integer({ min: 1, max: 16 }), (cores, request) => {
+        fc.pre(request <= concurrencyCap(cores)); // only meaningful when the request is within the cap
+        expect(effectiveConcurrency({ concurrency: request }, cores)).toBe(request);
+      }),
+    );
+  });
+
+  it("effectiveMaxAgents always lands in [1, 1000]", () => {
+    fc.assert(
+      fc.property(fc.option(fc.integer(), { nil: undefined }), (maxAgents) => {
+        const result = effectiveMaxAgents(maxAgents === undefined ? {} : { maxAgents });
+        expect(result).toBeGreaterThanOrEqual(1);
+        expect(result).toBeLessThanOrEqual(1000);
+      }),
+    );
   });
 });

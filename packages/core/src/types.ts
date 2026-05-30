@@ -11,8 +11,16 @@ export type HarnessId = "claude" | "codex" | "copilot" | "raw-api";
 export interface WorkflowMeta {
   readonly name: string;
   readonly description: string;
+  readonly whenToUse?: string;
   readonly harness: HarnessId;
   readonly phases?: readonly unknown[];
+  /**
+   * Where to persist this workflow's artifacts. When set, the run's return value is
+   * written there (`result.json` verbatim, plus each top-level string field as its own
+   * file). When omitted, the return value is only printed to the terminal. Relative
+   * paths resolve against the run's cwd.
+   */
+  readonly output?: string;
 }
 
 export interface AgentRequest {

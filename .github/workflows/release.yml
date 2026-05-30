@@ -1,0 +1,104 @@
+name: release
+
+# Publishes `defineworkflow` to npm. This is the single OIDC publishing
+# workflow — configure the npm trusted publisher against THIS filename
+# (release.yml).
+#
+# It is invoked two ways:
+#   - automatically by release-please.yml (workflow_call) right after a release
+#     PR is merged and its tag/GitHub Release are created;
+#   - manually via workflow_dispatch as a break-glass to (re)publish a tag.
+#
+# Security model (npm OIDC "trusted publishing"):
+#   - NO long-lived NPM_TOKEN secret. npm authenticates via a short-lived OIDC
+#     token, which requires `id-token: write`.
+#   - `--provenance` attaches a signed attestation linking the tarball to this
+#     exact commit + workflow run (verifiable on npmjs.com).
+#   - The `npm-publish` GitHub Environment is the release-source control: protect
+#     it (Settings → Environments → npm-publish).
+#
+# One-time setup on npmjs.com (Package → Settings → Trusted Publisher):
+#   organization/repository: alexanderop/clanker-workflow
+#   workflow filename:       release.yml
+#   environment:             npm-publish
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Git tag to publish (e.g. v0.1.0)"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing git tag to publish (e.g. v0.1.0)"
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  publish:
+    name: Publish defineworkflow to npm
+    runs-on: ubuntu-latest
+    if: github.repository == 'alexanderop/clanker-workflow'
+    environment: npm-publish
+    permissions:
+      contents: read # checkout
+      id-token: write # npm trusted publishing via OIDC
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      # Guard: the published version must match the release tag (strip leading v).
+      - name: Verify version matches tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          PKG_VERSION="$(node -p "require('./packages/workflow/package.json').version")"
+          EXPECTED="${TAG#v}"
+          if [ "$PKG_VERSION" != "$EXPECTED" ]; then
+            echo "::error::package.json version ($PKG_VERSION) does not match tag ($EXPECTED)"
+            exit 1
+          fi
+
+      # The `@workflow/*` devDependencies are build-only (their code is already
+      # bundled into dist/), and they use the `workspace:*` protocol that npm
+      # can't resolve. Drop devDependencies from the manifest before publishing
+      # so the tarball is clean. This only mutates the ephemeral CI checkout.
+      - name: Strip build-only devDependencies from manifest
+        working-directory: packages/workflow
+        run: |
+          node -e "const fs=require('fs');const p=require('./package.json');delete p.devDependencies;fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n');"
+
+      # npm trusted publishing (OIDC) requires npm >= 11.5.1.
+      - name: Ensure OIDC-capable npm
+        run: npm install -g npm@latest
+
+      # OIDC trusted publishing — no NPM_TOKEN. `provenance: true` and
+      # `access: public` come from the package's publishConfig; passed explicitly
+      # here too for clarity.
+      - name: Publish to npm with provenance
+        run: npm publish --provenance --access public
+        working-directory: packages/workflow

@@ -10,11 +10,13 @@ Command-line interface for the workflow engine.
   Uses the cheapest path: one schema-bearing agent call per adapter, then a resume that is a
   cache hit with no new spawn.
 
-## Bundled example workflows
+## Example workflows
 
-Two workflows ship bundled and are resolvable by name without a path:
+Runnable example workflows live in `packages/examples/src/` as `*.workflow.ts` files, each
+authored with `defineWorkflow` from the `workflow` package:
 
-- `workflow deep-research --args '{"question":"..."}'`
-- `workflow vue-newsletter --args '{"topic":"..."}'`
+- `packages/examples/src/haiku.workflow.ts` — minimal single-`agent()` example
+- `packages/examples/src/smoke.workflow.ts`
+- `packages/examples/src/vue-newsletter.workflow.ts`
 
-These correspond to `examples/deep-research.ts` and `examples/vue-newsletter.ts` in the package.
+Run one by path, e.g. `workflow run packages/examples/src/haiku.workflow.ts --yes`.

@@ -89,4 +89,15 @@ describe("event reducer", () => {
     const state = events.reduce(reduce, initialRunState());
     expect(state.agents.get("0")?.endedAt).toBe(5);
   });
+
+  it("preserves the error on agent-failed", () => {
+    const events: WorkflowEvent[] = [
+      { type: "agent-queued", key: "0", label: "a", phase: "P", at: 0 },
+      { type: "agent-started", key: "0", at: 1 },
+      { type: "agent-failed", key: "0", error: { kind: "AdapterSpawn", adapter: "claude", cause: "exit 1: boom" }, at: 5 },
+    ];
+    const state = events.reduce(reduce, initialRunState());
+    expect(state.agents.get("0")?.status).toBe("failed");
+    expect(state.agents.get("0")?.error).toEqual({ kind: "AdapterSpawn", adapter: "claude", cause: "exit 1: boom" });
+  });
 });

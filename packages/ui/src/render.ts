@@ -2,7 +2,7 @@ import { render } from "ink";
 import { createElement } from "react";
 import type { WorkflowEvent } from "@workflow/core";
 import { App, type UiAction } from "./App.js";
-import { lineLogLine } from "./line-log.js";
+import { createLineLogger } from "./line-log.js";
 import { throttle } from "./throttle.js";
 
 export interface StartUiOptions {
@@ -24,8 +24,9 @@ export function startUi(opts: StartUiOptions): UiHandle {
 
   if (!isTTY) {
     const write = opts.write ?? ((t: string) => void process.stdout.write(t));
+    const lineLog = createLineLogger();
     const emitLine = (e: WorkflowEvent): void => {
-      const line = lineLogLine(e);
+      const line = lineLog(e);
       if (line !== null) write(line + "\n");
     };
     for (const e of initial) emitLine(e);
@@ -50,6 +51,7 @@ export function startUi(opts: StartUiOptions): UiHandle {
   });
   return {
     unmount: () => {
+      rerenderNow();
       throttled.cancel();
       unsub();
       instance.unmount();

@@ -10,24 +10,47 @@ export interface SandboxResult {
 
 // Loose AST node shape — acorn types are nominal, but we only ever read a handful of fields.
 type AstNode = { type: string; [key: string]: unknown };
+type LocatedMeta = { readonly node: AstNode; readonly mode: "meta" | "defineWorkflow" };
 
 /**
  * Transform a workflow script into a runnable async IIFE.
  * - `export const meta = …` becomes a plain `const meta = …`, captured after assignment
- * - the trailing top-level `return` is valid because the body runs inside an async arrow
+ * - `export default value` becomes `return value` for typecheck-friendly workflow results
+ * - a trailing top-level `return` is still valid because the body runs inside an async arrow
  * - TS is stripped by esbuild
  */
 export function transformScript(source: string): string {
-  if (!/export\s+const\s+meta\s*=/.test(source)) {
-    throw new Error("SandboxViolation: workflow script must export `const meta`");
+  const authoringSource = stripWorkflowImports(source);
+  if (!/export\s+const\s+meta\s*=/.test(authoringSource) && !/export\s+default\s+defineWorkflow\s*\(/.test(authoringSource)) {
+    throw new Error("SandboxViolation: workflow script must export `const meta` or `export default defineWorkflow({ … })`");
+  }
+  if (/export\s+default\s+defineWorkflow\s*\(/.test(authoringSource)) {
+    const safe = authoringSource.replace(
+      /\bexport\s+default\s+defineWorkflow\s*\(/,
+      "const __workflow = globalThis.__workflow = defineWorkflow(",
+    );
+    const wrapped = `(async () => {\n${safe}\nreturn await __workflow.run({ agent, parallel, pipeline, workflow, phase, log, args, budget });\n})()`;
+    return transformSync(wrapped, { loader: "ts", format: "esm" }).code;
   }
   // Declare `const meta` (so the script body can reference it) AND mirror the same
   // value onto a global for extraction — without needing to locate the end of the
   // meta literal. Robust to multi-line literals, `as const`, semicolons inside
   // strings, and a missing trailing semicolon.
-  const safe = source.replace(/export\s+const\s+meta\s*=\s*/, "const meta = globalThis.__meta = ");
+  const safe = authoringSource
+    .replace(/export\s+const\s+meta\s*=\s*/, "const meta = globalThis.__meta = ")
+    .replace(/\bexport\s+default\b/, "return");
   const wrapped = `(async () => {\n${safe}\n})()`;
   return transformSync(wrapped, { loader: "ts", format: "esm" }).code;
+}
+
+function stripWorkflowImports(source: string): string {
+  // Strip the authoring import — both the published package name
+  // (`defineworkflow`) and the legacy `workflow` specifier — since the runtime
+  // injects these primitives into the sandbox instead.
+  return source.replace(
+    /^\s*import\s+(?:type\s+)?(?:(?!^\s*import\s)[\s\S])*?\s+from\s+["'](?:defineworkflow|workflow)["'];?\s*$/gm,
+    "",
+  );
 }
 
 function makeBannedDate(): typeof Date {
@@ -70,8 +93,11 @@ const bannedMath = {
 export function extractMeta(source: string): WorkflowMeta {
   const js = transformScript(source);
   const program = parse(js, { ecmaVersion: "latest", sourceType: "script" }) as unknown as AstNode;
-  const literal = locateMetaLiteral(program);
-  const meta = evaluateLiteral(literal, "meta");
+  const located = locateMetaLiteral(program);
+  const meta =
+    located.mode === "defineWorkflow"
+      ? evaluateWorkflowDefinitionLiteral(located.node)
+      : evaluateLiteral(located.node, "meta");
   return validateMeta(meta);
 }
 
@@ -82,7 +108,7 @@ export function extractMeta(source: string): WorkflowMeta {
  *   ExpressionStatement → CallExpression( ArrowFunctionExpression ).body(BlockStatement)
  *   first statement: VariableDeclaration `const meta = globalThis.__meta = <LIT>`
  */
-function locateMetaLiteral(program: AstNode): AstNode {
+function locateMetaLiteral(program: AstNode): LocatedMeta {
   const top = (program.body as AstNode[] | undefined)?.[0];
   const call = top?.type === "ExpressionStatement" ? (top.expression as AstNode) : undefined;
   const arrow = call?.type === "CallExpression" ? (call.callee as AstNode) : undefined;
@@ -94,18 +120,42 @@ function locateMetaLiteral(program: AstNode): AstNode {
     (s) => !(s.type === "ExpressionStatement" && (s.expression as AstNode)?.type === "Literal"),
   );
   if (first?.type !== "VariableDeclaration" || (first as AstNode).kind !== "const") {
-    throw new Error("SandboxViolation: `export const meta = { … }` must be the first statement in the workflow");
+    throw new Error("SandboxViolation: workflow metadata must be the first statement in the workflow");
   }
   const decl = (first.declarations as AstNode[])[0];
   const id = decl?.id as AstNode | undefined;
-  if (!decl || id?.type !== "Identifier" || id.name !== "meta") {
-    throw new Error("SandboxViolation: the first statement must declare `meta`");
-  }
+  if (!decl || id?.type !== "Identifier") throw new Error("SandboxViolation: the first statement must declare workflow metadata");
   // Unwrap the `globalThis.__meta = <LIT>` assignment the transform injects.
   let init = decl.init as AstNode | undefined;
   while (init?.type === "AssignmentExpression") init = init.right as AstNode;
   if (!init) throw new Error("SandboxViolation: `meta` must have a literal value");
-  return init;
+  if (id.name === "meta") return { node: init, mode: "meta" };
+  if (id.name === "__workflow") {
+    if (init.type !== "CallExpression") throw violation("defineWorkflow metadata must be a call");
+    const callee = init.callee as AstNode | undefined;
+    if (callee?.type !== "Identifier" || callee.name !== "defineWorkflow") {
+      throw violation("default workflow export must call defineWorkflow");
+    }
+    const firstArg = (init.arguments as AstNode[] | undefined)?.[0];
+    if (!firstArg) throw violation("defineWorkflow requires a metadata object");
+    return { node: firstArg, mode: "defineWorkflow" };
+  }
+  throw new Error("SandboxViolation: the first statement must declare `meta` or `defineWorkflow`");
+}
+
+function evaluateWorkflowDefinitionLiteral(node: AstNode): unknown {
+  if (node.type !== "ObjectExpression") throw violation("defineWorkflow argument must be an object literal");
+  const out: Record<string, unknown> = {};
+  for (const prop of node.properties as AstNode[]) {
+    if (prop.type === "SpreadElement") throw violation("spread not allowed in defineWorkflow metadata");
+    if (prop.type !== "Property") throw violation("only plain properties allowed in defineWorkflow metadata");
+    if (prop.computed) throw violation("computed keys not allowed in defineWorkflow metadata");
+    const key = propertyKey(prop.key as AstNode, "defineWorkflow");
+    if (key === "run") continue;
+    if (prop.kind !== "init" || prop.method) throw violation(`methods/accessors not allowed in defineWorkflow.${key}`);
+    out[key] = evaluateLiteral(prop.value as AstNode, `defineWorkflow.${key}`);
+  }
+  return out;
 }
 
 /** Evaluate a JSON-ish literal AST node, rejecting anything non-literal. Mirrors the contract:
@@ -165,16 +215,22 @@ function validateMeta(meta: unknown): WorkflowMeta {
   if (typeof m.description !== "string" || !m.description.trim()) {
     throw violation("meta.description must be a non-empty string");
   }
+  if (m.whenToUse !== undefined && typeof m.whenToUse !== "string") {
+    throw violation("meta.whenToUse must be a string");
+  }
   // Harness is NOT validated here: the sandbox only enforces determinism. The
   // declared `meta.harness` is the single source of truth, but validating it
   // (→ `HarnessNotDeclared`) is the CLI layer's job (`resolveHarness`), so a
   // missing/unknown value is passed through untouched for that gate to report.
   if (m.phases !== undefined && !Array.isArray(m.phases)) throw violation("meta.phases must be an array");
+  if (m.output !== undefined && typeof m.output !== "string") throw violation("meta.output must be a string");
   return {
     name: m.name,
     description: m.description,
+    ...(m.whenToUse !== undefined ? { whenToUse: m.whenToUse } : {}),
     harness: m.harness as HarnessId,
     ...(m.phases !== undefined ? { phases: m.phases as readonly unknown[] } : {}),
+    ...(m.output !== undefined ? { output: m.output as string } : {}),
   };
 }
 

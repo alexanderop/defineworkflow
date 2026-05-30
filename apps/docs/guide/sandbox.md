@@ -61,10 +61,14 @@ Pass it in deterministically:
 
 ## How the script is loaded
 
-`transformScript()` rewrites `export const meta = …` into a plain `const`, then wraps the body in an
-async IIFE — which is why top-level `await` and `return` work in your script.
+`transformScript()` rewrites both authoring shapes — `export const meta = …` into a plain `const`, and
+`export default defineWorkflow(…)` so that the workflow's `run()` is invoked with the live runtime. It
+also **strips `import … from "defineworkflow"` lines**: those imports exist only for TypeScript and editor
+support, so the runtime injects the real primitive values instead. The body is then wrapped in an
+async IIFE — which is why `await` and `return` work inside `run()`.
 
 `extractMeta()` reuses the same sandbox with **sentinel-throwing stubs** for `agent()`/`parallel()`/…
-It runs the script just far enough to capture `meta` (assigned synchronously at the top), then aborts
-at the first primitive call. That's how the CLI's consent gate can show you the run's name and phases
-*before* committing to a real run.
+It runs the script just far enough to capture the run's metadata — for a `defineWorkflow` file, the
+object passed to `defineWorkflow()`; for the legacy shape, the `meta` assigned synchronously at the top —
+then aborts at the first primitive call. That's how the CLI's consent gate can show you the run's name
+and phases *before* committing to a real run.

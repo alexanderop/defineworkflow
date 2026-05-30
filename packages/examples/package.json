@@ -4,11 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "haiku": "workflow run src/haiku.workflow.ts --yes",
-    "vue-newsletter": "workflow run src/vue-newsletter.workflow.ts --yes"
+    "haiku": "defineworkflow run src/haiku.workflow.ts --yes",
+    "vue-newsletter": "defineworkflow run src/vue-newsletter.workflow.ts --yes"
   },
   "devDependencies": {
-    "@workflow/cli": "workspace:*",
-    "zod": "^4.0.0"
+    "defineworkflow": "workspace:*"
   }
 }

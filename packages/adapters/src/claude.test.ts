@@ -38,7 +38,7 @@ describe("claude adapter", () => {
     expect(argv).not.toContain("--permission-mode");
   });
 
-  it("returns AdapterSpawn when a schema is requested but the result carries no structured output", async () => {
+  it("returns SchemaValidation when schema output is missing after retries", async () => {
     const noStructured = JSON.stringify({ type: "result", is_error: false, usage: { input_tokens: 1, output_tokens: 1 } });
     const fake = createFakeProcessRunner({ claude: { stdout: noStructured, code: 0 } });
     const adapter = createClaudeAdapter({ processRunner: fake });
@@ -47,7 +47,48 @@ describe("claude adapter", () => {
       { runId: "r", seq: 0 },
     );
     expect(res.isErr()).toBe(true);
-    expect(res._unsafeUnwrapErr().kind).toBe("AdapterSpawn");
+    expect(res._unsafeUnwrapErr().kind).toBe("SchemaValidation");
+  });
+
+  it("retries when Claude returns prose instead of schema JSON, then accepts valid JSON", async () => {
+    const schema = { type: "object", properties: { source: { type: "string" }, items: { type: "array", items: { type: "object" } } }, required: ["source", "items"], additionalProperties: false };
+    let call = 0;
+    const fake = createFakeProcessRunner({
+      claude: (spec) => {
+        call++;
+        if (call === 1) {
+          return {
+            stdout: JSON.stringify({
+              type: "result",
+              subtype: "success",
+              is_error: false,
+              result: "I could not find any Hacker News results in that window.",
+              usage: { input_tokens: 10, output_tokens: 12 },
+            }),
+            code: 0,
+          };
+        }
+        expect(spec.args.join("\n")).toMatch(/previous response did not match the required schema/i);
+        return {
+          stdout: JSON.stringify({
+            type: "result",
+            subtype: "success",
+            is_error: false,
+            result: '{"source":"hackernews","items":[]}',
+            usage: { input_tokens: 11, output_tokens: 13 },
+          }),
+          code: 0,
+        };
+      },
+    });
+    const adapter = createClaudeAdapter({ processRunner: fake, maxRetries: 2 });
+    const res = await adapter.run(
+      { prompt: "search HN", schema, cwd: "/tmp", label: "hn", signal: new AbortController().signal },
+      { runId: "r", seq: 0 },
+    );
+    expect(res.isOk()).toBe(true);
+    expect(res._unsafeUnwrap().data).toEqual({ source: "hackernews", items: [] });
+    expect(fake.calls()).toHaveLength(2);
   });
 
   it("returns an AdapterSpawn error on non-zero exit", async () => {

@@ -1,4 +1,4 @@
-import { Box, useInput } from "ink";
+import { Box, Text, useInput } from "ink";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { reduce, initialRunState } from "@workflow/core";
 import type { RunState, WorkflowEvent } from "@workflow/core";
@@ -28,6 +28,18 @@ export interface AppProps {
 }
 
 const TICK_MS = 250;
+
+function VerticalDivider({ rows }: { readonly rows: number }) {
+  return (
+    <Box flexDirection="column">
+      {Array.from({ length: rows }, (_, i) => (
+        <Text key={i} dimColor>
+          │
+        </Text>
+      ))}
+    </Box>
+  );
+}
 
 export function App({ events, adapter, description, detailRows = 12, onAction, animate = true, now: nowProp }: AppProps) {
   const state: RunState = useMemo(() => events.reduce(reduce, initialRunState()), [events]);
@@ -62,6 +74,7 @@ export function App({ events, adapter, description, detailRows = 12, onAction, a
   selectedAgentKeyRef.current = selectedAgent?.key;
 
   const running = state.status === "running";
+  const paneRows = detailRows + 1;
 
   // Single ticker drives the spinner frame and the wall-clock `now` while the run is
   // live, so elapsed timers advance even when no events arrive during a long agent call.
@@ -98,24 +111,44 @@ export function App({ events, adapter, description, detailRows = 12, onAction, a
   return (
     <Box flexDirection="column">
       <Header state={state} elapsedMs={runElapsedMs(state, now)} description={description} adapter={adapter} />
-      <Box>
-        <PhasesColumn phases={phases} selectedIndex={nav.phaseIndex} focused={nav.focus === "phases"} frame={frame} />
-        <AgentsColumn
-          agents={agents}
-          selectedIndex={nav.agentIndex}
-          focused={nav.focus === "agents"}
-          phaseTitle={selectedPhase?.title ?? ""}
-          frame={frame}
-          now={now}
-        />
-        <DetailPane
-          agent={selectedAgent}
-          scroll={nav.scroll}
-          rows={detailRows}
-          focused={nav.focus === "detail"}
-          now={now}
-          expanded={nav.expanded}
-        />
+      <Box borderStyle="single" borderColor="gray" minHeight={detailRows + 3}>
+        {nav.focus === "detail" ? (
+          <>
+            <AgentsColumn
+              agents={agents}
+              selectedIndex={nav.agentIndex}
+              focused={false}
+              phaseTitle={selectedPhase?.title ?? ""}
+              frame={frame}
+              now={now}
+            />
+            <VerticalDivider rows={paneRows} />
+            <Box flexDirection="column" flexGrow={1} paddingX={1}>
+              <Text bold>{selectedAgent?.label ?? "Agent"}</Text>
+              <DetailPane
+                agent={selectedAgent}
+                scroll={nav.scroll}
+                rows={detailRows}
+                focused={nav.focus === "detail"}
+                now={now}
+                expanded={nav.expanded}
+              />
+            </Box>
+          </>
+        ) : (
+          <>
+            <PhasesColumn phases={phases} selectedIndex={nav.phaseIndex} focused={nav.focus === "phases"} frame={frame} />
+            <VerticalDivider rows={paneRows} />
+            <AgentsColumn
+              agents={agents}
+              selectedIndex={nav.agentIndex}
+              focused={nav.focus === "agents"}
+              phaseTitle={selectedPhase?.title ?? ""}
+              frame={frame}
+              now={now}
+            />
+          </>
+        )}
       </Box>
       <Footer focus={nav.focus} />
     </Box>
