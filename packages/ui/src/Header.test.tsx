@@ -3,25 +3,34 @@ import { render } from "ink-testing-library";
 import { reduce, initialRunState, type WorkflowEvent } from "@workflow/core";
 import { Header } from "./Header.js";
 
-const state = ([
-  { type: "run-started", runId: "r1", name: "deep-research", at: 0 },
-  { type: "agent-queued", key: "k", label: "a", phase: "Search", at: 1 },
-  { type: "agent-finished", key: "k", usage: { inputTokens: 0, outputTokens: 318000 }, cached: false, at: 2 },
-] satisfies WorkflowEvent[]).reduce(reduce, initialRunState());
+const make = (extra: WorkflowEvent[] = []) =>
+  ([
+    { type: "run-started", runId: "r1", name: "deep-research", at: 0 },
+    { type: "agent-queued", key: "k", label: "a", phase: "Search", at: 1 },
+    ...extra,
+  ] satisfies WorkflowEvent[]).reduce(reduce, initialRunState());
 
 describe("Header", () => {
-  it("shows name, status, abbreviated tokens, elapsed and adapter", () => {
+  it("shows name, agent counts, elapsed and adapter while running", () => {
+    const state = make([{ type: "agent-finished", key: "k", usage: { inputTokens: 0, outputTokens: 1 }, cached: false, at: 2 }]);
     const { lastFrame } = render(<Header state={state} elapsedMs={161000} adapter="codex" />);
     const frame = lastFrame() ?? "";
     expect(frame).toContain("deep-research");
-    expect(frame).toContain("running");
-    expect(frame).toContain("318k tok");
-    expect(frame).toContain("2m41s");
-    expect(frame).toContain("adapter:codex");
+    expect(frame).toContain("1/1 agent");
+    expect(frame).toContain("2:41");
+    expect(frame).toContain("codex");
+    expect(frame).not.toContain("done"); // still running
   });
 
-  it("omits the adapter segment when none is given", () => {
-    const { lastFrame } = render(<Header state={state} elapsedMs={0} />);
-    expect(lastFrame() ?? "").not.toContain("adapter:");
+  it("shows `done` and an optional description for a finished run", () => {
+    const state = make([
+      { type: "agent-finished", key: "k", usage: { inputTokens: 0, outputTokens: 1 }, cached: false, at: 2 },
+      { type: "run-finished", runId: "r1", at: 3 },
+    ]);
+    const { lastFrame } = render(<Header state={state} elapsedMs={50000} description="Find posts from May 2026" />);
+    const frame = lastFrame() ?? "";
+    expect(frame).toContain("50s");
+    expect(frame).toContain("done");
+    expect(frame).toContain("Find posts from May 2026");
   });
 });

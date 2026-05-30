@@ -1,17 +1,31 @@
 import { describe, it, expect } from "vitest";
-import { reduce, initialRunState, type WorkflowEvent } from "@workflow/core";
-import { orderedPhases, agentsInPhase, detailLines, elapsedMs } from "./selectors.js";
+import { reduce, initialRunState, type WorkflowEvent, type AgentState } from "@workflow/core";
+import {
+  orderedPhases,
+  agentsInPhase,
+  runElapsedMs,
+  agentElapsedMs,
+  humanizeTool,
+  activityDigest,
+  promptPreview,
+  agentRow,
+  detailSections,
+  elapsedMs,
+} from "./selectors.js";
 
 const events: WorkflowEvent[] = [
   { type: "run-started", runId: "r1", name: "demo", at: 100 },
   { type: "phase-started", phase: "Scope", at: 110 },
   { type: "phase-started", phase: "Search", at: 120 },
   { type: "agent-queued", key: "k0", label: "angle-0", phase: "Search", prompt: "find a\nfind b", at: 130 },
-  { type: "agent-tool", key: "k0", tool: { name: "WebSearch" }, at: 140 },
+  { type: "agent-started", key: "k0", at: 135 },
+  { type: "agent-progress", key: "k0", tokens: 20400, model: "claude-opus-4-8[1m]", at: 138 },
+  { type: "agent-tool", key: "k0", tool: { name: "WebFetch", input: { url: "https://alexop.dev/list-everything" } }, at: 140 },
   { type: "agent-output", key: "k0", chunk: "result line 1", at: 150 },
-  { type: "agent-finished", key: "k0", usage: { inputTokens: 1, outputTokens: 9 }, cached: false, at: 160 },
+  { type: "agent-finished", key: "k0", usage: { inputTokens: 1, outputTokens: 9 }, cached: false, model: "claude-opus-4-8[1m]", at: 160 },
 ];
 const state = events.reduce(reduce, initialRunState());
+const agent = agentsInPhase(state, "Search")[0]!;
 
 describe("selectors", () => {
   it("orderedPhases preserves insertion order", () => {
@@ -23,19 +37,60 @@ describe("selectors", () => {
     expect(agentsInPhase(state, "Scope")).toEqual([]);
   });
 
-  it("detailLines lays out PROMPT / TOOL CALLS / RESULT sections", () => {
-    const agent = agentsInPhase(state, "Search")[0]!;
-    expect(detailLines(agent)).toEqual([
-      "PROMPT",
-      "find a",
-      "find b",
-      "",
-      "TOOL CALLS",
-      "• WebSearch",
-      "",
-      "RESULT",
-      "result line 1",
-    ]);
+  it("runElapsedMs / agentElapsedMs use injected now (live) and freeze when ended", () => {
+    expect(runElapsedMs(state, 200)).toBe(100);
+    expect(agentElapsedMs(agent, 9999)).toBe(160 - 135); // frozen at endedAt
+    expect(runElapsedMs(initialRunState(), 5)).toBe(0);
+  });
+
+  it("humanizeTool previews the first arg, special-cases StructuredOutput and arg-less tools", () => {
+    expect(humanizeTool({ name: "WebFetch", input: { url: "https://alexop.dev/x" } })).toBe("WebFetch(https://alexop.dev/x)");
+    expect(humanizeTool({ name: "StructuredOutput", input: { n: 7 } })).toBe("StructuredOutput");
+    expect(humanizeTool({ name: "Done" })).toBe("Done");
+    const long = "a".repeat(80);
+    expect(humanizeTool({ name: "T", input: long })).toBe(`T(${"a".repeat(38)}…)`);
+  });
+
+  it("activityDigest returns the last k humanized tools and the total", () => {
+    const tools = Array.from({ length: 6 }, (_, i) => ({ name: `T${i}` }));
+    const a: AgentState = { ...agent, tools };
+    const d = activityDigest(a, 3);
+    expect(d.total).toBe(6);
+    expect(d.shown).toEqual(["T3", "T4", "T5"]);
+  });
+
+  it("promptPreview shows head + remaining count, or all lines when expanded", () => {
+    const prompt = "l1\nl2\nl3\nl4";
+    expect(promptPreview(prompt, false, 2)).toEqual(["l1", "l2", "… 2 more lines"]);
+    expect(promptPreview(prompt, true, 2)).toEqual(["l1", "l2", "l3", "l4"]);
+    expect(promptPreview("only", false, 2)).toEqual(["only"]);
+  });
+
+  it("agentRow exposes model/tokens/toolCount/elapsed for a finished agent", () => {
+    const row = agentRow(agent, 9999);
+    expect(row.status).toBe("done");
+    expect(row.model).toBe("Opus 4.8 (1M context)");
+    expect(row.tokens).toBe("10"); // final inputTokens+outputTokens = 1+9
+    expect(row.toolCount).toBe(1);
+    expect(row.elapsed).toBe("0s");
+  });
+
+  it("agentRow shows live tokens while running", () => {
+    const running: AgentState = {
+      key: "k1", label: "live", phase: "Search", prompt: "", resultText: "",
+      status: "running", tokens: 0, tools: [], startedAt: 135, liveTokens: 20400,
+    };
+    expect(agentRow(running, 135 + 21000).tokens).toBe("20.4k");
+    expect(agentRow(running, 135 + 21000).elapsed).toBe("21s");
+  });
+
+  it("detailSections lays out Status / Metrics / Prompt / Activity / Outcome", () => {
+    const lines = detailSections(agent, 9999, false);
+    expect(lines[0]).toBe("Completed · Opus 4.8 (1M context)");
+    expect(lines.some((l) => l.startsWith("Prompt · 2 lines"))).toBe(true);
+    expect(lines.some((l) => l.startsWith("Activity · last 1 of 1 tool calls"))).toBe(true);
+    expect(lines).toContain("Outcome");
+    expect(lines).toContain("  result line 1");
   });
 
   it("elapsedMs is last event at minus first event at", () => {
