@@ -71,7 +71,7 @@ export function QuestionPrompt({ question, onSubmit }: QuestionPromptProps) {
             const label = item.kind === "other" ? "Other…" : item.value;
             const selected = i === index;
             return (
-              <Text key={i} {...(selected ? { color: "cyan" } : {})}>
+              <Text key={item.kind === "other" ? "\0other" : item.value} {...(selected ? { color: "cyan" } : {})}>
                 {selected ? "❯ " : "  "}
                 {label}
               </Text>

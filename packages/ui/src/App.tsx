@@ -1,5 +1,5 @@
 import { Box, Text, useInput } from "ink";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { reduce, initialRunState } from "@workflow/core";
 import type { RunState, WorkflowEvent } from "@workflow/core";
 import { Header } from "./Header.js";
@@ -43,8 +43,13 @@ export function App({ events, adapter, description, detailRows = 12, onAction, a
   const state: RunState = useMemo(() => events.reduce(reduce, initialRunState()), [events]);
 
   const [nav, setNav] = useState<NavState>(initialNav);
-  const [frame, setFrame] = useState(0);
-  const [now, setNow] = useState(nowProp ?? Date.now());
+  // The spinner frame and the wall-clock `now` advance together on one ticker, so they live in a
+  // single state object — one setState per tick instead of two cascading updates.
+  const [tick, setTick] = useState<{ readonly frame: number; readonly now: number }>(() => ({
+    frame: 0,
+    now: nowProp ?? Date.now(),
+  }));
+  const { frame, now } = tick;
 
   const phases = useMemo(() => orderedPhases(state), [state]);
   const selectedPhase = phases[Math.min(nav.phaseIndex, Math.max(0, phases.length - 1))];
@@ -79,14 +84,18 @@ export function App({ events, adapter, description, detailRows = 12, onAction, a
   // A fixed `now` prop (tests) disables ticking entirely.
   useEffect(() => {
     if (!animate || nowProp !== undefined || !running) return;
-    const id = setInterval(() => {
-      setFrame((f) => f + 1);
-      setNow(Date.now());
-    }, TICK_MS);
+    const id = setInterval(() => setTick((t) => ({ frame: t.frame + 1, now: Date.now() })), TICK_MS);
     return () => clearInterval(id);
   }, [animate, nowProp, running]);
 
   const pendingQuestion = state.pendingQuestion;
+  // Stable handler so the QuestionPrompt prop identity doesn't change every render.
+  const handleAnswer = useCallback(
+    (value: string) => {
+      if (pendingQuestion) onAction?.({ type: "answer", key: pendingQuestion.key, value });
+    },
+    [onAction, pendingQuestion],
+  );
 
   useInput((input, key) => {
     // While a question is pending, the QuestionPrompt owns the keyboard — swallow nav/control keys.
@@ -101,10 +110,7 @@ export function App({ events, adapter, description, detailRows = 12, onAction, a
     return (
       <Box flexDirection="column">
         <Header state={state} elapsedMs={runElapsedMs(state, now)} description={description} adapter={adapter} />
-        <QuestionPrompt
-          question={pendingQuestion}
-          onSubmit={(value) => onAction?.({ type: "answer", key: pendingQuestion.key, value })}
-        />
+        <QuestionPrompt question={pendingQuestion} onSubmit={handleAnswer} />
       </Box>
     );
   }
