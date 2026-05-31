@@ -6,7 +6,7 @@
  * file-splitting convention is unit-testable without touching disk.
  */
 
-export interface Artifact {
+interface Artifact {
   readonly name: string;
   readonly content: string;
 }
