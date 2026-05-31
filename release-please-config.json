@@ -7,9 +7,16 @@
   "draft": false,
   "prerelease": false,
   "packages": {
-    "packages/workflow": {
+    ".": {
       "package-name": "defineworkflow",
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "packages/workflow/CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "packages/workflow/package.json",
+          "jsonpath": "$.version"
+        }
+      ]
     }
   }
 }
