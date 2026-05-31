@@ -141,6 +141,35 @@ describe("sandbox", () => {
     expect(result.returnValue).toEqual({ out: "hit" });
   });
 
+  it("runs a bundled workflow that also has a sibling named export", async () => {
+    const src = [
+      `import { agent, defineWorkflow } from "defineworkflow";`,
+      `var meta = { tool: "x" };`,
+      `var entry_workflow_default = defineWorkflow({`,
+      `  name: "bundled2", description: "d", harness: "claude",`,
+      `  async run() { return await agent("hi"); }`,
+      `});`,
+      `export {`,
+      `  entry_workflow_default as default,`,
+      `  meta`,
+      `};`,
+    ].join("\n");
+    const result = await runInSandbox(src, {
+      defineWorkflow: (workflow: unknown) => workflow,
+      agent: async () => "hit",
+      parallel: async () => [],
+      pipeline: async () => [],
+      workflow: async () => null,
+      phase: () => {},
+      log: () => {},
+      askUserQuestion: async () => "",
+      args: null,
+      budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
+    });
+    expect(result.meta).toMatchObject({ name: "bundled2", harness: "claude" });
+    expect(result.returnValue).toEqual("hit");
+  });
+
   it("provides URL and URLSearchParams to workflow scripts", async () => {
     const src = `
       import { defineWorkflow } from "defineworkflow";

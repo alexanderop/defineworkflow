@@ -45,7 +45,12 @@ export function transformScript(source: string): string {
   // `var <name> = defineWorkflow({...})` + `export { <name> as default }`. Capture the
   // default-export local and invoke its run() with the injected runtime, mirroring the
   // single-file defineWorkflow branch below.
-  const bundledDefault = /export\s*\{\s*([A-Za-z0-9_$]+)\s+as\s+default\s*\}\s*;?/.exec(authoringSource);
+  // esbuild may emit the default alongside other named exports:
+  //   `export { entry_default as default }`  OR  `export { entry_default as default, meta }`
+  // Match the `<name> as default` specifier anywhere in the block and strip the whole
+  // `export { … }` statement (exports are inert inside the sandbox IIFE; the captured
+  // declaration stays in the body).
+  const bundledDefault = /export\s*\{[^}]*?\b([A-Za-z0-9_$]+)\s+as\s+default\b[^}]*\}\s*;?/.exec(authoringSource);
   const bundledName = bundledDefault?.[1];
   if (bundledDefault && bundledName) {
     const body = authoringSource.replace(bundledDefault[0], "");
@@ -259,7 +264,7 @@ function locateMetaLiteral(program: AstNode): LocatedMeta {
   }
 
   // Bundled path: esbuild hoists helper declarations above `var <name> = defineWorkflow({...})`.
-  // Scan top-level declarations for the (single) defineWorkflow call.
+  // Scan top-level declarations for the first defineWorkflow call.
   const bundled = findBundledDefineWorkflow(stmts);
   if (bundled) return { node: bundled, mode: "defineWorkflow" };
 
