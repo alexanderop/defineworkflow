@@ -1,12 +1,20 @@
 import { z } from "zod";
 import type { JsonSchema } from "./index.js";
 
+/** A zod schema, structurally — its parse interface is all `agent({ schema })` relies on. */
+export interface ZodLike {
+  parse(value: unknown): unknown;
+  safeParse(value: unknown): unknown;
+}
+
 /**
  * Duck-type a zod schema by its parse interface rather than `instanceof`, so it holds
  * across realm boundaries (the workflow sandbox injects its own zod instance). A plain
- * JSON Schema object has no `parse`/`safeParse`, so the two inputs are unambiguous.
+ * JSON Schema object has no `parse`/`safeParse`, so the two inputs are unambiguous. Returning a
+ * type predicate lets callers narrow the `JsonSchema | ZodLike` union in both branches instead of
+ * re-stating the invariant in a comment.
  */
-export function isZodSchema(value: unknown): boolean {
+export function isZodSchema(value: unknown): value is ZodLike {
   if (typeof value !== "object" || value === null) return false;
   const candidate: { parse?: unknown; safeParse?: unknown } = value;
   return typeof candidate.parse === "function" && typeof candidate.safeParse === "function";

@@ -41,4 +41,17 @@ describe("jsonl journal", () => {
   it("returns JournalCorrupt when seq/key are missing", () => {
     expect(parseJournalLine(JSON.stringify({ text: "x" })).isErr()).toBe(true);
   });
+
+  it("rejects an entry missing replay-critical fields (text/outputTokens), not just seq/key", () => {
+    // The old 2-field duck check let this through as a JournalEntry whose text/outputTokens
+    // were actually undefined — a type lie on the data durable-resume replays.
+    const bad = parseJournalLine(JSON.stringify({ seq: 1, key: "1:P:a" }));
+    expect(bad.isErr()).toBe(true);
+    expect(bad._unsafeUnwrapErr().kind).toBe("JournalCorrupt");
+  });
+
+  it("rejects an entry whose field types are wrong", () => {
+    const bad = parseJournalLine(JSON.stringify({ seq: "1", key: "k", text: "t", data: null, outputTokens: 3 }));
+    expect(bad.isErr()).toBe(true);
+  });
 });

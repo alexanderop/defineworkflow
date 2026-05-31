@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { ok, err, type Result } from "neverthrow";
 import { createJournal, type Immutable, type JsonValue, type Journal, type JournalEntry, type RunId, type Tagged, type WorkflowError, type WorkflowEvent } from "@workflow/core";
 import type { AdapterId } from "@workflow/adapters";
@@ -5,6 +6,31 @@ import { serializeEvent, serializeJournalEntry, parseEventLine, parseJournalLine
 
 /** SHA-256 hex of a run's script snapshot — compared on resume to guarantee same-script replay. */
 export type ScriptHash = Tagged<string, "ScriptHash">;
+
+/**
+ * The persisted meta.json shape, validated when read back. Branded fields (`runId`/`scriptHash`)
+ * and `adapter` are stored as plain strings on disk; `safeParse` proves the structure, then the
+ * brands are re-minted in one cast at this trusted boundary — the only thing JSON can't carry.
+ */
+/** Recursive validator for arbitrary persisted JSON — proves `args` really is a `JsonValue` rather
+ * than asserting it through `z.unknown()`, so `RunMeta.args: Immutable<JsonValue>` is earned. */
+const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([z.null(), z.boolean(), z.number(), z.string(), z.array(jsonValueSchema), z.record(z.string(), jsonValueSchema)]),
+);
+
+const runMetaSchema = z.object({
+  runId: z.string(),
+  name: z.string(),
+  scriptPath: z.string().nullable(),
+  args: jsonValueSchema,
+  adapter: z.enum(["claude", "codex", "copilot", "raw-api"]),
+  status: z.enum(["running", "finished", "failed", "stopped"]),
+  startedAt: z.number(),
+  endedAt: z.number().nullable(),
+  pid: z.number().nullable(),
+  scriptHash: z.string(),
+  answers: z.record(z.string(), z.string()).optional(),
+});
 
 export interface RegistryFs {
   mkdirp(dir: string): void;
@@ -66,13 +92,16 @@ export function createRegistry(deps: RegistryDeps): Registry {
   const readMeta = (runId: string): Immutable<RunMeta> | undefined => {
     const raw = fs.readFile(metaPath(runId));
     if (raw === undefined) return undefined;
+    let parsed: unknown;
     try {
-      const parsed: JsonValue = JSON.parse(raw);
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- untyped JSON meta.json from disk narrowed to its persisted RunMeta shape
-      return parsed as unknown as Immutable<RunMeta>;
+      parsed = JSON.parse(raw);
     } catch {
       return undefined;
     }
+    const result = runMetaSchema.safeParse(parsed);
+    if (!result.success) return undefined;
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- validated shape; re-mint RunId/ScriptHash brands at this trusted disk boundary
+    return result.data as unknown as Immutable<RunMeta>;
   };
 
   return {

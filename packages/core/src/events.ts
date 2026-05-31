@@ -113,8 +113,9 @@ interface RunStateShape {
   totalTokens: number;
   totalInputTokens: number;
   totalOutputTokens: number;
-  /** The run's configured budget cap (output tokens), or null when unbounded; from run-started. */
-  budgetTotal?: number | null;
+  /** The run's configured budget cap (output tokens), or null when unbounded; from run-started.
+   * Always present in reduced state (null = unbounded) — one encoding, unlike the loose event field. */
+  budgetTotal: number | null;
   logs: string[];
   /** Wall-clock of run-started (ms); drives the header's run elapsed. */
   startedAt?: number;
@@ -134,6 +135,7 @@ export function initialRunState(): RunState {
     totalTokens: 0,
     totalInputTokens: 0,
     totalOutputTokens: 0,
+    budgetTotal: null,
     logs: [],
   };
 }
@@ -158,7 +160,7 @@ export function reduce(state: RunState, event: WorkflowEvent): RunState {
         name: event.name,
         status: "running",
         startedAt: event.at,
-        ...(event.budgetTotal !== undefined ? { budgetTotal: event.budgetTotal } : {}),
+        budgetTotal: event.budgetTotal ?? null,
       };
     case "phase-started":
       return { ...state, phases: upsertPhase(state.phases, event.phase, (p) => p) };

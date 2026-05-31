@@ -1,4 +1,4 @@
-import { validate, compileValidator, isZodSchema, toJsonSchema, type JsonSchema } from "@workflow/schema";
+import { validate, compileValidator, isZodSchema, toJsonSchema, type JsonSchema, type ZodLike } from "@workflow/schema";
 import type { AgentKey, RunId } from "./brand.js";
 import type { Immutable, JsonValue } from "./type-ext.js";
 import { createBudget, type Budget } from "./budget.js";
@@ -16,12 +16,6 @@ export function labelFromPrompt(prompt: string, max = 48): string {
   const firstLine = prompt.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
   if (firstLine === "") return "";
   return firstLine.length > max ? `${firstLine.slice(0, max - 1)}…` : firstLine;
-}
-
-/** A zod schema, structurally — accepted by `agent({ schema })` and converted to JSON Schema at runtime. */
-interface ZodLike {
-  parse(value: unknown): unknown;
-  safeParse(value: unknown): unknown;
 }
 
 export interface AgentOptions {
@@ -115,11 +109,11 @@ function profileOverrides(config: ProfileConfig, callOpts: AgentOptions): readon
 }
 
 /**
- * Coerce a non-zod `agent({ schema })` value to a plain JSON Schema object. `isZodSchema` has
- * already returned false at the call site, so this is a `Record<string, unknown>` in practice;
- * the spread copies its own enumerable keys without a type assertion.
+ * Coerce a non-zod `agent({ schema })` value to a plain JSON Schema object. `isZodSchema` is a type
+ * predicate, so its false branch already narrows the input to `JsonSchema` here — no comment-only
+ * invariant; the spread just copies its own enumerable keys.
  */
-function toJsonSchemaObject(value: JsonSchema | ZodLike): JsonSchema {
+function toJsonSchemaObject(value: JsonSchema): JsonSchema {
   return { ...value };
 }
 

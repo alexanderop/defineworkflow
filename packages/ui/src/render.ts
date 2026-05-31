@@ -52,7 +52,7 @@ export function startUi(opts: StartUiOptions): UiHandle {
   const throttled = throttle(rerenderNow, 100, {
     now: () => Date.now(),
     setTimer: (fn, ms) => setTimeout(fn, ms),
-    clearTimer: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+    clearTimer: (h) => clearTimeout(h),
   });
   const unsub = opts.subscribe((e) => {
     // Append in place (O(1)); rerenderNow snapshots a fresh array for React.
