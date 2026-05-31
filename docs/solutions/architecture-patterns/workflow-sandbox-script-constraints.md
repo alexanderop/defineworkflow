@@ -19,7 +19,9 @@ applies_when: "authoring or loading workflow scripts (examples/*.ts, saved workf
 project/personal workflows) through `runInSandbox` in `packages/core/src/sandbox.ts`. The script
 text is transformed with esbuild and run with `new vm.Script(...).runInContext(context)`. This is
 **not** an ES module loader: there is no module resolution, and the only things a script can touch
-are the globals injected into the vm context.
+are the globals injected into the vm context. (Local `./`/`../` imports in a *multi-file* workflow
+are inlined by an esbuild bundle step in the CLI **before** the sandbox sees the source — see
+[[multi-file-workflows-esbuild-bundle]] — so the in-sandbox "no module loader" rule still holds.)
 
 This shaped how Plan 4b's bundled workflows (`examples/deep-research.ts`,
 `examples/vue-newsletter.ts`) had to be written, and why the opt-in e2e suite drives the engine a
