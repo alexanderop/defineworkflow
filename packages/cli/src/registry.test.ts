@@ -48,6 +48,27 @@ describe("registry", () => {
     expect(m.name).toBe("demo");
   });
 
+  it("readMeta rejects a non-conforming meta.json (validated at the disk boundary)", () => {
+    const { fs, reg } = setup();
+    // A truncated / old-format meta.json: valid JSON, wrong shape (status not in the enum).
+    fs.writeFile("/runs/bad/meta.json", JSON.stringify({ runId: "bad", status: "bogus" }));
+    expect(reg.readMeta("bad")).toBeUndefined();
+  });
+
+  it("readMeta returns undefined for malformed JSON", () => {
+    const { fs, reg } = setup();
+    fs.writeFile("/runs/bad/meta.json", "{ not json");
+    expect(reg.readMeta("bad")).toBeUndefined();
+  });
+
+  it("listRuns drops runs whose meta.json fails validation", () => {
+    const { fs, reg } = setup();
+    reg.init(baseMeta, "x");
+    fs.mkdirp("/runs/corrupt");
+    fs.writeFile("/runs/corrupt/meta.json", JSON.stringify({ garbage: true }));
+    expect(reg.listRuns()).toEqual([baseMeta]);
+  });
+
   it("appendEvent + readEvents round-trips events in order", () => {
     const { reg } = setup();
     reg.init(baseMeta, "x");

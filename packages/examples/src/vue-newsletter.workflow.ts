@@ -54,8 +54,9 @@ export default defineWorkflow({
   async run() {
     // Args are optional. Pass {weekStart, weekEnd, label} as ISO dates to scope a week.
     // With no args, agents are told to cover "the past 7 days from today".
-    // `args` is `unknown` (parsed from the CLI `--args` JSON); narrow it to this run's expected shape.
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the unknown CLI args payload
+    // `args` is `Immutable<JsonValue>` (parsed from the CLI `--args` JSON); narrow it to this run's
+    // expected shape. Narrowing via `as` still works; only *mutating* `args` is now a compile error.
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the deeply-immutable CLI args payload
     const a = (args ?? {}) as { weekStart?: string; weekEnd?: string; label?: string };
     const hasRange = Boolean(a.weekStart && a.weekEnd);
     const label = a.label ?? (hasRange ? `Week of ${a.weekStart}–${a.weekEnd}` : "this week");

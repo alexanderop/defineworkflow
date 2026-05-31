@@ -9,7 +9,7 @@ import { ok, err, type Result } from "neverthrow";
  */
 export type JsonSchema = Record<string, unknown>;
 
-export { isZodSchema, toJsonSchema } from "./zod.js";
+export { isZodSchema, toJsonSchema, type ZodLike } from "./zod.js";
 
 export type SchemaError =
   | { readonly kind: "Conversion"; readonly cause: string }

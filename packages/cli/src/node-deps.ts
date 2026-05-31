@@ -8,7 +8,7 @@ import { createProcessRunner, detectAdapters } from "@workflow/adapters";
 import { startUi } from "@workflow/ui";
 import type { AppDeps } from "./app.js";
 import { createRegistry, type RegistryFs } from "./registry.js";
-import { loadConfig, type WorkflowConfig } from "./config.js";
+import { loadConfig, parseConfig } from "./config.js";
 import type { ConsentIO } from "./consent.js";
 import { createAnthropicComplete } from "./anthropic.js";
 
@@ -62,16 +62,7 @@ function makeReadlineIO(): ConsentIO {
 
 function persistConsent(homeDir: string, project: string, name: string): void {
   const configPath = path.join(homeDir, ".workflow", "config.json");
-  let config: WorkflowConfig = {};
-  const raw = tryRead(configPath);
-  if (raw !== undefined) {
-    try {
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- untyped JSON config from disk narrowed to its known (all-optional) shape
-      config = JSON.parse(raw) as WorkflowConfig;
-    } catch {
-      config = {};
-    }
-  }
+  const config = parseConfig(tryRead(configPath));
   const consents: Record<string, Record<string, boolean>> = { ...config.consents };
   consents[project] = { ...consents[project], [name]: true };
   writeFileEnsured(configPath, JSON.stringify({ ...config, consents }, null, 2));

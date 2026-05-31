@@ -1,5 +1,5 @@
 import type { AdapterId } from "@workflow/adapters";
-import { createMockRunner } from "@workflow/core";
+import { createMockRunner, type JsonValue } from "@workflow/core";
 import type { AppDeps } from "../app.js";
 import { loadMeta } from "../loader.js";
 import { decideConsent, promptConsent } from "../consent.js";
@@ -28,7 +28,7 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
     return 1;
   }
 
-  let parsedArgs: unknown = null;
+  let parsedArgs: JsonValue = null;
   if (args.argsJson !== undefined) {
     try {
       parsedArgs = JSON.parse(args.argsJson);

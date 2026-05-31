@@ -1,10 +1,36 @@
+import { z } from "zod";
 import { ok, err, type Result } from "neverthrow";
-import { createJournal, type Brand, type Journal, type JournalEntry, type RunId, type WorkflowError, type WorkflowEvent } from "@workflow/core";
+import { createJournal, type Immutable, type JsonValue, type Journal, type JournalEntry, type RunId, type Tagged, type WorkflowError, type WorkflowEvent } from "@workflow/core";
 import type { AdapterId } from "@workflow/adapters";
 import { serializeEvent, serializeJournalEntry, parseEventLine, parseJournalLine } from "./jsonl.js";
 
 /** SHA-256 hex of a run's script snapshot — compared on resume to guarantee same-script replay. */
-export type ScriptHash = Brand<string, "ScriptHash">;
+export type ScriptHash = Tagged<string, "ScriptHash">;
+
+/**
+ * The persisted meta.json shape, validated when read back. Branded fields (`runId`/`scriptHash`)
+ * and `adapter` are stored as plain strings on disk; `safeParse` proves the structure, then the
+ * brands are re-minted in one cast at this trusted boundary — the only thing JSON can't carry.
+ */
+/** Recursive validator for arbitrary persisted JSON — proves `args` really is a `JsonValue` rather
+ * than asserting it through `z.unknown()`, so `RunMeta.args: Immutable<JsonValue>` is earned. */
+const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([z.null(), z.boolean(), z.number(), z.string(), z.array(jsonValueSchema), z.record(z.string(), jsonValueSchema)]),
+);
+
+const runMetaSchema = z.object({
+  runId: z.string(),
+  name: z.string(),
+  scriptPath: z.string().nullable(),
+  args: jsonValueSchema,
+  adapter: z.enum(["claude", "codex", "copilot", "raw-api"]),
+  status: z.enum(["running", "finished", "failed", "stopped"]),
+  startedAt: z.number(),
+  endedAt: z.number().nullable(),
+  pid: z.number().nullable(),
+  scriptHash: z.string(),
+  answers: z.record(z.string(), z.string()).optional(),
+});
 
 export interface RegistryFs {
   mkdirp(dir: string): void;
@@ -21,7 +47,7 @@ export interface RunMeta {
   readonly runId: RunId;
   readonly name: string;
   readonly scriptPath: string | null;
-  readonly args: unknown;
+  readonly args: Immutable<JsonValue>;
   readonly adapter: AdapterId;
   readonly status: RunStatus;
   readonly startedAt: number;
@@ -41,13 +67,13 @@ export interface Registry {
   runDir(runId: string): string;
   init(meta: RunMeta, scriptSource: string): void;
   updateMeta(runId: string, patch: Partial<RunMeta>): void;
-  readMeta(runId: string): RunMeta | undefined;
+  readMeta(runId: string): Immutable<RunMeta> | undefined;
   appendEvent(runId: string, event: WorkflowEvent): void;
   readEvents(runId: string): readonly WorkflowEvent[];
   readScript(runId: string): string | undefined;
   persistentJournal(runId: string, seed: readonly JournalEntry[]): Journal;
   readJournal(runId: string): Result<readonly JournalEntry[], WorkflowError>;
-  listRuns(): readonly RunMeta[];
+  listRuns(): readonly Immutable<RunMeta>[];
 }
 
 function nonEmptyLines(raw: string | undefined): readonly string[] {
@@ -63,15 +89,19 @@ export function createRegistry(deps: RegistryDeps): Registry {
   const journalPath = (runId: string): string => `${runDir(runId)}/journal.jsonl`;
   const scriptPath = (runId: string): string => `${runDir(runId)}/script.snapshot`;
 
-  const readMeta = (runId: string): RunMeta | undefined => {
+  const readMeta = (runId: string): Immutable<RunMeta> | undefined => {
     const raw = fs.readFile(metaPath(runId));
     if (raw === undefined) return undefined;
+    let parsed: unknown;
     try {
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- untyped JSON meta.json from disk narrowed to its persisted RunMeta shape
-      return JSON.parse(raw) as RunMeta;
+      parsed = JSON.parse(raw);
     } catch {
       return undefined;
     }
+    const result = runMetaSchema.safeParse(parsed);
+    if (!result.success) return undefined;
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- validated shape; re-mint RunId/ScriptHash brands at this trusted disk boundary
+    return result.data as unknown as Immutable<RunMeta>;
   };
 
   return {
@@ -124,7 +154,7 @@ export function createRegistry(deps: RegistryDeps): Registry {
       return fs
         .readDir(root)
         .map((id) => readMeta(id))
-        .filter((m): m is RunMeta => m !== undefined);
+        .filter((m): m is Immutable<RunMeta> => m !== undefined);
     },
   };
 }

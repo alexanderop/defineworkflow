@@ -1,113 +1,128 @@
 import type { RunId } from "./brand.js";
 import type { WorkflowError } from "./errors.js";
+import type { Immutable } from "./type-ext.js";
 import { assertNever } from "./exhaustive.js";
 
-export interface ToolEvent {
-  readonly name: string;
-  readonly input?: unknown;
-}
+// Each public type below is declared as a mutable `…Shape` base wrapped in `Immutable<…>`. The
+// wrapper makes deep immutability structural: a `readonly` modifier can't be forgotten on a new
+// field because the whole shape is frozen by the type. Construct/update these only through fresh
+// object literals (mutable literals are assignable to `Immutable<…>` slots).
 
-/** Harness-neutral progress sink payload: an adapter's StreamTranslator emits these. */
-export interface AgentProgress {
+interface ToolEventShape {
+  name: string;
+  input?: unknown;
+}
+export type ToolEvent = Immutable<ToolEventShape>;
+
+interface AgentProgressShape {
   /** A tool call just observed. */
-  readonly tool?: ToolEvent;
+  tool?: ToolEventShape;
   /** Cumulative output tokens so far. */
-  readonly tokens?: number;
+  tokens?: number;
   /** Raw model id, e.g. "claude-opus-4-8[1m]". */
-  readonly model?: string;
+  model?: string;
 }
+/** Harness-neutral progress sink payload: an adapter's StreamTranslator emits these. */
+export type AgentProgress = Immutable<AgentProgressShape>;
 
-export interface AgentUsage {
-  readonly inputTokens: number;
-  readonly outputTokens: number;
-  readonly approximate?: boolean;
+interface AgentUsageShape {
+  inputTokens: number;
+  outputTokens: number;
+  approximate?: boolean;
 }
+export type AgentUsage = Immutable<AgentUsageShape>;
 
-export type WorkflowEvent =
-  | { readonly type: "run-started"; readonly runId: RunId; readonly name: string; readonly budgetTotal?: number | null; readonly at: number }
-  | { readonly type: "phase-started"; readonly phase: string; readonly at: number }
-  | { readonly type: "agent-queued"; readonly key: string; readonly label: string; readonly phase: string; readonly prompt?: string; readonly overrides?: readonly string[]; readonly at: number }
-  | { readonly type: "agent-started"; readonly key: string; readonly at: number }
-  | { readonly type: "agent-tool"; readonly key: string; readonly tool: ToolEvent; readonly at: number }
-  | { readonly type: "agent-progress"; readonly key: string; readonly tokens?: number; readonly model?: string; readonly at: number }
-  | { readonly type: "agent-output"; readonly key: string; readonly chunk: string; readonly at: number }
-  | { readonly type: "agent-finished"; readonly key: string; readonly usage: AgentUsage; readonly cached: boolean; readonly model?: string; readonly at: number }
-  | { readonly type: "agent-failed"; readonly key: string; readonly error: WorkflowError; readonly at: number }
-  | { readonly type: "question-asked"; readonly key: string; readonly question: string; readonly choices?: readonly string[]; readonly allowOther?: boolean; readonly at: number }
-  | { readonly type: "question-answered"; readonly key: string; readonly answer: string; readonly cached: boolean; readonly at: number }
-  | { readonly type: "log"; readonly message: string; readonly at: number }
-  | { readonly type: "run-finished"; readonly runId: RunId; readonly at: number };
+type WorkflowEventShape =
+  | { type: "run-started"; runId: RunId; name: string; budgetTotal?: number | null; at: number }
+  | { type: "phase-started"; phase: string; at: number }
+  | { type: "agent-queued"; key: string; label: string; phase: string; prompt?: string; overrides?: string[]; at: number }
+  | { type: "agent-started"; key: string; at: number }
+  | { type: "agent-tool"; key: string; tool: ToolEventShape; at: number }
+  | { type: "agent-progress"; key: string; tokens?: number; model?: string; at: number }
+  | { type: "agent-output"; key: string; chunk: string; at: number }
+  | { type: "agent-finished"; key: string; usage: AgentUsageShape; cached: boolean; model?: string; at: number }
+  | { type: "agent-failed"; key: string; error: WorkflowError; at: number }
+  | { type: "question-asked"; key: string; question: string; choices?: string[]; allowOther?: boolean; at: number }
+  | { type: "question-answered"; key: string; answer: string; cached: boolean; at: number }
+  | { type: "log"; message: string; at: number }
+  | { type: "run-finished"; runId: RunId; at: number };
+export type WorkflowEvent = Immutable<WorkflowEventShape>;
 
 export type AgentStatus = "queued" | "running" | "done" | "failed";
 
-export interface AgentState {
-  readonly key: string;
-  readonly label: string;
-  readonly phase: string;
-  readonly prompt: string;
-  readonly resultText: string;
-  readonly status: AgentStatus;
-  readonly tokens: number;
+interface AgentStateShape {
+  key: string;
+  label: string;
+  phase: string;
+  prompt: string;
+  resultText: string;
+  status: AgentStatus;
+  tokens: number;
   /** Input tokens reported at agent-finished (0 for cached replays). */
-  readonly inputTokens: number;
+  inputTokens: number;
   /** Output tokens reported at agent-finished. */
-  readonly outputTokens: number;
+  outputTokens: number;
   /** True when the result was replayed from the journal rather than freshly spawned. */
-  readonly cached: boolean;
+  cached: boolean;
   /** Set when the harness reported the usage figures as an estimate. */
-  readonly approximate?: boolean;
-  readonly tools: readonly ToolEvent[];
+  approximate?: boolean;
+  tools: ToolEventShape[];
   /** Wall-clock of agent-queued (ms); with startedAt yields the time spent waiting on the semaphore. */
-  readonly queuedAt?: number;
+  queuedAt?: number;
   /** Wall-clock of agent-started (ms). */
-  readonly startedAt?: number;
+  startedAt?: number;
   /** Wall-clock of agent-finished/agent-failed (ms). */
-  readonly endedAt?: number;
+  endedAt?: number;
   /** Raw model id reported by the harness, e.g. "claude-opus-4-8[1m]". */
-  readonly model?: string;
+  model?: string;
   /** Cumulative output tokens observed while running (monotonic). */
-  readonly liveTokens?: number;
+  liveTokens?: number;
   /** Set when status is "failed" — the typed reason the agent failed. */
-  readonly error?: WorkflowError;
+  error?: WorkflowError;
 }
+export type AgentState = Immutable<AgentStateShape>;
 
-export interface PhaseState {
-  readonly title: string;
-  readonly total: number;
-  readonly done: number;
-  readonly running: number;
-  readonly tokens: number;
-  readonly inputTokens: number;
-  readonly outputTokens: number;
+interface PhaseStateShape {
+  title: string;
+  total: number;
+  done: number;
+  running: number;
+  tokens: number;
+  inputTokens: number;
+  outputTokens: number;
 }
+export type PhaseState = Immutable<PhaseStateShape>;
 
+interface PendingQuestionShape {
+  key: string;
+  question: string;
+  choices?: string[];
+  allowOther?: boolean;
+}
 /** An outstanding human-in-the-loop question awaiting the user's answer. */
-export interface PendingQuestion {
-  readonly key: string;
-  readonly question: string;
-  readonly choices?: readonly string[];
-  readonly allowOther?: boolean;
-}
+export type PendingQuestion = Immutable<PendingQuestionShape>;
 
-export interface RunState {
-  readonly runId: RunId;
-  readonly name: string;
-  readonly status: "pending" | "running" | "finished";
-  readonly phases: ReadonlyMap<string, PhaseState>;
-  readonly agents: ReadonlyMap<string, AgentState>;
+interface RunStateShape {
+  runId: RunId;
+  name: string;
+  status: "pending" | "running" | "finished";
+  phases: Map<string, PhaseStateShape>;
+  agents: Map<string, AgentStateShape>;
   /** Set while a mid-run question awaits an answer; cleared when the matching answer arrives. */
-  readonly pendingQuestion?: PendingQuestion;
-  readonly totalTokens: number;
-  readonly totalInputTokens: number;
-  readonly totalOutputTokens: number;
-  /** The run's configured budget cap (output tokens), or null when unbounded; from run-started. */
-  readonly budgetTotal?: number | null;
-  readonly logs: readonly string[];
+  pendingQuestion?: PendingQuestionShape;
+  totalTokens: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  /** The run's configured budget cap (output tokens), or null when unbounded; from run-started.
+   * Always present in reduced state (null = unbounded) — one encoding, unlike the loose event field. */
+  budgetTotal: number | null;
+  logs: string[];
   /** Wall-clock of run-started (ms); drives the header's run elapsed. */
-  readonly startedAt?: number;
+  startedAt?: number;
   /** Wall-clock of run-finished (ms); freezes elapsed for finished/replayed runs. */
-  readonly endedAt?: number;
+  endedAt?: number;
 }
+export type RunState = Immutable<RunStateShape>;
 
 export function initialRunState(): RunState {
   return {
@@ -120,6 +135,7 @@ export function initialRunState(): RunState {
     totalTokens: 0,
     totalInputTokens: 0,
     totalOutputTokens: 0,
+    budgetTotal: null,
     logs: [],
   };
 }
@@ -144,7 +160,7 @@ export function reduce(state: RunState, event: WorkflowEvent): RunState {
         name: event.name,
         status: "running",
         startedAt: event.at,
-        ...(event.budgetTotal !== undefined ? { budgetTotal: event.budgetTotal } : {}),
+        budgetTotal: event.budgetTotal ?? null,
       };
     case "phase-started":
       return { ...state, phases: upsertPhase(state.phases, event.phase, (p) => p) };
