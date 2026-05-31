@@ -24,7 +24,7 @@ export interface WorkflowContext {
   readonly phase: Runtime["phase"];
   readonly log: Runtime["log"];
   readonly askUserQuestion: Runtime["askUserQuestion"];
-  readonly args: unknown;
+  readonly args: Runtime["args"];
   readonly budget: Budget;
 }
 
