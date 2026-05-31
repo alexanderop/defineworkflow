@@ -6,6 +6,15 @@ pre-commit:
       run: pnpm lint
     typecheck:
       run: pnpm typecheck
+    # React-doctor health check for the Ink UI package. Scoped to staged ui
+    # source so it only runs when those files change, gated at `--fail-on
+    # warning` so a regression blocks the commit. The staged scan drops
+    # dead-code/dependency analysis (it would false-flag unused deps when only a
+    # subset of files is staged); CI runs the full scan. Config lives in
+    # packages/ui/react-doctor.config.json.
+    react-doctor:
+      glob: "packages/ui/src/*.{ts,tsx}"
+      run: pnpm --filter @workflow/ui run react-doctor:staged
 
 pre-push:
   commands:
