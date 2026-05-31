@@ -27,8 +27,9 @@ lint with **oxlint**, and git hooks run via **lefthook**.
 - **Filter by test name**: `pnpm vitest run packages/core/src/runtime.test.ts -t "nested"`
 - **e2e tests**: `pnpm test:e2e` — sets `WORKFLOW_E2E=1` and runs the `e2e` project (these spawn real agents and use tokens)
 - **Run the example workflow end-to-end**: `pnpm example` (builds, then runs `packages/examples/src/haiku.workflow.ts` via the CLI — spawns a real Claude agent)
+- **Other example shortcuts**: `pnpm tri-harness` (races claude/codex/copilot in parallel, then judges), `pnpm question` (askUserQuestion demo), `pnpm zod` (zod-mock schema demo)
 
-`lefthook` runs `lint` + `typecheck` on **pre-commit** (parallel) and `test` on **pre-push**.
+`lefthook` runs `lint` + `typecheck` + **`react-doctor`** (scoped to staged `packages/ui/src/*.{ts,tsx}`) on **pre-commit** (parallel) and `test` on **pre-push**.
 
 ### Test layout & conventions
 
@@ -120,7 +121,7 @@ dependencies.
 `budget`. Each `agent()`
 call walks a fixed sequence: increment seq → emit `agent-queued` → check abort → **journal lookup by
 seq** (return cached result on hit — this is how resume works) → budget gate → agent-cap gate →
-acquire **semaphore** slot → convert zod schema to JSON Schema → invoke `runner.run()` → validate
+acquire **semaphore** slot → convert zod schema to JSON Schema → **resolve runner** (`opts.adapter` triggers per-call dispatch via `resolveRunner`, falling back to the run-default runner when the adapter isn't available) → invoke `runner.run()` → validate
 output → record to journal → emit events → release slot.
 
 `askUserQuestion(opts)` is deterministic human-in-the-loop: it **shares the agent seq counter** and
@@ -183,9 +184,10 @@ question's `key`. It's the headless story: a non-TTY/`--detach`/CI run resolves 
 map, then the question's `default`, else fails fast (`WorkflowError`) rather than hanging on input. The
 map is threaded onto the run meta so a detached child reads it back; `watch` shows questions read-only.
 
-A workflow's harness is **declared in `meta.harness`** and is the single source of truth — there is no
+A workflow's harness is **declared in `meta.harness`** and is the single source of truth for the run default — there is no
 auto-detect and no CLI/config override of it. `adapter-select.ts` resolves that to an adapter
-instance. Runs are persisted by `registry.ts` under `~/.workflow/runs/{runId}/` (events + journal as
+instance. Individual `agent()` calls can override the adapter per-call with `agent(prompt, { adapter: "codex" })`;
+`buildRunnerMap` in `adapter-select.ts` pre-builds all detected adapters at run startup so the lookup is a cache hit. Runs are persisted by `registry.ts` under `~/.workflow/runs/{runId}/` (events + journal as
 JSONL) which is what powers `watch`, `resume`, and `save`. `consent.ts` gates execution: non-TTY/CI,
 `--yes`, or a saved consent auto-allows; an interactive TTY prompts. Foreground runs render the Ink UI
 with pause/stop/save controls; `--detach` spawns a headless child you tail via `watch`. Config is
@@ -202,10 +204,13 @@ When `RunState.pendingQuestion` is set (an `askUserQuestion()` is waiting), `App
 input — and routes keypresses there; submitting dispatches a `{type:'answer'}` action. The non-TTY
 log renders questions as `?`/`↳` lines.
 
+**React health**: `react-doctor` is wired into this package (`react-doctor.config.json`, `failOn: "error"`) and runs automatically via the lefthook pre-commit hook (staged files only) and a GitHub Action on PRs. Run manually: `pnpm --filter @workflow/ui react-doctor`.
+
 ### `packages/workflow` — the authoring entrypoint
 
 The public package (npm name `defineworkflow`) that workflow files import from. It exports `defineWorkflow`,
 the runtime primitive stubs (`agent`/`parallel`/`pipeline`/`phase`/`log`/`workflow`/`askUserQuestion`),
+`profile()` (bundles reusable agent defaults — `adapter`, `model`, `agentType`, `isolation`, `instructions` — into a typed `Profile` passed as the first argument to `agent(profile, prompt, opts)`),
 `z` (the engine's zod instance), `args`, `budget`, and types (`AgentOptions`, `AskUserQuestionOptions`,
 `HarnessId`, `WorkflowMeta`, …).
 These imports exist purely for TypeScript/editor support — autocomplete and compile-time checks; the
@@ -231,9 +236,16 @@ prints the returned object on completion (`artifacts.ts` + `emitArtifacts` in `e
 
 ### `packages/examples`
 
-Runnable example workflows (private). `src/haiku.workflow.ts` is the minimal single-`agent()` example
-(a `defineWorkflow` default export); run via `pnpm example` or
-`workflow run packages/examples/src/haiku.workflow.ts --yes`.
+Runnable example workflows (private). Key examples:
+
+- `haiku.workflow.ts` — minimal single-`agent()` example; run via `pnpm example`
+- `tri-harness.workflow.ts` — races the same task across claude/codex/copilot using per-call `agent({ adapter })`, then judges the results; run via `pnpm tri-harness`
+- `feature-pipeline.workflow.ts` — typed `pipeline()` demo
+- `question.workflow.ts` — `askUserQuestion()` demo; run via `pnpm question`
+- `zod-mock.workflow.ts` — zod schema + `--mock` mode demo; run via `pnpm zod`
+- `deep-research.workflow.ts`, `vue-newsletter.workflow.ts`, `worktree.workflow.ts` — richer real-world patterns
+
+All can also be run directly with `workflow run packages/examples/src/<name>.workflow.ts --yes` (or `--mock` to skip real agents).
 
 ### `packages/test-support`
 
