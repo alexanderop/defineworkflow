@@ -230,11 +230,34 @@ each top-level string field is also extracted to its own file (`<key>.<ext>`, ex
 content); when omitted, the return value is only printed to the terminal. Either way the CLI always
 prints the returned object on completion (`artifacts.ts` + `emitArtifacts` in `execute.ts`).
 
+**Multi-file workflows.** A workflow may be a single file *or* a folder: a slim **entry** file that
+exports `defineWorkflow({...})` plus local helper files (schemas, prompts) imported with relative
+paths, so the entry reads like a table of contents:
+
+```
+multi-file-haiku/
+├── haiku.workflow.ts   # the entry — `export default defineWorkflow({...})`
+├── schemas.ts          # `export const HaikuSchema = z.object({ … })`
+└── prompts.ts          # `export function haikuPrompt(topic) { … }`
+```
+
+Imports are restricted to **local relative files + `"defineworkflow"`** — npm imports are rejected
+at bundle time, which keeps the sandbox deterministic by construction. Before the sandbox runs, the
+CLI **bundles** the entry's local imports into one self-contained source string (esbuild, in
+`packages/cli/src/bundle.ts`, with `defineworkflow` external); that bundle is what gets snapshotted
+to the registry, so `save`/`resume`/`--detach` are all self-contained. `meta` still lives in the
+entry's `defineWorkflow({...})` call as a pure literal. Schemas may now live at a helper file's top
+level (`export const X = z.object({ … })`) — they no longer must be declared inside `run()`. **Known
+limitation:** a nested `workflow("name")` target must be single-file or a saved (already-bundled)
+workflow; a hand-placed multi-file nested workflow is not bundled by the nested resolver.
+
 ### `packages/examples`
 
 Runnable example workflows (private). `src/haiku.workflow.ts` is the minimal single-`agent()` example
 (a `defineWorkflow` default export); run via `pnpm example` or
-`workflow run packages/examples/src/haiku.workflow.ts --yes`.
+`workflow run packages/examples/src/haiku.workflow.ts --yes`. `src/multi-file-haiku/` is the
+multi-file counterpart (entry + sibling `schemas.ts`/`prompts.ts`), run via `pnpm --filter
+@workflow/examples multi-file-haiku`.
 
 ### `packages/test-support`
 
