@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/alexanderop/defineworkflow/compare/v0.4.0...v0.4.1) (2026-05-31)
+
+
+### Bug Fixes
+
+* **release:** drop setup-node registry-url so OIDC publish works ([e1e6e8e](https://github.com/alexanderop/defineworkflow/commit/e1e6e8e756efbc18df6eba93dc646f8f9598c0df))
+* **release:** drop setup-node registry-url so OIDC publish works ([fc5c045](https://github.com/alexanderop/defineworkflow/commit/fc5c0455fe65d7eb052182fba030bcceccfe49fe))
+
 ## [0.4.0](https://github.com/alexanderop/defineworkflow/compare/v0.3.0...v0.4.0) (2026-05-31)
 
 
