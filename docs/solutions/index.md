@@ -5,6 +5,7 @@ Knowledge store of past problems and learnings. Read the relevant file before wo
 ## Architecture Patterns
 - [Harness-neutral live agent progress: normalize at the adapter via StreamTranslator → onProgress](architecture-patterns/streaming-agent-progress-normalization-boundary.md)
 - [Bundled workflow scripts run in a vm sandbox with no imports, no zod, no Date.now/Math.random](architecture-patterns/workflow-sandbox-script-constraints.md)
+- [Codegen-marker blocks in source files: rewrite between sentinels, keep the seed idempotent](architecture-patterns/marker-block-codegen-with-idempotent-seed.md)
 
 ## Conventions
 - [Enforcing immutability structurally with type-fest (Immutable/Tagged/JsonValue), not the linter](conventions/type-fest-structural-immutability-vocabulary.md)
