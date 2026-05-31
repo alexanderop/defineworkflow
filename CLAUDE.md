@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 This is **workflow-monorepo** — a deterministic multi-agent workflow engine. A workflow is a TS file
-that imports from the `workflow` package and exports a `defineWorkflow({ …, async run() { … } })`
+that imports from the `defineworkflow` package and exports a `defineWorkflow({ …, async run() { … } })`
 default, orchestrating coding-agent invocations (`agent()`, `parallel()`, `pipeline()`) with durable,
 crash-safe execution: every agent result is journaled by sequence number, so a run can be replayed
 from a checkpoint without re-invoking the model. Scripts run in a VM sandbox, agents are dispatched
@@ -138,7 +138,8 @@ Key invariants when editing the runtime:
 
 - **Determinism / sandbox** (`sandbox.ts`): scripts run in a Node `vm` context. `transformScript()`
   rewrites `export default defineWorkflow(...)` (so `run()` is invoked with the live runtime) and the
-  legacy `export const meta = …` form, strips `import ... from "workflow"` lines, and wraps the body in
+  legacy `export const meta = …` form, strips `import ... from "defineworkflow"` lines (and the legacy
+  `workflow` specifier), and wraps the body in
   an async IIFE; `extractMeta()` runs the script with sentinel-throwing stubs to read the metadata
   cheaply (used for the consent gate before a real run — for a `defineWorkflow` file it reads the
   metadata object passed in). `Date.now()`, `Math.random()`, and argless `new Date()` are **forbidden**
