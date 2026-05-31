@@ -111,6 +111,37 @@ describe("sandbox", () => {
     expect(result.returnValue).toEqual({ out: "hit" });
   });
 
+  it("provides URL and URLSearchParams to workflow scripts", async () => {
+    const src = `
+      import { defineWorkflow } from "defineworkflow";
+
+      export default defineWorkflow({
+        name: "url-test",
+        description: "uses URL",
+        harness: "claude",
+        phases: [{ title: "Run" }],
+        async run() {
+          const u = new URL("https://www.example.com/a/b?x=1");
+          const sp = new URLSearchParams("a=1&b=2");
+          return { host: u.hostname, path: u.pathname, x: u.searchParams.get("x"), a: sp.get("a") };
+        },
+      });
+    `;
+    const result = await runInSandbox(src, {
+      defineWorkflow: (workflow: unknown) => workflow,
+      agent: async () => "",
+      parallel: async () => [],
+      pipeline: async () => [],
+      workflow: async () => null,
+      phase: () => {},
+      log: () => {},
+      askUserQuestion: async () => "",
+      args: null,
+      budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
+    });
+    expect(result.returnValue).toEqual({ host: "www.example.com", path: "/a/b", x: "1", a: "1" });
+  });
+
   it("throws SandboxViolation when the script calls Date.now()", async () => {
     const src = `export const meta = { name: "x", description: "x", harness: "claude", phases: [] };\n const t = Date.now(); return t;`;
     await expect(runInSandbox(src, {})).rejects.toThrow(/SandboxViolation|Date.now/);
