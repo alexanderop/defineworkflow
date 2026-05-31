@@ -81,3 +81,49 @@ jobs:
           fi
           echo "Running unit tests changed since: $CHANGED_SINCE"
           pnpm vitest run --project unit --changed "$CHANGED_SINCE" --passWithNoTests
+
+  # Block PRs that introduce a dependency with a known high+ severity advisory
+  # or a disallowed license. Scoped to pull_request (the action diffs the PR's
+  # dependency changes against the base via GitHub's dependency graph).
+  dependency-review:
+    name: dependency-review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+
+  # Continuously audit the dependencies we actually ship (`--prod`) for known
+  # advisories — catches vulnerabilities already in the tree, which the PR-scoped
+  # dependency-review above does not. High+ only, to avoid blocking on
+  # unfixable low-severity transitive noise.
+  audit:
+    name: audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=high
