@@ -27,8 +27,8 @@ jobs:
 
     runs-on: ubuntu-latest
     permissions:
-      contents: read # checkout
-      pull-requests: read # read PR diff/metadata
+      contents: read # checkout (review does not push code, so read is enough)
+      pull-requests: write # post review summary + inline comments
       issues: read # read linked issues
       id-token: write # OIDC for Claude auth
 
@@ -47,6 +47,13 @@ jobs:
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # Reuse one summary comment across pushes instead of posting a new one each run
+          use_sticky_comment: true
+          # Allow the tools the review needs to post findings to the PR. Without
+          # these (and pull-requests: write above) the review only lands in the
+          # Actions job log and never reaches the PR.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
