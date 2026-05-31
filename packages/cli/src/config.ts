@@ -1,3 +1,6 @@
+import { z } from "zod";
+import type { Immutable } from "@workflow/core";
+
 export interface AdapterOverride {
   readonly bin?: string;
   readonly extraArgs?: readonly string[];
@@ -22,17 +25,37 @@ export interface ConfigDeps {
   readonly env: Readonly<Record<string, string | undefined>>;
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
+/**
+ * The persisted config.json shape, validated at the disk boundary so the returned `WorkflowConfig`
+ * is *earned* by `safeParse` rather than asserted blind. The lone remaining cast only narrows zod's
+ * `T | undefined` optionals to our `exactOptionalPropertyTypes` interface — a no-op at runtime.
+ */
+const adapterOverrideSchema = z.object({
+  bin: z.string().optional(),
+  extraArgs: z.array(z.string()).optional(),
+  model: z.string().optional(),
+});
+const workflowConfigSchema = z.object({
+  concurrency: z.number().optional(),
+  maxAgents: z.number().optional(),
+  budget: z.number().nullable().optional(),
+  disableWorkflows: z.boolean().optional(),
+  adapters: z.record(z.string(), adapterOverrideSchema).optional(),
+  consents: z.record(z.string(), z.record(z.string(), z.boolean())).optional(),
+});
 
-function readJson(deps: ConfigDeps, path: string): Record<string, unknown> {
-  const raw = deps.readFile(path);
+/** Parse + validate a config.json payload. Absent, malformed, or non-conforming input → `{}`. */
+export function parseConfig(raw: string | undefined): WorkflowConfig {
   if (raw === undefined) return {};
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(raw);
-    return isRecord(parsed) ? parsed : {};
+    parsed = JSON.parse(raw);
   } catch {
     return {};
   }
+  const result = workflowConfigSchema.safeParse(parsed);
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- validated shape; narrows zod's `T | undefined` optionals to our exactOptional interface
+  return result.success ? (result.data as WorkflowConfig) : {};
 }
 
 function mergeConsents(
@@ -54,12 +77,10 @@ export function configPaths(deps: ConfigDeps): { personal: string; project: stri
 }
 
 /** Personal config is the base; project config shallow-overrides it (project wins). */
-export function loadConfig(deps: ConfigDeps): WorkflowConfig {
+export function loadConfig(deps: ConfigDeps): Immutable<WorkflowConfig> {
   const { personal, project } = configPaths(deps);
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- untyped JSON config from disk narrowed to its known (all-optional) shape
-  const base = readJson(deps, personal) as WorkflowConfig;
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- untyped JSON config from disk narrowed to its known (all-optional) shape
-  const over = readJson(deps, project) as WorkflowConfig;
+  const base = parseConfig(deps.readFile(personal));
+  const over = parseConfig(deps.readFile(project));
   const consents = mergeConsents(base.consents, over.consents);
   return {
     ...base,

@@ -41,7 +41,7 @@ function firstArgPreview(input: unknown): string {
   if (typeof input === "number" || typeof input === "boolean") return String(input);
   if (Array.isArray(input)) return input.length > 0 ? firstArgPreview(input[0]) : "";
   if (typeof input === "object") {
-    const first = Object.values(input as Record<string, unknown>)[0];
+    const first: unknown = Object.values(input)[0];
     return first === undefined ? "" : firstArgPreview(first);
   }
   return "";

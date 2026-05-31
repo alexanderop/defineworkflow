@@ -84,6 +84,24 @@ library code that already threads `Result`.
 
 Schemas are **zod**; `@workflow/schema` is the only place that touches `z.toJSONSchema()` / `safeParse`.
 
+**Immutability is structural, via `type-fest`.** oxlint can't enforce data-mutation immutability, so
+enforcement lives in the type system. `@workflow/core/src/type-ext.ts` is the single blessed
+type-utility vocabulary (re-exported from `@workflow/core`); **`type-fest` is a dependency of
+`@workflow/core` only** — every other package imports `Immutable`, `JsonValue`, `Tagged`, `Simplify`,
+etc. from `@workflow/core`, never `type-fest` directly. Conventions:
+
+- **New state/data types** → write a mutable `…Shape` base interface and export
+  `Immutable<Shape>` (deep `readonly`). Don't hand-sprinkle `readonly` per field — the wrapper makes a
+  forgotten modifier on a new field structurally impossible (see `events.ts`'s `RunState`/`AgentState`).
+  Construct/update via fresh object literals; mutable literals are assignable into `Immutable<…>` slots.
+- **New nominal (branded) types** → `Tagged<Base, "Name">` (e.g. `RunId`, `AgentKey`, `ScriptHash`).
+  Mint with a single `as` cast at a trusted boundary, behind the existing `oxlint-disable` note.
+- **Parsed / ingress data** (JSON from disk, CLI `--args`) → type as `JsonValue` / `JsonObject` and
+  expose as `Immutable<…>` so externally-sourced data is deeply frozen (e.g. `loadConfig`, `readMeta`,
+  the authoring `args` global is `Immutable<JsonValue>`).
+- The existing `consistent-type-assertions: "never"` rule blocks an `as Mutable<T>` escape hatch, so
+  the `Immutable<…>` wrapper can't be trivially cast away.
+
 ## Architecture
 
 Dependency direction: `schema` → `core` → `adapters` → `cli`, with `ui`, `examples`, `workflow`, and

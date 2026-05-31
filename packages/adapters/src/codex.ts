@@ -3,9 +3,11 @@ import type { Result } from "neverthrow";
 import { writeFile, readFile, rm, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { truncateRawOutput } from "@workflow/core";
 import type { AgentRunner, AgentRequest, AgentResult, RunCtx, WorkflowError } from "@workflow/core";
 import type { ProcessRunner } from "./process-runner.js";
 import { createCodexTranslator } from "./codex-stream.js";
+import { compileJsonSchemaValidator } from "./json.js";
 import { CAPABILITIES } from "./detect.js";
 
 export interface FileStore {
@@ -77,6 +79,14 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
             data = JSON.parse(finalMessage);
           } catch {
             return err({ kind: "AdapterSpawn", adapter: "codex", cause: "final message was not valid JSON for the schema" });
+          }
+          // Validate at the adapter boundary like claude/copilot/generic — codex's native
+          // `--output-schema` isn't trusted as the sole gate. Single-shot (no reprompt loop), so
+          // token spend is unchanged; a miss surfaces as a clean SchemaValidation rather than one
+          // level up in the runtime.
+          const issues = compileJsonSchemaValidator(req.schema)(data);
+          if (issues) {
+            return err({ kind: "SchemaValidation", issues, attempts: 1, rawOutput: truncateRawOutput(finalMessage) });
           }
         }
         // Real usage from turn.completed; fall back to a length estimate only when absent.

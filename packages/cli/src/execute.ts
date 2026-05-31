@@ -1,5 +1,5 @@
 import { assertNever, createControlRegistry, initialRunState, reduce, selectRunReport } from "@workflow/core";
-import type { AgentRunner, JournalEntry, QuestionRequest, RunId, RunReportStatus, WorkflowEvent } from "@workflow/core";
+import type { AgentRunner, Immutable, JournalEntry, JsonValue, QuestionRequest, RunId, RunReportStatus, Simplify, WorkflowEvent } from "@workflow/core";
 import { renderReportText } from "@workflow/ui";
 import type { AppDeps } from "./app.js";
 import { buildRunnerMap } from "./adapter-select.js";
@@ -12,13 +12,14 @@ import { buildWorkflowResolver } from "./resolve-workflow.js";
 import { createWorktreeFactory } from "./worktree.js";
 import { createHeadlessAskUser, type AnswerMap } from "./ask-user.js";
 
-/** Capability slice the foreground/headless run loops need. */
-type RunDeps = Pick<AppDeps, "registry" | "config" | "clock" | "env" | "io" | "adapters" | "ui">;
+/** Capability slice the foreground/headless run loops need. `Simplify` flattens the `Pick` so
+ * editor hovers and type errors render the resolved object shape rather than `Pick<AppDeps, …>`. */
+type RunDeps = Simplify<Pick<AppDeps, "registry" | "config" | "clock" | "env" | "io" | "adapters" | "ui">>;
 
 export interface ExecuteParams {
   readonly runId: RunId;
   readonly source: string;
-  readonly args: unknown;
+  readonly args: Immutable<JsonValue>;
   readonly runner: AgentRunner;
   readonly adapter: string;
   readonly seed: readonly JournalEntry[];

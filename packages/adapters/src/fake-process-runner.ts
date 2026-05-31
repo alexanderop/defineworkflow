@@ -1,8 +1,17 @@
+import type { Immutable } from "@workflow/core";
 import type { ProcessRunner, ProcessSpec, ProcessOutput } from "./process-runner.js";
 
+interface ProcessResponseShape {
+  stdout?: string;
+  stderr?: string;
+  code?: number;
+}
+
+/** Both arms share one deeply-readonly shape, so the object and function forms can't disagree on
+ * mutability (the old union hand-`readonly`'d one arm and left the function arm fully mutable). */
 export type FakeResponse =
-  | { readonly stdout?: string; readonly stderr?: string; readonly code?: number }
-  | ((spec: ProcessSpec) => { stdout?: string; stderr?: string; code?: number });
+  | Immutable<ProcessResponseShape>
+  | ((spec: ProcessSpec) => Immutable<ProcessResponseShape>);
 
 export interface FakeProcessRunner extends ProcessRunner {
   calls(): readonly ProcessSpec[];

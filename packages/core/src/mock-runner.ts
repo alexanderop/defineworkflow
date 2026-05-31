@@ -30,7 +30,12 @@ export function mockFromSchema(schema: JsonSchema): unknown {
     }
     case "array": {
       const items = schema["items"];
-      return typeof items === "object" && items !== null ? [mockFromSchema({ ...items })] : [];
+      if (typeof items !== "object" || items === null) return [];
+      // Emit enough elements to satisfy `minItems` (default at least one, so downstream
+      // code that maps over the result has something to work with).
+      const minItemsValue = schema["minItems"];
+      const count = Math.max(1, typeof minItemsValue === "number" ? minItemsValue : 0);
+      return Array.from({ length: count }, () => mockFromSchema({ ...items }));
     }
     case "string":
       return "mock";

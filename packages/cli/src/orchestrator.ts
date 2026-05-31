@@ -5,6 +5,8 @@ import {
   WorkflowThrow,
   type AgentRunner,
   type ControlRegistry,
+  type Immutable,
+  type JsonValue,
   type Journal,
   type RunId,
   type RuntimeDeps,
@@ -15,7 +17,7 @@ import { loadWorkflow } from "./loader.js";
 
 export interface RunWorkflowDeps {
   readonly source: string;
-  readonly args: unknown;
+  readonly args: Immutable<JsonValue>;
   readonly runner: AgentRunner;
   readonly runId: RunId;
   readonly cwd: string;

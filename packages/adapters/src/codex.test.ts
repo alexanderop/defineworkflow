@@ -53,4 +53,24 @@ describe("codex adapter", () => {
     const res = await adapter.run({ prompt: "x", cwd: "/tmp", signal: new AbortController().signal }, { runId: "r" as RunId, seq: 0 });
     expect(res._unsafeUnwrapErr().kind).toBe("AdapterSpawn");
   });
+
+  it("returns SchemaValidation when the parsed output doesn't match the schema", async () => {
+    // Valid JSON, wrong shape (n is a string). codex validates at the adapter boundary now,
+    // so this surfaces as a SchemaValidation rather than passing through as valid data.
+    const mismatched = [
+      `{"type":"turn.started"}`,
+      `{"type":"item.completed","item":{"type":"agent_message","text":"{\\"n\\": \\"oops\\"}"}}`,
+      `{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}`,
+    ].join("\n");
+    const adapter = createCodexAdapter({
+      processRunner: createFakeProcessRunner({ codex: { stdout: mismatched, code: 0 } }),
+      fileStore: stubFileStore(),
+    });
+    const res = await adapter.run(
+      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
+      { runId: "r" as RunId, seq: 0 },
+    );
+    expect(res.isErr()).toBe(true);
+    expect(res._unsafeUnwrapErr().kind).toBe("SchemaValidation");
+  });
 });

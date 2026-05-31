@@ -1,11 +1,11 @@
 import { ok, err } from "neverthrow";
 import type { Result } from "neverthrow";
-import type { AgentRunner, AgentRequest, AgentResult, RunCtx, WorkflowError } from "@workflow/core";
+import type { AgentRunner, AgentRequest, AgentResult, JsonSchema, RunCtx, WorkflowError } from "@workflow/core";
 import { CAPABILITIES } from "./detect.js";
 
 export interface CompletionRequest {
   readonly prompt: string;
-  readonly schema?: Record<string, unknown>;
+  readonly schema?: JsonSchema;
   readonly model?: string;
   readonly signal: AbortSignal;
 }
