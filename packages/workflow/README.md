@@ -41,12 +41,34 @@ defineworkflow run haiku.workflow.ts --yes
 
 ## Install
 
+Requires **Node.js ≥ 20**. Add it to your project with whichever package
+manager you use:
+
 ```bash
 npm install defineworkflow
-# or: pnpm add defineworkflow
+pnpm add defineworkflow
+yarn add defineworkflow
+bun add defineworkflow
 ```
 
-Requires **Node.js ≥ 20**.
+This gives you the `defineWorkflow` authoring API (for editor types and
+type-checking your `*.workflow.ts` files) and the `defineworkflow` CLI.
+
+Run the CLI through your package manager…
+
+```bash
+npx defineworkflow run haiku.workflow.ts --yes      # npm
+pnpm defineworkflow run haiku.workflow.ts --yes     # pnpm
+yarn defineworkflow run haiku.workflow.ts --yes     # yarn
+bunx defineworkflow run haiku.workflow.ts --yes     # bun
+```
+
+…or install it globally so `defineworkflow` is on your `PATH`:
+
+```bash
+npm install -g defineworkflow
+pnpm add -g defineworkflow
+```
 
 ## Why
 
