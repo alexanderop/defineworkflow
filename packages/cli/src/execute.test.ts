@@ -5,7 +5,7 @@ import { createMockRunner } from "@workflow/core";
 import type { WorkflowEvent } from "@workflow/core";
 import type { ProcessRunner } from "@workflow/adapters";
 import { createRegistry, type RegistryFs, type RunMeta } from "./registry.js";
-import { runForeground } from "./execute.js";
+import { runForeground, runHeadless, saveRun } from "./execute.js";
 import { fakeDeps as makeFakeDeps } from "./test-support.js";
 
 function memRegistryFs(): RegistryFs {
@@ -102,5 +102,91 @@ describe("runForeground with --mock", () => {
     expect(out).toContain("finished");
     expect(out).toContain("Tokens");
     expect(out).toContain("Agents");
+  });
+});
+
+describe("saveRun", () => {
+  it("persists the self-contained workflow bundle verbatim", () => {
+    // A bundled snapshot: helpers inlined, `export { wf as default }`, NO `./` relative imports.
+    const bundled = [
+      `var S = ({});`,
+      `var wf = defineWorkflow({ name: "mf", description: "d", harness: "claude" });`,
+      `export { wf as default };`,
+    ].join("\n");
+
+    const registry = createRegistry({ root: "/tmp/runs", fs: memRegistryFs() });
+    const runId = "run-1" as RunId;
+    const meta: RunMeta = { runId, name: "mf", scriptPath: "s.ts", args: null, adapter: "claude", status: "finished", startedAt: 0, endedAt: 1, pid: null, scriptHash: "h" as ScriptHash };
+    registry.init(meta, bundled);
+
+    let captured: { p: string; d: string } | undefined;
+    const { deps } = makeFakeDeps({
+      registry,
+      io: { writeText: (p: string, d: string) => void (captured = { p, d }) },
+    });
+
+    const path = saveRun(deps, runId);
+
+    expect(path).toMatch(/\/workflows\/mf\.ts$/);
+    expect(captured?.p).toBe(path);
+    // The bundle is persisted byte-for-byte, and is self-contained (no relative imports).
+    expect(captured?.d).toBe(bundled);
+    expect(captured?.d).not.toMatch(/from\s*["']\.\//);
+  });
+});
+
+const HEADLESS_SRC = `
+import { agent, defineWorkflow } from "defineworkflow";
+export default defineWorkflow({
+  name: "hl",
+  description: "d",
+  harness: "claude",
+  async run() {
+    return await agent("hi", { label: "a" });
+  },
+});
+`;
+
+describe("runHeadless", () => {
+  it("finishes the run, persists status=finished, and records events via the registry", async () => {
+    const registry = createRegistry({ root: "/tmp/runs", fs: memRegistryFs() });
+    const runId = "hl-1" as RunId;
+    const meta: RunMeta = { runId, name: "hl", scriptPath: "s.ts", args: null, adapter: "claude", status: "running", startedAt: 0, endedAt: null, pid: 4242, scriptHash: "h" as ScriptHash };
+    registry.init(meta, HEADLESS_SRC);
+    const { deps } = makeFakeDeps({ registry });
+
+    const code = await runHeadless(
+      deps,
+      { runId, source: HEADLESS_SRC, args: null, runner: createMockRunner(), adapter: "mock", seed: [] },
+      new AbortController(),
+    );
+
+    expect(code).toBe(0);
+    expect(registry.readMeta(runId)?.status).toBe("finished");
+    expect(registry.readEvents(runId).some((e) => e.type === "agent-finished")).toBe(true);
+  });
+
+  it("returns exit 1, marks status=stopped, and writes no artifacts when pre-aborted", async () => {
+    const registry = createRegistry({ root: "/tmp/runs", fs: memRegistryFs() });
+    const runId = "hl-2" as RunId;
+    const meta: RunMeta = { runId, name: "hl", scriptPath: "s.ts", args: null, adapter: "claude", status: "running", startedAt: 0, endedAt: null, pid: 4242, scriptHash: "h" as ScriptHash };
+    registry.init(meta, HEADLESS_SRC);
+    const prints: string[] = [];
+    const base = makeFakeDeps({ registry }).deps;
+    const deps = { ...base, ui: { ...base.ui, print: (t: string) => void prints.push(t) } };
+
+    const controller = new AbortController();
+    controller.abort();
+
+    const code = await runHeadless(
+      deps,
+      { runId, source: HEADLESS_SRC, args: null, runner: createMockRunner(), adapter: "mock", seed: [] },
+      controller,
+    );
+
+    expect(code).toBe(1);
+    expect(registry.readMeta(runId)?.status).toBe("stopped");
+    // No artifacts emitted on the error/abort path.
+    expect(prints.join("")).not.toContain("artifacts →");
   });
 });

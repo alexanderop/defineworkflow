@@ -111,6 +111,65 @@ describe("sandbox", () => {
     expect(result.returnValue).toEqual({ out: "hit" });
   });
 
+  it("runs a bundled workflow (esbuild default-export shape)", async () => {
+    const src = [
+      `import { agent, defineWorkflow } from "defineworkflow";`,
+      `import { z } from "defineworkflow";`,
+      `var ResearchSchema = z.object({ summary: z.string() });`,
+      `var entry_workflow_default = defineWorkflow({`,
+      `  name: "bundled", description: "d", harness: "claude", phases: [{ title: "Run" }],`,
+      `  async run() { const out = await agent("hi", { schema: ResearchSchema }); return { out }; }`,
+      `});`,
+      `export {`,
+      `  entry_workflow_default as default`,
+      `};`,
+    ].join("\n");
+    const result = await runInSandbox(src, {
+      defineWorkflow: (workflow: unknown) => workflow,
+      z: { object: (x: unknown) => x, string: () => ({}) },
+      agent: async () => "hit",
+      parallel: async () => [],
+      pipeline: async () => [],
+      workflow: async () => null,
+      phase: () => {},
+      log: () => {},
+      askUserQuestion: async () => "",
+      args: null,
+      budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
+    });
+    expect(result.meta).toMatchObject({ name: "bundled", harness: "claude", phases: [{ title: "Run" }] });
+    expect(result.returnValue).toEqual({ out: "hit" });
+  });
+
+  it("runs a bundled workflow that also has a sibling named export", async () => {
+    const src = [
+      `import { agent, defineWorkflow } from "defineworkflow";`,
+      `var meta = { tool: "x" };`,
+      `var entry_workflow_default = defineWorkflow({`,
+      `  name: "bundled2", description: "d", harness: "claude",`,
+      `  async run() { return await agent("hi"); }`,
+      `});`,
+      `export {`,
+      `  entry_workflow_default as default,`,
+      `  meta`,
+      `};`,
+    ].join("\n");
+    const result = await runInSandbox(src, {
+      defineWorkflow: (workflow: unknown) => workflow,
+      agent: async () => "hit",
+      parallel: async () => [],
+      pipeline: async () => [],
+      workflow: async () => null,
+      phase: () => {},
+      log: () => {},
+      askUserQuestion: async () => "",
+      args: null,
+      budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
+    });
+    expect(result.meta).toMatchObject({ name: "bundled2", harness: "claude" });
+    expect(result.returnValue).toEqual("hit");
+  });
+
   it("provides URL and URLSearchParams to workflow scripts", async () => {
     const src = `
       import { defineWorkflow } from "defineworkflow";
@@ -150,6 +209,18 @@ describe("sandbox", () => {
   it("throws SandboxViolation when the script calls Math.random()", async () => {
     const src = `export const meta = { name: "x", description: "x", harness: "claude", phases: [] };\n return Math.random();`;
     await expect(runInSandbox(src, {})).rejects.toThrow(/SandboxViolation|Math.random/);
+  });
+
+  it("throws SandboxViolation on argless new Date() (determinism guard)", async () => {
+    const src = `export const meta = { name: "x", description: "x", harness: "claude", phases: [] };\nreturn new Date().getUTCFullYear();`;
+    await expect(runInSandbox(src, {})).rejects.toThrow(/argless new Date\(\) is not allowed/);
+  });
+
+  it("allows deterministic Date forms: new Date(ms), Date.parse, Date.UTC", async () => {
+    const src = `export const meta = { name: "x", description: "x", harness: "claude", phases: [] };
+return { y: new Date(0).getUTCFullYear(), p: Date.parse("1970-01-01T00:00:00Z"), u: Date.UTC(2020, 0, 1) };`;
+    const result = await runInSandbox(src, {});
+    expect(result.returnValue).toEqual({ y: 1970, p: 0, u: Date.UTC(2020, 0, 1) });
   });
 
   it("captures meta with no trailing semicolon (ASI)", async () => {
@@ -254,11 +325,21 @@ return x;`;
     expect(() => extractMeta(src)).toThrow(/SandboxViolation: template interpolation not allowed/);
   });
 
+  it("reads meta from esbuild bundled output (defineWorkflow not first)", () => {
+    const src = [
+      `import { agent, defineWorkflow } from "defineworkflow";`,
+      `import { z } from "defineworkflow";`,
+      `var S = z.object({ a: z.string() });`,
+      `var entry_workflow_default = defineWorkflow({ name: "bundled", description: "d", harness: "claude" });`,
+      `export { entry_workflow_default as default };`,
+    ].join("\n");
+    expect(extractMeta(src)).toMatchObject({ name: "bundled", description: "d", harness: "claude" });
+  });
+
   it("rejects meta that is not the first statement", () => {
     const src = `const x = 1;\nexport const meta = { name: "x", description: "d", harness: "claude" };\nreturn 1;`;
     expect(() => extractMeta(src)).toThrow(/SandboxViolation: .*first statement/);
   });
-
   it("rejects a raw `import … from \"zod\"` and points at the defineworkflow re-export", () => {
     const src = `
       import { agent, defineWorkflow } from "defineworkflow";
@@ -283,5 +364,35 @@ return x;`;
       });
     `;
     expect(() => extractMeta(src)).toThrow(/SandboxViolation: cannot import from "lodash"/);
+  });
+
+  it("rejects a reserved __proto__ key in meta (prototype-pollution guard)", () => {
+    const src = `export const meta = { name: "x", description: "d", harness: "claude", __proto__: { polluted: true } };\nreturn 1;`;
+    expect(() => extractMeta(src)).toThrow(/reserved key name not allowed in meta: __proto__/);
+  });
+
+  it("rejects a reserved constructor key nested inside meta", () => {
+    const src = `export const meta = { name: "x", description: "d", harness: "claude", phases: [{ constructor: 1 }] };\nreturn 1;`;
+    expect(() => extractMeta(src)).toThrow(/reserved key name not allowed/);
+  });
+
+  it("rejects an empty/whitespace meta.name", () => {
+    const src = `export const meta = { name: "  ", description: "d", harness: "claude", phases: [] };\nreturn 1;`;
+    expect(() => extractMeta(src)).toThrow(/meta\.name must be a non-empty string/);
+  });
+
+  it("rejects a non-string meta.description", () => {
+    const src = `export const meta = { name: "x", description: 42, harness: "claude", phases: [] };\nreturn 1;`;
+    expect(() => extractMeta(src)).toThrow(/meta\.description must be a non-empty string/);
+  });
+
+  it("rejects a non-string meta.whenToUse", () => {
+    const src = `export const meta = { name: "x", description: "d", whenToUse: 5, harness: "claude", phases: [] };\nreturn 1;`;
+    expect(() => extractMeta(src)).toThrow(/meta\.whenToUse must be a string/);
+  });
+
+  it("rejects a non-array meta.phases", () => {
+    const src = `export const meta = { name: "x", description: "d", harness: "claude", phases: "nope" };\nreturn 1;`;
+    expect(() => extractMeta(src)).toThrow(/meta\.phases must be an array/);
   });
 });

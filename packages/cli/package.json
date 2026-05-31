@@ -17,6 +17,7 @@
     "@workflow/core": "workspace:*",
     "@workflow/adapters": "workspace:*",
     "@workflow/ui": "workspace:*",
+    "esbuild": "^0.28.0",
     "neverthrow": "^8.1.0"
   },
   "devDependencies": {

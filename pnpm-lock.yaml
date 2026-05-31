@@ -85,6 +85,9 @@ importers:
       '@workflow/ui':
         specifier: workspace:*
         version: link:../ui
+      esbuild:
+        specifier: ^0.28.0
+        version: 0.28.0
       neverthrow:
         specifier: ^8.1.0
         version: 8.2.0

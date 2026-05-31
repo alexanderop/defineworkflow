@@ -10,8 +10,9 @@
     "feature-pipeline": "defineworkflow run src/feature-pipeline.workflow.ts --yes",
     "worktree": "defineworkflow run src/worktree.workflow.ts --yes",
     "vue-newsletter": "defineworkflow run src/vue-newsletter.workflow.ts --yes",
-    "deep-research": "defineworkflow run src/deep-research.workflow.ts --yes",
-    "zod-mock": "defineworkflow run src/zod-mock.workflow.ts --yes"
+    "deep-research": "defineworkflow run src/deep-research/deep-research.workflow.ts --yes",
+    "zod-mock": "defineworkflow run src/zod-mock.workflow.ts --yes",
+    "multi-file-haiku": "defineworkflow run src/multi-file-haiku/haiku.workflow.ts --yes"
   },
   "devDependencies": {
     "defineworkflow": "workspace:*"

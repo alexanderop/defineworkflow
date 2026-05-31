@@ -41,6 +41,22 @@ function childNode(node: AstNode, key: string): AstNode | undefined {
 export function transformScript(source: string): string {
   const authoringSource = stripWorkflowImports(source);
   assertNoForeignImports(authoringSource);
+  // esbuild-bundled entry: `export default defineWorkflow(...)` was hoisted to
+  // `var <name> = defineWorkflow({...})` + `export { <name> as default }`. Capture the
+  // default-export local and invoke its run() with the injected runtime, mirroring the
+  // single-file defineWorkflow branch below.
+  // esbuild may emit the default alongside other named exports:
+  //   `export { entry_default as default }`  OR  `export { entry_default as default, meta }`
+  // Match the `<name> as default` specifier anywhere in the block and strip the whole
+  // `export { … }` statement (exports are inert inside the sandbox IIFE; the captured
+  // declaration stays in the body).
+  const bundledDefault = /export\s*\{[^}]*?\b([A-Za-z0-9_$]+)\s+as\s+default\b[^}]*\}\s*;?/.exec(authoringSource);
+  const bundledName = bundledDefault?.[1];
+  if (bundledDefault && bundledName) {
+    const body = authoringSource.replace(bundledDefault[0], "");
+    const wrapped = `(async () => {\n${body}\nreturn await ${bundledName}.run({ agent, parallel, pipeline, workflow, phase, log, askUserQuestion, args, budget });\n})()`;
+    return transformSync(wrapped, { loader: "ts", format: "esm" }).code;
+  }
   // Detect AND rewrite the export against `masked` (comments/strings blanked) so the literal text
   // `export default defineWorkflow(` inside a JSDoc comment or a string can't be mistaken for the
   // real export — the previous code detected any occurrence but rewrote the *first*, so a comment
@@ -231,28 +247,58 @@ function locateMetaLiteral(program: AstNode): LocatedMeta {
   const first = stmts.find(
     (s) => !(s?.type === "ExpressionStatement" && childNode(s, "expression")?.type === "Literal"),
   );
-  if (first?.type !== "VariableDeclaration" || first.kind !== "const") {
-    throw new Error("SandboxViolation: workflow metadata must be the first statement in the workflow");
-  }
-  const decl = asNodeArray(first.declarations)[0];
-  const id = decl ? childNode(decl, "id") : undefined;
-  if (!decl || id?.type !== "Identifier") throw new Error("SandboxViolation: the first statement must declare workflow metadata");
-  // Unwrap the `globalThis.__meta = <LIT>` assignment the transform injects.
-  let init = childNode(decl, "init");
-  while (init?.type === "AssignmentExpression") init = childNode(init, "right");
-  if (!init) throw new Error("SandboxViolation: `meta` must have a literal value");
-  if (id.name === "meta") return { node: init, mode: "meta" };
-  if (id.name === "__workflow") {
-    if (init.type !== "CallExpression") throw violation("defineWorkflow metadata must be a call");
-    const callee = childNode(init, "callee");
-    if (callee?.type !== "Identifier" || callee.name !== "defineWorkflow") {
-      throw violation("default workflow export must call defineWorkflow");
+
+  // Strict path: legacy `export const meta = <LIT>` (rewritten by `transformScript` to
+  // `const meta = globalThis.__meta = <LIT>`) declared as the FIRST statement.
+  if (first?.type === "VariableDeclaration" && first.kind === "const") {
+    const decl = asNodeArray(first.declarations)[0];
+    const id = decl ? childNode(decl, "id") : undefined;
+    if (decl && id?.type === "Identifier" && id.name === "meta") {
+      // Unwrap the `globalThis.__meta = <LIT>` assignment the transform injects.
+      let init = childNode(decl, "init");
+      while (init?.type === "AssignmentExpression") init = childNode(init, "right");
+      if (init) return { node: init, mode: "meta" };
     }
-    const firstArg = asNodeArray(init.arguments)[0];
-    if (!firstArg) throw violation("defineWorkflow requires a metadata object");
-    return { node: firstArg, mode: "defineWorkflow" };
   }
-  throw new Error("SandboxViolation: the first statement must declare `meta` or `defineWorkflow`");
+
+  // defineWorkflow path: the single-file form (`const __workflow = … = defineWorkflow({…})`,
+  // first statement) and the bundled form (esbuild hoists helper declarations above
+  // `var <name> = defineWorkflow({…})`) both surface here — scan top-level declarations for
+  // the first defineWorkflow call.
+  const bundled = findBundledDefineWorkflow(stmts);
+  if (bundled) return { node: bundled, mode: "defineWorkflow" };
+
+  throw new Error("SandboxViolation: workflow metadata must be the first statement in the workflow");
+}
+
+/** Validate `init` is a `defineWorkflow(<objectLiteral>)` call and return its first argument node. */
+function defineWorkflowArg(init: AstNode): AstNode {
+  if (init.type !== "CallExpression") throw violation("defineWorkflow metadata must be a call");
+  const callee = childNode(init, "callee");
+  if (callee?.type !== "Identifier" || callee.name !== "defineWorkflow") {
+    throw violation("default workflow export must call defineWorkflow");
+  }
+  const firstArg = asNodeArray(init.arguments)[0];
+  if (!firstArg) throw violation("defineWorkflow requires a metadata object");
+  return firstArg;
+}
+
+/** Find a top-level `var/const/let <name> = defineWorkflow({...})` declaration (esbuild bundle). */
+function findBundledDefineWorkflow(stmts: Array<AstNode | undefined>): AstNode | undefined {
+  for (const stmt of stmts) {
+    if (stmt?.type !== "VariableDeclaration") continue;
+    for (const decl of asNodeArray(stmt.declarations)) {
+      if (!decl) continue;
+      let init = childNode(decl, "init");
+      while (init?.type === "AssignmentExpression") init = childNode(init, "right");
+      if (init?.type !== "CallExpression") continue;
+      const callee = childNode(init, "callee");
+      if (callee?.type === "Identifier" && callee.name === "defineWorkflow") {
+        return defineWorkflowArg(init);
+      }
+    }
+  }
+  return undefined;
 }
 
 function evaluateWorkflowDefinitionLiteral(node: AstNode): unknown {

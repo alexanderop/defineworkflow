@@ -3,6 +3,7 @@
 Knowledge store of past problems and learnings. Read the relevant file before working in its area.
 
 ## Architecture Patterns
+- [Multi-file workflows: esbuild-bundle local imports into one self-contained source before the vm sandbox](architecture-patterns/multi-file-workflows-esbuild-bundle.md)
 - [Harness-neutral live agent progress: normalize at the adapter via StreamTranslator → onProgress](architecture-patterns/streaming-agent-progress-normalization-boundary.md)
 - [Bundled workflow scripts run in a vm sandbox: determinism guard, injected z/URL, zod-only schemas](architecture-patterns/workflow-sandbox-script-constraints.md)
 
