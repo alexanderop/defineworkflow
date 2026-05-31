@@ -13,7 +13,7 @@ Command-line interface for the workflow engine.
 ## Example workflows
 
 Runnable example workflows live in `packages/examples/src/` as `*.workflow.ts` files, each
-authored with `defineWorkflow` from the `workflow` package:
+authored with `defineWorkflow` from the `defineworkflow` package:
 
 - `packages/examples/src/haiku.workflow.ts` — minimal single-`agent()` example
 - `packages/examples/src/smoke.workflow.ts`
