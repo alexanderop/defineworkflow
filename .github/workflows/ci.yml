@@ -74,7 +74,13 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            # Fetch the base ref with FULL history (no --depth): a shallow fetch
+            # grafts origin/$BASE_REF as a single parentless commit, so when the
+            # branch base lies behind the current base tip (e.g. main was updated
+            # since this PR branched) `git merge-base` finds no common ancestor and
+            # exits 1, failing the step. The checkout already uses fetch-depth: 0,
+            # so a full fetch here is cheap and keeps merge-base correct.
+            git fetch --no-tags origin "$BASE_REF"
             CHANGED_SINCE="$(git merge-base "origin/$BASE_REF" HEAD)"
           else
             CHANGED_SINCE="$BEFORE_SHA"
