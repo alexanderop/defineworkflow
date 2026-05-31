@@ -62,7 +62,7 @@
     "esbuild": "^0.25.0",
     "ink": "^5.0.1",
     "neverthrow": "^8.1.0",
-    "react": "^18.3.1",
+    "react": "^19.2.6",
     "zod": "^4.0.0"
   },
   "devDependencies": {
