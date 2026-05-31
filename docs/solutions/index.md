@@ -18,4 +18,5 @@ Knowledge store of past problems and learnings. Read the relevant file before wo
 ## Integration Issues
 - [Claude --json-schema silently ignores any schema carrying a $schema key](integration-issues/claude-json-schema-ignores-dollar-schema-key.md)
 - [Claude schema output can be prose before structured_output](integration-issues/claude-schema-output-retry.md)
+- [transformScript detect/replace desync: a defineWorkflow export named in a comment breaks the rewrite](integration-issues/transformscript-comment-export-desync.md)
 

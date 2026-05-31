@@ -174,9 +174,57 @@ export default { answer };`;
     expect(result.meta.description).toBe("do a; then b");
     expect(result.returnValue).toBe(2);
   });
+
+  it("ignores a defineWorkflow export named inside a JSDoc comment", async () => {
+    const src = `import { defineWorkflow } from "defineworkflow";
+
+/**
+ * NOTE: the engine requires \`export default defineWorkflow(...)\` to be first.
+ */
+export default defineWorkflow({
+  name: "commented",
+  description: "has a comment mentioning the export",
+  harness: "claude",
+  phases: [{ title: "Run" }],
+  async run() {
+    return { ok: true };
+  },
+});`;
+    const result = await runInSandbox(src, {
+      defineWorkflow: (workflow: unknown) => workflow,
+      agent: async () => "",
+      parallel: async () => [],
+      pipeline: async () => [],
+      workflow: async () => null,
+      phase: () => {},
+      log: () => {},
+      askUserQuestion: async () => "",
+      args: null,
+      budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
+    });
+    expect(result.meta).toMatchObject({ name: "commented", harness: "claude" });
+    expect(result.returnValue).toEqual({ ok: true });
+  });
+
+  it("ignores a meta export mentioned in a comment and a string literal", async () => {
+    const src = `// to use this, write: export const meta = { … }
+export const meta = { name: "real", description: "d", harness: "claude", phases: [] };
+const hint = "export const meta = { fake: true }";
+return hint.length;`;
+    const result = await runInSandbox(src, {});
+    expect(result.meta.name).toBe("real");
+    expect(typeof result.returnValue).toBe("number");
+  });
 });
 
 describe("extractMeta", () => {
+  it("reads the real meta when a comment mentions a different export form", () => {
+    const src = `/** example: export default defineWorkflow({ name: "fake" }) */
+export const meta = { name: "true-meta", description: "d", harness: "claude", phases: [] };
+export default {};`;
+    expect(extractMeta(src).name).toBe("true-meta");
+  });
+
   it("reads meta without executing agent calls", () => {
     const src = `export const meta = { name: "demo", description: "d", whenToUse: "demo work", harness: "claude", phases: [{ title: "A" }] } as const
 const x = await agent("should never run");
@@ -209,5 +257,31 @@ return x;`;
   it("rejects meta that is not the first statement", () => {
     const src = `const x = 1;\nexport const meta = { name: "x", description: "d", harness: "claude" };\nreturn 1;`;
     expect(() => extractMeta(src)).toThrow(/SandboxViolation: .*first statement/);
+  });
+
+  it("rejects a raw `import … from \"zod\"` and points at the defineworkflow re-export", () => {
+    const src = `
+      import { agent, defineWorkflow } from "defineworkflow";
+      import { z } from "zod";
+
+      export default defineWorkflow({
+        name: "n", description: "d", harness: "claude", phases: [],
+        async run() { return await agent("hi", { schema: z.object({ n: z.number() }) }); },
+      });
+    `;
+    expect(() => extractMeta(src)).toThrow(/SandboxViolation: cannot import from "zod".*defineworkflow/s);
+  });
+
+  it("names a non-zod foreign import in the SandboxViolation", () => {
+    const src = `
+      import { defineWorkflow } from "defineworkflow";
+      import { merge } from "lodash";
+
+      export default defineWorkflow({
+        name: "n", description: "d", harness: "claude", phases: [],
+        async run() { return merge({}, {}); },
+      });
+    `;
+    expect(() => extractMeta(src)).toThrow(/SandboxViolation: cannot import from "lodash"/);
   });
 });
