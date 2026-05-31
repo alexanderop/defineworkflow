@@ -47,12 +47,14 @@ jobs:
       contents: write # create release commits, tags, and GitHub Releases
       pull-requests: write # create/update the release PR
     outputs:
-      # Manifest/component mode emits PATH-PREFIXED outputs, not the bare ones.
-      # The bare `release_created`/`tag_name` are only set for a root-path (".")
-      # component; with the package at `packages/workflow` they come back empty,
-      # which silently skips the `publish` job below. Read the prefixed outputs.
-      release_created: ${{ steps.rp.outputs['packages/workflow--release_created'] }}
-      tag_name: ${{ steps.rp.outputs['packages/workflow--tag_name'] }}
+      # The single released package (`defineworkflow`) is rooted at the repo root
+      # (".") so that commits to ANY package count toward its version — it bundles
+      # all `@workflow/*` packages into its dist, so a change in packages/cli or
+      # packages/core does change the published artifact. A root-path (".")
+      # component emits the BARE `release_created`/`tag_name` outputs (path-scoped
+      # components emit PATH-PREFIXED ones); read the bare outputs here.
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
     steps:
       # Mint a GitHub App installation token so the release PR is opened as the
       # app, not GITHUB_TOKEN — otherwise its required checks never trigger.
