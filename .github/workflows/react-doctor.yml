@@ -1,0 +1,50 @@
+name: React Doctor
+
+# Automated React health check for the Ink TUI package (@workflow/ui).
+# Runs the millionco/react-doctor action on pull requests touching the UI and
+# on pushes to main, scoped to packages/ui via the `directory` input. Findings
+# surface as inline annotations and a sticky PR comment; the gate blocks only on
+# error-level diagnostics (`fail-on: error`) — warnings are reported, not fatal.
+# Rule config lives in packages/ui/react-doctor.config.json.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/ui/**"
+      - ".github/workflows/react-doctor.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/ui/**"
+      - ".github/workflows/react-doctor.yml"
+
+concurrency:
+  group: react-doctor-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: read the repo + the PR's changed files, and write the sticky
+# summary comment. No other scopes.
+permissions:
+  contents: read
+
+jobs:
+  react-doctor:
+    name: ui health check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout + read changed files
+      pull-requests: write # sticky summary comment + changed-files scoping
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0 # full history so a changed-files diff can resolve the base
+          persist-credentials: false # don't leave the git token on disk
+
+      - name: React Doctor
+        # react-doctor publishes no release tags, so pin to the main-branch SHA.
+        uses: millionco/react-doctor@9fc6f62940321beb129757a4eec4fd48ba45528e # zizmor: ignore[stale-action-refs]
+        with:
+          directory: packages/ui
+          fail-on: error
