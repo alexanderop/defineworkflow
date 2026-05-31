@@ -24,18 +24,22 @@ Read these before starting:
 1. **The `source` string is the unit of persistence.** `run.ts` reads it, `registry.init(meta, source)` snapshots it to `script.snapshot`, and `run-detached`/`resume`/`save` all replay from that snapshot. Bundle once at read-time and store the bundle → every downstream consumer is self-contained automatically.
 
 2. **esbuild's ESM bundle output** for `export default defineWorkflow(...)` is (verified):
+
    ```js
    import { agent, defineWorkflow } from "defineworkflow";
    import { z } from "defineworkflow";
    var ResearchSchema = z.object({ summary: z.string() });
    var entry_workflow_default = defineWorkflow({
-     name: "spike", description: "d", harness: "claude",
-     async run() { return await agent("hi", { schema: ResearchSchema }); }
+     name: "spike",
+     description: "d",
+     harness: "claude",
+     async run() {
+       return await agent("hi", { schema: ResearchSchema });
+     },
    });
-   export {
-     entry_workflow_default as default
-   };
+   export { entry_workflow_default as default };
    ```
+
    - Multiple `import ... from "defineworkflow"` lines — the existing `stripWorkflowImports` regex (`/gm`) strips each one.
    - `export default` becomes `var <name> = defineWorkflow({...})` + `export { <name> as default }`. The `<name>` is filename-derived, so capture it; don't hardcode.
    - After stripping the imports there are **no** other imports (helpers are inlined), so the bundle runs as a plain script in the sandbox with `z`/`agent`/`defineWorkflow` resolved as injected globals.
@@ -64,6 +68,7 @@ Read these before starting:
 ## Task 1: Add esbuild dependency to the CLI package
 
 **Files:**
+
 - Modify: `packages/cli/package.json`
 
 - [ ] **Step 1: Add the dependency**
@@ -89,6 +94,7 @@ git commit -m "build(cli): add esbuild dependency for workflow bundling"
 This is the fast path that keeps every existing single-file workflow byte-identical.
 
 **Files:**
+
 - Create: `packages/cli/src/bundle.ts`
 - Test: `packages/cli/src/bundle.test.ts`
 
@@ -158,6 +164,7 @@ git commit -m "feat(cli): bundleWorkflow passthrough for single-file workflows"
 ## Task 3: `bundleWorkflow` — inline local imports with esbuild
 
 **Files:**
+
 - Modify: `packages/cli/src/bundle.ts`
 - Test: `packages/cli/src/bundle.test.ts`
 
@@ -187,7 +194,7 @@ it("inlines a local schema import and keeps defineworkflow external", async () =
     "entry.workflow.ts": `import { agent, defineWorkflow } from "defineworkflow";\nimport { ResearchSchema } from "./schemas";\nexport default defineWorkflow({ name: "spike", description: "d", harness: "claude", async run() { return await agent("hi", { schema: ResearchSchema }); } });\n`,
   });
   try {
-    const result = await bundleWorkflow({ path: entry, source: "import { x } from \"./schemas\";" });
+    const result = await bundleWorkflow({ path: entry, source: 'import { x } from "./schemas";' });
     expect(result.isOk()).toBe(true);
     const code = result._unsafeUnwrap();
     expect(code).toContain("z.object({ summary: z.string() })"); // helper inlined
@@ -222,9 +229,16 @@ const localOnly: Plugin = {
   setup(b) {
     b.onResolve({ filter: /.*/ }, (a) => {
       if (a.kind === "entry-point") return null;
-      if (a.path === "defineworkflow" || a.path === "workflow") return { path: a.path, external: true };
+      if (a.path === "defineworkflow" || a.path === "workflow")
+        return { path: a.path, external: true };
       if (a.path.startsWith("./") || a.path.startsWith("../")) return null; // esbuild resolves from disk
-      return { errors: [{ text: `a workflow may only import local files or "defineworkflow"; "${a.path}" is not allowed` }] };
+      return {
+        errors: [
+          {
+            text: `a workflow may only import local files or "defineworkflow"; "${a.path}" is not allowed`,
+          },
+        ],
+      };
     });
   },
 };
@@ -232,23 +246,23 @@ const localOnly: Plugin = {
 
 ```ts
 // replace the `return err("not implemented");` body tail
-  try {
-    const result = await build({
-      entryPoints: [input.path],
-      bundle: true,
-      format: "esm",
-      platform: "neutral",
-      write: false,
-      logLevel: "silent",
-      plugins: [localOnly],
-    });
-    const out = result.outputFiles[0];
-    if (!out) return err(`bundling produced no output for ${input.path}`);
-    return ok(out.text);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    return err(`failed to bundle ${input.path}: ${message}`);
-  }
+try {
+  const result = await build({
+    entryPoints: [input.path],
+    bundle: true,
+    format: "esm",
+    platform: "neutral",
+    write: false,
+    logLevel: "silent",
+    plugins: [localOnly],
+  });
+  const out = result.outputFiles[0];
+  if (!out) return err(`bundling produced no output for ${input.path}`);
+  return ok(out.text);
+} catch (e) {
+  const message = e instanceof Error ? e.message : String(e);
+  return err(`failed to bundle ${input.path}: ${message}`);
+}
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
@@ -268,6 +282,7 @@ git commit -m "feat(cli): bundle local workflow imports with esbuild"
 ## Task 4: `bundleWorkflow` — reject non-local (npm) imports
 
 **Files:**
+
 - Test: `packages/cli/src/bundle.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -307,6 +322,7 @@ git commit -m "test(cli): bundleWorkflow rejects npm imports"
 ## Task 5: Teach `transformScript` the bundled default-export shape
 
 **Files:**
+
 - Modify: `packages/core/src/sandbox.ts`
 - Test: `packages/core/src/sandbox.test.ts`
 
@@ -342,7 +358,11 @@ it("runs a bundled workflow (esbuild default-export shape)", async () => {
     args: null,
     budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
   });
-  expect(result.meta).toMatchObject({ name: "bundled", harness: "claude", phases: [{ title: "Run" }] });
+  expect(result.meta).toMatchObject({
+    name: "bundled",
+    harness: "claude",
+    phases: [{ title: "Run" }],
+  });
   expect(result.returnValue).toEqual({ out: "hit" });
 });
 ```
@@ -357,17 +377,19 @@ Expected: FAIL — `transformScript` throws "must export `const meta` or `export
 In `packages/core/src/sandbox.ts`, inside `transformScript`, immediately after `const authoringSource = stripWorkflowImports(source);` and BEFORE the existing `if (!/export\s+const\s+meta...)` guard, insert:
 
 ```ts
-  // esbuild-bundled entry: `export default defineWorkflow(...)` was hoisted to
-  // `var <name> = defineWorkflow({...})` + `export { <name> as default }`. Capture the
-  // default-export local and invoke its run() with the injected runtime, mirroring the
-  // single-file defineWorkflow branch below.
-  const bundledDefault = /export\s*\{\s*([A-Za-z0-9_$]+)\s+as\s+default\s*\}\s*;?/.exec(authoringSource);
-  if (bundledDefault) {
-    const name = bundledDefault[1];
-    const body = authoringSource.replace(bundledDefault[0], "");
-    const wrapped = `(async () => {\n${body}\nreturn await ${name}.run({ agent, parallel, pipeline, workflow, phase, log, askUserQuestion, args, budget });\n})()`;
-    return transformSync(wrapped, { loader: "ts", format: "esm" }).code;
-  }
+// esbuild-bundled entry: `export default defineWorkflow(...)` was hoisted to
+// `var <name> = defineWorkflow({...})` + `export { <name> as default }`. Capture the
+// default-export local and invoke its run() with the injected runtime, mirroring the
+// single-file defineWorkflow branch below.
+const bundledDefault = /export\s*\{\s*([A-Za-z0-9_$]+)\s+as\s+default\s*\}\s*;?/.exec(
+  authoringSource,
+);
+if (bundledDefault) {
+  const name = bundledDefault[1];
+  const body = authoringSource.replace(bundledDefault[0], "");
+  const wrapped = `(async () => {\n${body}\nreturn await ${name}.run({ agent, parallel, pipeline, workflow, phase, log, askUserQuestion, args, budget });\n})()`;
+  return transformSync(wrapped, { loader: "ts", format: "esm" }).code;
+}
 ```
 
 - [ ] **Step 4: Run the test (it will get further, then fail in `extractMeta`)**
@@ -387,6 +409,7 @@ git commit -m "feat(core): transformScript handles esbuild bundled default expor
 ## Task 6: Teach `extractMeta` to find `defineWorkflow` in bundled output
 
 **Files:**
+
 - Modify: `packages/core/src/sandbox.ts`
 - Test: `packages/core/src/sandbox.test.ts`
 
@@ -439,7 +462,8 @@ function locateMetaLiteral(program: AstNode): LocatedMeta {
       while (init?.type === "AssignmentExpression") init = childNode(init, "right");
       if (init) {
         if (id.name === "meta") return { node: init, mode: "meta" };
-        if (id.name === "__workflow") return { node: defineWorkflowArg(init), mode: "defineWorkflow" };
+        if (id.name === "__workflow")
+          return { node: defineWorkflowArg(init), mode: "defineWorkflow" };
       }
     }
   }
@@ -449,7 +473,9 @@ function locateMetaLiteral(program: AstNode): LocatedMeta {
   const bundled = findBundledDefineWorkflow(stmts);
   if (bundled) return { node: bundled, mode: "defineWorkflow" };
 
-  throw new Error("SandboxViolation: workflow metadata must be the first statement in the workflow");
+  throw new Error(
+    "SandboxViolation: workflow metadata must be the first statement in the workflow",
+  );
 }
 
 /** Validate `init` is a `defineWorkflow(<objectLiteral>)` call and return its first argument node. */
@@ -502,6 +528,7 @@ git commit -m "feat(core): extractMeta reads meta from bundled defineWorkflow ou
 ## Task 7: Wire bundling into the run command
 
 **Files:**
+
 - Modify: `packages/cli/src/commands/run.ts`
 - Test: `packages/cli/src/commands/run.test.ts` (create if it does not exist)
 
@@ -521,17 +548,32 @@ import { fakeDeps } from "../test-support.js";
 describe("runCommand multi-file", () => {
   it("bundles local imports and snapshots the self-contained source", async () => {
     const dir = mkdtempSync(join(tmpdir(), "wf-run-"));
-    writeFileSync(join(dir, "schemas.ts"),
-      `import { z } from "defineworkflow";\nexport const S = z.object({ summary: z.string() });\n`);
+    writeFileSync(
+      join(dir, "schemas.ts"),
+      `import { z } from "defineworkflow";\nexport const S = z.object({ summary: z.string() });\n`,
+    );
     const entry = join(dir, "wf.workflow.ts");
-    writeFileSync(entry,
+    writeFileSync(
+      entry,
       `import { agent, defineWorkflow } from "defineworkflow";\nimport { S } from "./schemas";\n` +
-      `export default defineWorkflow({ name: "mf", description: "d", harness: "claude", async run() { return await agent("hi", { schema: S }); } });\n`);
+        `export default defineWorkflow({ name: "mf", description: "d", harness: "claude", async run() { return await agent("hi", { schema: S }); } });\n`,
+    );
 
     const snapshots: Record<string, string> = {};
     const deps = fakeDeps({
-      io: { readText: (p: string) => (p === entry ? readReal(entry) : p.endsWith("schemas.ts") ? readReal(join(dir, "schemas.ts")) : undefined) },
-      registry: { init: (m: { runId: string }, src: string) => { snapshots[m.runId] = src; } },
+      io: {
+        readText: (p: string) =>
+          p === entry
+            ? readReal(entry)
+            : p.endsWith("schemas.ts")
+              ? readReal(join(dir, "schemas.ts"))
+              : undefined,
+      },
+      registry: {
+        init: (m: { runId: string }, src: string) => {
+          snapshots[m.runId] = src;
+        },
+      },
     });
 
     const code = await runCommand({ script: entry, detach: false, yes: true, mock: true }, deps);
@@ -560,17 +602,17 @@ Expected: FAIL — the snapshot still contains `from "./schemas"` (no bundling y
 In `packages/cli/src/commands/run.ts`, replace the source read at the top of `runCommand` (lines 25-29):
 
 ```ts
-  const raw = deps.io.readText(args.script);
-  if (raw === undefined) {
-    deps.ui.print(`error: cannot read script ${args.script}\n`);
-    return 1;
-  }
-  const bundled = await bundleWorkflow({ path: args.script, source: raw });
-  if (bundled.isErr()) {
-    deps.ui.print(`error: ${bundled.error}\n`);
-    return 1;
-  }
-  const source = bundled.value;
+const raw = deps.io.readText(args.script);
+if (raw === undefined) {
+  deps.ui.print(`error: cannot read script ${args.script}\n`);
+  return 1;
+}
+const bundled = await bundleWorkflow({ path: args.script, source: raw });
+if (bundled.isErr()) {
+  deps.ui.print(`error: ${bundled.error}\n`);
+  return 1;
+}
+const source = bundled.value;
 ```
 
 Add the import at the top of the file:
@@ -605,6 +647,7 @@ git commit -m "feat(cli): bundle multi-file workflows in the run command"
 `saveRun` (`packages/cli/src/execute.ts:224`) writes `registry.readScript(runId)` — the snapshot — and `resume` re-hashes that snapshot against `meta.scriptHash`. Since Task 7 snapshots the bundle and hashes the bundle, both already work. Lock it with a regression test.
 
 **Files:**
+
 - Modify: `packages/cli/src/execute.test.ts` (or wherever `saveRun` is tested; otherwise add to `run.test.ts`)
 
 - [ ] **Step 1: Write the test**
@@ -641,6 +684,7 @@ git commit -m "test(cli): save persists the self-contained workflow bundle"
 ## Task 9: Dogfood example — a multi-file workflow
 
 **Files:**
+
 - Create: `packages/examples/src/multi-file-haiku/haiku.workflow.ts`
 - Create: `packages/examples/src/multi-file-haiku/schemas.ts`
 - Create: `packages/examples/src/multi-file-haiku/prompts.ts`
@@ -676,14 +720,19 @@ import { haikuPrompt } from "./prompts";
 
 export default defineWorkflow({
   name: "multi-file-haiku",
-  description: "A minimal multi-file workflow: schema + prompt live in sibling files; the entry reads like a table of contents.",
+  description:
+    "A minimal multi-file workflow: schema + prompt live in sibling files; the entry reads like a table of contents.",
   harness: "claude",
   phases: [{ title: "Write", detail: "one agent writes a haiku" }],
   async run() {
     // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the immutable CLI args payload
     const topic = ((args ?? {}) as { topic?: string }).topic ?? "a deterministic workflow engine";
     log(`writing a haiku about: ${topic}`);
-    const result = await agent(haikuPrompt(topic), { label: "haiku", phase: "Write", schema: HaikuSchema });
+    const result = await agent(haikuPrompt(topic), {
+      label: "haiku",
+      phase: "Write",
+      schema: HaikuSchema,
+    });
     return result;
   },
 });
@@ -706,11 +755,13 @@ git commit -m "docs(examples): multi-file workflow example"
 ## Task 10: Documentation
 
 **Files:**
+
 - Modify: `CLAUDE.md`
 
 - [ ] **Step 1: Document the multi-file authoring model**
 
 In `CLAUDE.md`, under the `packages/workflow` section (the authoring entrypoint), add a short subsection describing:
+
 - A workflow may be a single file or a folder: a slim **entry file** exporting `defineWorkflow({...})` plus local helper files (schemas, prompts) imported with relative paths.
 - Imports are restricted to **local files + `"defineworkflow"`**; npm imports are rejected at bundle time (keeps the sandbox deterministic by construction).
 - The CLI bundles the entry's local imports into one self-contained source string before the sandbox runs; that bundle is what gets snapshotted, so `save`/`resume`/`--detach` are self-contained.
@@ -749,6 +800,7 @@ Expected: no new findings (esbuild is now genuinely used by `@workflow/cli`). Co
 ## Self-Review (completed by plan author)
 
 **Spec coverage:**
+
 - "schema in one file + helper files, slim main" → Tasks 2-9 (bundling + example).
 - "local files only" → Task 3/4 (`localOnly` plugin).
 - "entry-file + relative imports" convention → Tasks 7, 9.

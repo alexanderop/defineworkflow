@@ -14,12 +14,12 @@
 
 ## Verified CLI facts (from the installed tools)
 
-| Harness | Version | Non-interactive | Native schema | Result mode used in v1 | Usage source |
-|---|---|---|---|---|---|
-| claude | 2.1.156 | `-p`/`--print` | `--json-schema <json>` | `--output-format json` (single result object) | `usage.input_tokens`/`output_tokens` in the result |
-| codex | 0.125.0 | `codex exec` | `--output-schema <file>` | `-o <file>` (final message) + `--output-schema` | best-effort (estimate v1) |
-| copilot | 1.0.55 | `-p`/`--prompt` | none | `-p --silent` (text) | best-effort (estimate v1) |
-| raw-api | — | SDK | SDK tool/JSON mode | direct SDK call | exact from SDK |
+| Harness | Version | Non-interactive | Native schema            | Result mode used in v1                          | Usage source                                       |
+| ------- | ------- | --------------- | ------------------------ | ----------------------------------------------- | -------------------------------------------------- |
+| claude  | 2.1.156 | `-p`/`--print`  | `--json-schema <json>`   | `--output-format json` (single result object)   | `usage.input_tokens`/`output_tokens` in the result |
+| codex   | 0.125.0 | `codex exec`    | `--output-schema <file>` | `-o <file>` (final message) + `--output-schema` | best-effort (estimate v1)                          |
+| copilot | 1.0.55  | `-p`/`--prompt` | none                     | `-p --silent` (text)                            | best-effort (estimate v1)                          |
+| raw-api | —       | SDK             | SDK tool/JSON mode       | direct SDK call                                 | exact from SDK                                     |
 
 claude single-result JSON shape (stable): `{ "type": "result", "subtype": "success", "result": <string|object>, "usage": { "input_tokens": N, "output_tokens": N, ... }, "total_cost_usd": N, "is_error": false, ... }`. With `--json-schema`, `result` holds the structured object.
 
@@ -137,7 +137,12 @@ describe("FakeProcessRunner", () => {
       claude: { stdout: '{"ok":true}', code: 0 },
     });
     const ctrl = new AbortController();
-    const out = await fake.run({ command: "claude", args: ["-p", "hi"], cwd: "/tmp", signal: ctrl.signal });
+    const out = await fake.run({
+      command: "claude",
+      args: ["-p", "hi"],
+      cwd: "/tmp",
+      signal: ctrl.signal,
+    });
     expect(out.code).toBe(0);
     expect(out.stdout).toBe('{"ok":true}');
     expect(fake.calls()[0]?.args).toEqual(["-p", "hi"]);
@@ -147,7 +152,13 @@ describe("FakeProcessRunner", () => {
     const fake = createFakeProcessRunner({
       cat: (spec) => ({ stdout: spec.stdin ?? "", code: 0 }),
     });
-    const out = await fake.run({ command: "cat", args: [], cwd: "/tmp", signal: new AbortController().signal, stdin: "piped" });
+    const out = await fake.run({
+      command: "cat",
+      args: [],
+      cwd: "/tmp",
+      signal: new AbortController().signal,
+      stdin: "piped",
+    });
     expect(out.stdout).toBe("piped");
   });
 });
@@ -230,7 +241,11 @@ export function createFakeProcessRunner(
       recorded.push(spec);
       const r = responses[spec.command];
       const resolved = typeof r === "function" ? r(spec) : (r ?? {});
-      return { code: resolved.code ?? 0, stdout: resolved.stdout ?? "", stderr: resolved.stderr ?? "" };
+      return {
+        code: resolved.code ?? 0,
+        stdout: resolved.stdout ?? "",
+        stderr: resolved.stderr ?? "",
+      };
     },
     calls: () => recorded,
   };
@@ -262,7 +277,10 @@ describe("createProcessRunner", () => {
     const runner = createProcessRunner();
     const out = await runner.run({
       command: process.execPath,
-      args: ["-e", "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>process.stdout.write(d.toUpperCase()))"],
+      args: [
+        "-e",
+        "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>process.stdout.write(d.toUpperCase()))",
+      ],
       cwd: process.cwd(),
       signal: new AbortController().signal,
       stdin: "abc",
@@ -299,17 +317,25 @@ import { z } from "zod";
 import { runWithSchemaRetry } from "./coercion.js";
 
 // Helper: turn a Zod schema into the (data) => issues|null validator the loop expects.
-const zodValidator = (schema: z.ZodType) => (data: unknown): readonly string[] | null => {
-  const r = schema.safeParse(data);
-  return r.success ? null : r.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`);
-};
+const zodValidator =
+  (schema: z.ZodType) =>
+  (data: unknown): readonly string[] | null => {
+    const r = schema.safeParse(data);
+    return r.success
+      ? null
+      : r.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`);
+  };
 
 describe("runWithSchemaRetry", () => {
   it("returns the result immediately when there is no validator", async () => {
     const r = await runWithSchemaRetry({
       validate: undefined,
       maxRetries: 2,
-      attempt: async () => ({ text: "plain", data: undefined, usage: { inputTokens: 1, outputTokens: 2 } }),
+      attempt: async () => ({
+        text: "plain",
+        data: undefined,
+        usage: { inputTokens: 1, outputTokens: 2 },
+      }),
     });
     expect(r.isOk()).toBe(true);
     expect(r._unsafeUnwrap().text).toBe("plain");
@@ -319,7 +345,11 @@ describe("runWithSchemaRetry", () => {
     const r = await runWithSchemaRetry({
       validate: zodValidator(z.object({ n: z.number() })),
       maxRetries: 2,
-      attempt: async () => ({ text: "{}", data: { n: 5 }, usage: { inputTokens: 0, outputTokens: 0 } }),
+      attempt: async () => ({
+        text: "{}",
+        data: { n: 5 },
+        usage: { inputTokens: 0, outputTokens: 0 },
+      }),
     });
     expect(r._unsafeUnwrap().data).toEqual({ n: 5 });
   });
@@ -340,15 +370,19 @@ describe("runWithSchemaRetry", () => {
     });
     expect(r._unsafeUnwrap().data).toEqual({ n: 7 });
     expect(call).toBe(2);
-    expect(feedback[0]).toBeUndefined();       // first attempt has no hint
-    expect(feedback[1]).toMatch(/n/);          // retry hint mentions the failing field
+    expect(feedback[0]).toBeUndefined(); // first attempt has no hint
+    expect(feedback[1]).toMatch(/n/); // retry hint mentions the failing field
   });
 
   it("returns SchemaValidation error after exhausting retries", async () => {
     const r = await runWithSchemaRetry({
       validate: zodValidator(z.object({ n: z.number() })),
       maxRetries: 2,
-      attempt: async () => ({ text: "bad", data: { n: "x" }, usage: { inputTokens: 0, outputTokens: 0 } }),
+      attempt: async () => ({
+        text: "bad",
+        data: { n: "x" },
+        usage: { inputTokens: 0, outputTokens: 0 },
+      }),
     });
     expect(r.isErr()).toBe(true);
     const e = r._unsafeUnwrapErr();
@@ -477,7 +511,11 @@ export const CAPABILITIES: Readonly<Record<AdapterId, Capabilities>> = {
   "raw-api": { nativeSchema: true, reportsTokens: true, toolEvents: false },
 };
 
-const CLI_BINS: Readonly<Record<string, string>> = { claude: "claude", codex: "codex", copilot: "copilot" };
+const CLI_BINS: Readonly<Record<string, string>> = {
+  claude: "claude",
+  codex: "codex",
+  copilot: "copilot",
+};
 
 /** Probe a binary on PATH. Default uses fs.access across PATH dirs; injectable for tests. */
 async function binExists(bin: string): Promise<boolean> {
@@ -522,6 +560,7 @@ git commit -m "feat(adapters): harness detection + capability matrix"
 ## Phase 4 — the CLI adapters (fixture-first)
 
 Each adapter implements `AgentRunner` from `@workflow/core`:
+
 ```ts
 interface AgentRunner {
   readonly id: string;
@@ -529,9 +568,11 @@ interface AgentRunner {
   run(req: AgentRequest, ctx: RunCtx): Promise<Result<AgentResult, WorkflowError>>;
 }
 ```
+
 `AgentRequest = { prompt, schema?: JsonSchema, model?, agentType?, label?, cwd, signal }`. `AgentResult = { text, data?, usage: {inputTokens, outputTokens, approximate?}, toolCalls: ToolEvent[] }`. v1 adapters return `toolCalls: []` (tool-event drill-down is a Plan 3 enhancement).
 
 Each adapter is constructed with an injected `ProcessRunner` so it's testable without the real CLI:
+
 ```ts
 createClaudeAdapter({ processRunner, maxRetries? }): AgentRunner
 ```
@@ -543,12 +584,15 @@ createClaudeAdapter({ processRunner, maxRetries? }): AgentRunner
 - [ ] **Step 1: Capture a real fixture (or use the representative one).**
 
 Try to capture the real single-result shape (cheap, one tiny prompt):
+
 ```bash
 claude -p "Reply with the JSON object {\"n\": 7} and nothing else." \
   --output-format json --json-schema '{"type":"object","properties":{"n":{"type":"number"}},"required":["n"],"additionalProperties":false}' \
   > packages/adapters/fixtures/claude-result.json 2>/dev/null || true
 ```
+
 Inspect the file. If it is a valid claude result object, KEEP it as the fixture. If the CLI is unauthenticated/unavailable (empty or error), WRITE this representative fixture verbatim instead and note DONE_WITH_CONCERNS:
+
 ```json
 {
   "type": "result",
@@ -560,6 +604,7 @@ Inspect the file. If it is a valid claude result object, KEEP it as the fixture.
   "session_id": "abc"
 }
 ```
+
 Record which path you took. Whatever the real shape is, the parser in Step 3 MUST parse the fixture you committed — adjust the parser (not the fixture) to reality.
 
 - [ ] **Step 2: Write failing test `packages/adapters/src/claude.test.ts`**
@@ -581,7 +626,18 @@ describe("claude adapter", () => {
     expect(adapter.capabilities.nativeSchema).toBe(true);
 
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", label: "a", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        label: "a",
+        signal: new AbortController().signal,
+      },
       { runId: "r", seq: 0 },
     );
     expect(res.isOk()).toBe(true);
@@ -636,13 +692,31 @@ export function createClaudeAdapter(deps: ClaudeAdapterDeps): AgentRunner {
     id: "claude",
     capabilities: CAPABILITIES.claude,
     run: async (req: AgentRequest, _ctx: RunCtx): Promise<Result<AgentResult, WorkflowError>> => {
-      const args = ["-p", req.prompt, "--output-format", "json", "--permission-mode", "acceptEdits", "--add-dir", req.cwd];
+      const args = [
+        "-p",
+        req.prompt,
+        "--output-format",
+        "json",
+        "--permission-mode",
+        "acceptEdits",
+        "--add-dir",
+        req.cwd,
+      ];
       if (req.schema) args.push("--json-schema", JSON.stringify(req.schema));
       if (req.model) args.push("--model", req.model);
 
-      const out = await deps.processRunner.run({ command: bin, args, cwd: req.cwd, signal: req.signal });
+      const out = await deps.processRunner.run({
+        command: bin,
+        args,
+        cwd: req.cwd,
+        signal: req.signal,
+      });
       if (out.code !== 0) {
-        const e: WorkflowError = { kind: "AdapterSpawn", adapter: "claude", cause: out.stderr || `exit ${out.code}` };
+        const e: WorkflowError = {
+          kind: "AdapterSpawn",
+          adapter: "claude",
+          cause: out.stderr || `exit ${out.code}`,
+        };
         return err(e);
       }
 
@@ -650,18 +724,26 @@ export function createClaudeAdapter(deps: ClaudeAdapterDeps): AgentRunner {
       try {
         parsed = JSON.parse(out.stdout) as ClaudeResult;
       } catch (e) {
-        return err({ kind: "AdapterSpawn", adapter: "claude", cause: `unparseable result: ${e instanceof Error ? e.message : String(e)}` });
+        return err({
+          kind: "AdapterSpawn",
+          adapter: "claude",
+          cause: `unparseable result: ${e instanceof Error ? e.message : String(e)}`,
+        });
       }
       if (parsed.is_error) {
         return err({ kind: "AdapterSpawn", adapter: "claude", cause: "claude reported is_error" });
       }
 
       const data = req.schema ? parsed.result : undefined;
-      const text = typeof parsed.result === "string" ? parsed.result : JSON.stringify(parsed.result ?? "");
+      const text =
+        typeof parsed.result === "string" ? parsed.result : JSON.stringify(parsed.result ?? "");
       const result: AgentResult = {
         text,
         ...(data !== undefined ? { data } : {}),
-        usage: { inputTokens: parsed.usage?.input_tokens ?? 0, outputTokens: parsed.usage?.output_tokens ?? 0 },
+        usage: {
+          inputTokens: parsed.usage?.input_tokens ?? 0,
+          outputTokens: parsed.usage?.output_tokens ?? 0,
+        },
         toolCalls: [],
       };
       return ok(result);
@@ -690,15 +772,19 @@ codex uses `--output-schema <file>` (a JSON Schema file) and `-o <file>` (final 
 - [ ] **Step 1: Capture/representative fixture `packages/adapters/fixtures/codex-result.txt`**
 
 Try the real capture (writes the final message to a file):
+
 ```bash
 cd /tmp && codex exec --skip-git-repo-check \
   --output-schema <(echo '{"type":"object","properties":{"n":{"type":"number"}},"required":["n"],"additionalProperties":false}') \
   -o /tmp/codex-out.txt "Reply with {\"n\": 7}" >/dev/null 2>&1 && cp /tmp/codex-out.txt "$OLDPWD/packages/adapters/fixtures/codex-result.txt" || true
 ```
+
 If unavailable, write the representative fixture (the final message is the JSON the schema constrained):
+
 ```
 {"n": 7}
 ```
+
 Record which path you took. The codex `-o` file contains ONLY the final assistant message (JSON when `--output-schema` is given).
 
 - [ ] **Step 2: Write failing test `packages/adapters/src/codex.test.ts`**
@@ -726,7 +812,11 @@ describe("codex adapter", () => {
     const adapter = createCodexAdapter({
       processRunner: fake,
       fileStore: {
-        writeTemp: async (_name, content) => { const p = `/tmp/${_name}`; files.set(p, content); return p; },
+        writeTemp: async (_name, content) => {
+          const p = `/tmp/${_name}`;
+          files.set(p, content);
+          return p;
+        },
         read: async (p) => files.get(p) ?? "",
         cleanup: async () => {},
       },
@@ -734,7 +824,18 @@ describe("codex adapter", () => {
     expect(adapter.id).toBe("codex");
 
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", label: "a", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        label: "a",
+        signal: new AbortController().signal,
+      },
       { runId: "r", seq: 0 },
     );
     expect(res.isOk()).toBe(true);
@@ -752,7 +853,10 @@ describe("codex adapter", () => {
       processRunner: createFakeProcessRunner({ codex: { stdout: "", stderr: "bad", code: 2 } }),
       fileStore: { writeTemp: async () => "/tmp/s", read: async () => "", cleanup: async () => {} },
     });
-    const res = await adapter.run({ prompt: "x", cwd: "/tmp", signal: new AbortController().signal }, { runId: "r", seq: 0 });
+    const res = await adapter.run(
+      { prompt: "x", cwd: "/tmp", signal: new AbortController().signal },
+      { runId: "r", seq: 0 },
+    );
     expect(res._unsafeUnwrapErr().kind).toBe("AdapterSpawn");
   });
 });
@@ -809,7 +913,10 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
       created.push(outPath);
       const args = ["exec", "--skip-git-repo-check", "-C", req.cwd, "--full-auto", "-o", outPath];
       if (req.schema) {
-        const schemaPath = await fileStore.writeTemp("codex-schema.json", JSON.stringify(req.schema));
+        const schemaPath = await fileStore.writeTemp(
+          "codex-schema.json",
+          JSON.stringify(req.schema),
+        );
         created.push(schemaPath);
         args.push("--output-schema", schemaPath);
       }
@@ -817,9 +924,18 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
       args.push(req.prompt);
 
       try {
-        const out = await deps.processRunner.run({ command: bin, args, cwd: req.cwd, signal: req.signal });
+        const out = await deps.processRunner.run({
+          command: bin,
+          args,
+          cwd: req.cwd,
+          signal: req.signal,
+        });
         if (out.code !== 0) {
-          return err({ kind: "AdapterSpawn", adapter: "codex", cause: out.stderr || `exit ${out.code}` });
+          return err({
+            kind: "AdapterSpawn",
+            adapter: "codex",
+            cause: out.stderr || `exit ${out.code}`,
+          });
         }
         const finalMessage = (await fileStore.read(outPath)).trim();
         let data: unknown;
@@ -827,7 +943,11 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
           try {
             data = JSON.parse(finalMessage);
           } catch {
-            return err({ kind: "AdapterSpawn", adapter: "codex", cause: "final message was not valid JSON for the schema" });
+            return err({
+              kind: "AdapterSpawn",
+              adapter: "codex",
+              cause: "final message was not valid JSON for the schema",
+            });
           }
         }
         const outputTokens = Math.ceil(finalMessage.length / 4); // best-effort estimate
@@ -865,12 +985,13 @@ copilot has no native schema, so this adapter is where `runWithSchemaRetry` + pr
 
 - [ ] **Step 1: Representative fixture `packages/adapters/fixtures/copilot-result.txt`** (copilot `-p --silent` prints the agent's text; with our injected instruction it returns fenced or bare JSON)
 
-```
+````
 Here is the result:
 ```json
 { "n": 7 }
-```
-```
+````
+
+````
 (Capturing a real copilot fixture is optional; the parser must handle both fenced and bare JSON. If you capture a real one, ensure the extractor still finds the JSON.)
 
 This task also creates the shared `packages/adapters/src/json.ts` (used by copilot and the generic adapter): `extractJson(text)` and `compileJsonSchemaValidator(jsonSchema)` (Ajv-backed, returns the `Validator` type from `coercion.ts`).
@@ -905,10 +1026,11 @@ describe("compileJsonSchemaValidator", () => {
     expect((issues ?? []).length).toBeGreaterThan(0);
   });
 });
-```
+````
 
 `packages/adapters/src/copilot.test.ts`:
-```ts
+
+````ts
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import { createCopilotAdapter } from "./copilot.js";
@@ -921,7 +1043,18 @@ describe("copilot adapter", () => {
     expect(adapter.capabilities.nativeSchema).toBe(false);
 
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", label: "a", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        label: "a",
+        signal: new AbortController().signal,
+      },
       { runId: "r", seq: 0 },
     );
     expect(res._unsafeUnwrap().data).toEqual({ n: 7 });
@@ -938,21 +1071,36 @@ describe("copilot adapter", () => {
 
   it("retries with feedback then errors as SchemaValidation after maxRetries", async () => {
     let n = 0;
-    const fake = createFakeProcessRunner({ copilot: () => { n++; return { stdout: '{"n":"bad"}', code: 0 }; } });
+    const fake = createFakeProcessRunner({
+      copilot: () => {
+        n++;
+        return { stdout: '{"n":"bad"}', code: 0 };
+      },
+    });
     const adapter = createCopilotAdapter({ processRunner: fake, maxRetries: 2 });
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        signal: new AbortController().signal,
+      },
       { runId: "r", seq: 0 },
     );
     expect(res._unsafeUnwrapErr().kind).toBe("SchemaValidation");
     expect(n).toBe(2);
   });
 });
-```
+````
 
 - [ ] **Step 3: Create `packages/adapters/src/json.ts`** (shared by copilot + generic)
 
-```ts
+````ts
 import Ajv from "ajv";
 import type { Validator } from "./coercion.js";
 
@@ -981,10 +1129,12 @@ export function compileJsonSchemaValidator(schema: Record<string, unknown>): Val
     if (data === undefined) return ["no JSON value found in output"];
     const valid = validateFn(data);
     if (valid) return null;
-    return (validateFn.errors ?? []).map((e) => `${e.instancePath || "(root)"} ${e.message ?? "invalid"}`);
+    return (validateFn.errors ?? []).map(
+      (e) => `${e.instancePath || "(root)"} ${e.message ?? "invalid"}`,
+    );
   };
 }
-```
+````
 
 > Note: `import Ajv from "ajv"` is the documented default import for Ajv 8 under ESM/`verbatimModuleSyntax`. If tsc/runtime complains about the default-vs-namespace interop, use `import { Ajv } from "ajv"` (Ajv 8.12+ also exports it named) — report which form worked.
 
@@ -1023,15 +1173,36 @@ export function createCopilotAdapter(deps: CopilotAdapterDeps): AgentRunner {
             ? `\n\nRespond with ONLY a JSON value matching this JSON Schema:\n${JSON.stringify(req.schema)}`
             : "";
           const prompt = `${req.prompt}${schemaInstr}${hint ? `\n\n${hint}` : ""}`;
-          const args = ["-p", prompt, "--allow-all-tools", "--no-ask-user", "--silent", "-C", req.cwd];
+          const args = [
+            "-p",
+            prompt,
+            "--allow-all-tools",
+            "--no-ask-user",
+            "--silent",
+            "-C",
+            req.cwd,
+          ];
           if (req.model) args.push("--model", req.model);
-          const out = await deps.processRunner.run({ command: bin, args, cwd: req.cwd, signal: req.signal });
+          const out = await deps.processRunner.run({
+            command: bin,
+            args,
+            cwd: req.cwd,
+            signal: req.signal,
+          });
           if (out.code !== 0) {
-            spawnError = { kind: "AdapterSpawn", adapter: "copilot", cause: out.stderr || `exit ${out.code}` };
+            spawnError = {
+              kind: "AdapterSpawn",
+              adapter: "copilot",
+              cause: out.stderr || `exit ${out.code}`,
+            };
             throw new Error("copilot spawn failed");
           }
           const data = req.schema ? extractJson(out.stdout) : undefined;
-          return { text: out.stdout, data, usage: { inputTokens: 0, outputTokens: Math.ceil(out.stdout.length / 4) } };
+          return {
+            text: out.stdout,
+            data,
+            usage: { inputTokens: 0, outputTokens: Math.ceil(out.stdout.length / 4) },
+          };
         },
       });
 
@@ -1087,7 +1258,17 @@ describe("raw-api adapter", () => {
     expect(adapter.id).toBe("raw-api");
     expect(adapter.capabilities.reportsTokens).toBe(true);
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        signal: new AbortController().signal,
+      },
       { runId: "r", seq: 0 },
     );
     expect(res._unsafeUnwrap().data).toEqual({ n: 7 });
@@ -1095,8 +1276,15 @@ describe("raw-api adapter", () => {
   });
 
   it("maps a thrown completion error to AdapterSpawn", async () => {
-    const adapter = createRawApiAdapter({ complete: async () => { throw new Error("no api key"); } });
-    const res = await adapter.run({ prompt: "x", cwd: "/tmp", signal: new AbortController().signal }, { runId: "r", seq: 0 });
+    const adapter = createRawApiAdapter({
+      complete: async () => {
+        throw new Error("no api key");
+      },
+    });
+    const res = await adapter.run(
+      { prompt: "x", cwd: "/tmp", signal: new AbortController().signal },
+      { runId: "r", seq: 0 },
+    );
     expect(res._unsafeUnwrapErr().kind).toBe("AdapterSpawn");
   });
 });
@@ -1173,14 +1361,15 @@ git commit -m "feat(adapters): raw-api adapter with injected completion fn"
 **Files:** Create `packages/adapters/src/generic.ts`, `packages/adapters/src/generic.test.ts`
 
 Config-driven adapter so users wire Gemini CLI / aider / cursor without TypeScript. Config:
+
 ```ts
 interface GenericAdapterConfig {
   id: string;
   command: string;
-  promptArg: "stdin" | "last" | { flag: string };  // how the prompt is passed
-  args?: readonly string[];                          // static extra args
-  modelFlag?: string;                                // e.g. "--model"
-  schema?: "prompt-inject" | "none";                 // schema strategy
+  promptArg: "stdin" | "last" | { flag: string }; // how the prompt is passed
+  args?: readonly string[]; // static extra args
+  modelFlag?: string; // e.g. "--model"
+  schema?: "prompt-inject" | "none"; // schema strategy
   maxRetries?: number;
 }
 ```
@@ -1194,14 +1383,32 @@ import { createFakeProcessRunner } from "./fake-process-runner.js";
 
 describe("generic adapter", () => {
   it("passes the prompt via stdin and parses extracted JSON when schema=prompt-inject", async () => {
-    const fake = createFakeProcessRunner({ gemini: (spec) => ({ stdout: `result: {"n":7}`, code: 0, stdin: spec.stdin }) });
+    const fake = createFakeProcessRunner({
+      gemini: (spec) => ({ stdout: `result: {"n":7}`, code: 0, stdin: spec.stdin }),
+    });
     const adapter = createGenericAdapter(
-      { id: "gemini", command: "gemini", promptArg: "stdin", args: ["-o", "json"], schema: "prompt-inject" },
+      {
+        id: "gemini",
+        command: "gemini",
+        promptArg: "stdin",
+        args: ["-o", "json"],
+        schema: "prompt-inject",
+      },
       { processRunner: fake },
     );
     expect(adapter.id).toBe("gemini");
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        signal: new AbortController().signal,
+      },
       { runId: "r", seq: 0 },
     );
     expect(res._unsafeUnwrap().data).toEqual({ n: 7 });
@@ -1211,8 +1418,14 @@ describe("generic adapter", () => {
 
   it("passes the prompt as the last positional arg when promptArg=last", async () => {
     const fake = createFakeProcessRunner({ aider: { stdout: "ok", code: 0 } });
-    const adapter = createGenericAdapter({ id: "aider", command: "aider", promptArg: "last", schema: "none" }, { processRunner: fake });
-    await adapter.run({ prompt: "hello", cwd: "/tmp", signal: new AbortController().signal }, { runId: "r", seq: 0 });
+    const adapter = createGenericAdapter(
+      { id: "aider", command: "aider", promptArg: "last", schema: "none" },
+      { processRunner: fake },
+    );
+    await adapter.run(
+      { prompt: "hello", cwd: "/tmp", signal: new AbortController().signal },
+      { runId: "r", seq: 0 },
+    );
     const argv = fake.calls()[0]!.args;
     expect(argv[argv.length - 1]).toBe("hello");
   });
@@ -1246,7 +1459,10 @@ export interface GenericAdapterDeps {
   readonly processRunner: ProcessRunner;
 }
 
-export function createGenericAdapter(config: GenericAdapterConfig, deps: GenericAdapterDeps): AgentRunner {
+export function createGenericAdapter(
+  config: GenericAdapterConfig,
+  deps: GenericAdapterDeps,
+): AgentRunner {
   const maxRetries = config.maxRetries ?? 2;
   const useSchema = config.schema === "prompt-inject";
   return {
@@ -1260,9 +1476,10 @@ export function createGenericAdapter(config: GenericAdapterConfig, deps: Generic
         validate,
         maxRetries,
         attempt: async (hint) => {
-          const schemaInstr = useSchema && req.schema
-            ? `\n\nRespond with ONLY JSON matching this schema:\n${JSON.stringify(req.schema)}`
-            : "";
+          const schemaInstr =
+            useSchema && req.schema
+              ? `\n\nRespond with ONLY JSON matching this schema:\n${JSON.stringify(req.schema)}`
+              : "";
           const fullPrompt = `${req.prompt}${schemaInstr}${hint ? `\n\n${hint}` : ""}`;
           const args = [...(config.args ?? [])];
           let stdin: string | undefined;
@@ -1272,22 +1489,38 @@ export function createGenericAdapter(config: GenericAdapterConfig, deps: Generic
           if (config.modelFlag && req.model) args.push(config.modelFlag, req.model);
 
           const out = await deps.processRunner.run({
-            command: config.command, args, cwd: req.cwd, signal: req.signal,
+            command: config.command,
+            args,
+            cwd: req.cwd,
+            signal: req.signal,
             ...(stdin !== undefined ? { stdin } : {}),
           });
           if (out.code !== 0) {
-            spawnError = { kind: "AdapterSpawn", adapter: config.id, cause: out.stderr || `exit ${out.code}` };
+            spawnError = {
+              kind: "AdapterSpawn",
+              adapter: config.id,
+              cause: out.stderr || `exit ${out.code}`,
+            };
             throw new Error("spawn failed");
           }
           const data = useSchema && req.schema ? extractJson(out.stdout) : undefined;
-          return { text: out.stdout, data, usage: { inputTokens: 0, outputTokens: Math.ceil(out.stdout.length / 4) } };
+          return {
+            text: out.stdout,
+            data,
+            usage: { inputTokens: 0, outputTokens: Math.ceil(out.stdout.length / 4) },
+          };
         },
       });
 
       if (spawnError) return err(spawnError);
       if (result.isErr()) return err(result.error);
       const r = result.value;
-      return ok({ text: r.text, ...(r.data !== undefined ? { data: r.data } : {}), usage: { ...r.usage, approximate: true }, toolCalls: [] });
+      return ok({
+        text: r.text,
+        ...(r.data !== undefined ? { data: r.data } : {}),
+        usage: { ...r.usage, approximate: true },
+        toolCalls: [],
+      });
     },
   };
 }
@@ -1341,14 +1574,37 @@ describe("adapters public API", () => {
 
 ```ts
 export * from "./process-runner.js";
-export { createFakeProcessRunner, type FakeProcessRunner, type FakeResponse } from "./fake-process-runner.js";
-export { runWithSchemaRetry, type Attempt, type CoercionSpec, type CoercedResult } from "./coercion.js";
+export {
+  createFakeProcessRunner,
+  type FakeProcessRunner,
+  type FakeResponse,
+} from "./fake-process-runner.js";
+export {
+  runWithSchemaRetry,
+  type Attempt,
+  type CoercionSpec,
+  type CoercedResult,
+} from "./coercion.js";
 export { CAPABILITIES, detectAdapters, type AdapterId, type Capabilities } from "./detect.js";
 export { createClaudeAdapter, type ClaudeAdapterDeps } from "./claude.js";
-export { createCodexAdapter, createDefaultFileStore, type CodexAdapterDeps, type FileStore } from "./codex.js";
+export {
+  createCodexAdapter,
+  createDefaultFileStore,
+  type CodexAdapterDeps,
+  type FileStore,
+} from "./codex.js";
 export { createCopilotAdapter, type CopilotAdapterDeps } from "./copilot.js";
-export { createRawApiAdapter, type RawApiAdapterDeps, type CompletionRequest, type CompletionResult } from "./raw-api.js";
-export { createGenericAdapter, type GenericAdapterConfig, type GenericAdapterDeps } from "./generic.js";
+export {
+  createRawApiAdapter,
+  type RawApiAdapterDeps,
+  type CompletionRequest,
+  type CompletionResult,
+} from "./raw-api.js";
+export {
+  createGenericAdapter,
+  type GenericAdapterConfig,
+  type GenericAdapterDeps,
+} from "./generic.js";
 export { extractJson, compileJsonSchemaValidator } from "./json.js";
 
 import type { AgentRunner } from "@workflow/core";
@@ -1423,7 +1679,10 @@ d("real-CLI adapter smoke (costs tokens)", () => {
     const present = await detectAdapters();
     if (!present.includes("claude")) return;
     const adapter = createClaudeAdapter({ processRunner: createProcessRunner() });
-    const res = await adapter.run({ prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) }, { runId: "e2e", seq: 0 });
+    const res = await adapter.run(
+      { prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) },
+      { runId: "e2e", seq: 0 },
+    );
     expect(res.isOk()).toBe(true);
     expect((res._unsafeUnwrap().data as { answer: number }).answer).toBe(42);
   }, 130_000);
@@ -1432,7 +1691,10 @@ d("real-CLI adapter smoke (costs tokens)", () => {
     const present = await detectAdapters();
     if (!present.includes("codex")) return;
     const adapter = createCodexAdapter({ processRunner: createProcessRunner() });
-    const res = await adapter.run({ prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) }, { runId: "e2e", seq: 0 });
+    const res = await adapter.run(
+      { prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) },
+      { runId: "e2e", seq: 0 },
+    );
     expect(res.isOk()).toBe(true);
   }, 130_000);
 
@@ -1440,7 +1702,10 @@ d("real-CLI adapter smoke (costs tokens)", () => {
     const present = await detectAdapters();
     if (!present.includes("copilot")) return;
     const adapter = createCopilotAdapter({ processRunner: createProcessRunner() });
-    const res = await adapter.run({ prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) }, { runId: "e2e", seq: 0 });
+    const res = await adapter.run(
+      { prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) },
+      { runId: "e2e", seq: 0 },
+    );
     expect(res.isOk()).toBe(true);
   }, 130_000);
 });
@@ -1471,11 +1736,12 @@ git commit -m "test(adapters): opt-in real-CLI e2e smoke (WORKFLOW_E2E=1)"
 - auto-detect via PATH probe + capability matrix → Task 4, 10.
 - generic config-driven adapter (Gemini/aider/cursor) → Task 9.
 - recorded golden fixtures + `WORKFLOW_RECORD`-style capture → Tasks 5–7 (fixture-first), reconciled by Task 11.
-- adapter selection precedence (`createAdapter` by id; `autoDetect`) → Task 10. *(Per-call/`meta.defaultAdapter`/CLI-flag precedence is wired in Plan 4 where the runtime + CLI live.)*
+- adapter selection precedence (`createAdapter` by id; `autoDetect`) → Task 10. _(Per-call/`meta.defaultAdapter`/CLI-flag precedence is wired in Plan 4 where the runtime + CLI live.)_
 
 **Deferred (correctly out of Plan 2 scope):** streaming tool-event drill-down (`toolCalls` is `[]`, `toolEvents:false` for now) → Plan 3; worktree isolation, fs-backed run dir + `JournalCorrupt`, and binding adapters into `createRuntime`/the CLI → Plan 4.
 
 **Known deviations flagged for the implementer:**
+
 - `runWithSchemaRetry` validates via an injected `validate(data) => string[] | null` (a plain function, NOT a Zod schema) so JSON-Schema-only adapters (copilot, generic) work via an Ajv-compiled validator (`compileJsonSchemaValidator` in `json.ts`); claude/codex pass no validator (native schema). Ajv is a dependency.
 - codex token usage is a length estimate (`reportsTokens:false`); claude/raw-api report exact.
 - Fixtures may be "representative" if the CLI is unauthenticated at implementation time; Task 11 reconciles against reality.
@@ -1486,4 +1752,7 @@ git commit -m "test(adapters): opt-in real-CLI e2e smoke (WORKFLOW_E2E=1)"
 
 - **Plan 3 — `@workflow/ui`:** Ink Miller-columns view over the event stream; keybindings; `ink-testing-library` tests; TTY-less fallback.
 - **Plan 4 — `@workflow/cli`:** `workflow` bin (run/watch/list/resume/stop/save/adapters), detached spawning + fs run registry (`journal.jsonl`/`events.jsonl`/`script.snapshot` + `JournalCorrupt`), consent + permission modes, config + adapter selection precedence, worktree isolation, bundled `deep-research`/`vue-newsletter`, real-CLI e2e of full workflows.
+
+```
+
 ```

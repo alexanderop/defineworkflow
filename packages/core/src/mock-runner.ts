@@ -67,10 +67,15 @@ export interface MockRunnerOptions {
 export function createMockRunner(options: MockRunnerOptions = {}): AgentRunner {
   const delayMs = options.delayMs ?? 0;
 
-  const run = async (req: AgentRequest, _ctx: RunCtx): Promise<Result<AgentResult, WorkflowError>> => {
+  const run = async (
+    req: AgentRequest,
+    _ctx: RunCtx,
+  ): Promise<Result<AgentResult, WorkflowError>> => {
     if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
     const data = req.schema ? mockFromSchema(req.schema) : undefined;
-    const text = req.schema ? JSON.stringify(data) : `[mock] ${req.label ?? "agent"}: ${req.prompt.split("\n")[0] ?? ""}`;
+    const text = req.schema
+      ? JSON.stringify(data)
+      : `[mock] ${req.label ?? "agent"}: ${req.prompt.split("\n")[0] ?? ""}`;
     return ok({
       text,
       ...(data !== undefined ? { data } : {}),

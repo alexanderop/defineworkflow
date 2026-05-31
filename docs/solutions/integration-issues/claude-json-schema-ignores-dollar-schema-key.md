@@ -50,9 +50,9 @@ proof the schema never reached the model as a constraint.
 
 Isolated with a single-variable experiment against the real `claude` CLI (2.1.158):
 
-| Schema fed to `claude --json-schema` | Result |
-|--------------------------------------|--------|
-| Our full schema **without** the `$schema` key | `structured_output` present ✓ |
+| Schema fed to `claude --json-schema`                             | Result                        |
+| ---------------------------------------------------------------- | ----------------------------- |
+| Our full schema **without** the `$schema` key                    | `structured_output` present ✓ |
 | A trivial schema **with** `"$schema":".../draft/2020-12/schema"` | prose, no structured output ✗ |
 
 zod v4's `z.toJSONSchema()` stamps a top-level `"$schema": "https://json-schema.org/draft/2020-12/schema"`
@@ -61,7 +61,7 @@ on every conversion, and `@workflow/schema`'s `toJsonSchema()` passed it through
 free prose. The schema retry loop then can't recover because every attempt is unconstrained.
 
 This is distinct from [claude-schema-output-retry](./claude-schema-output-retry.md): there the issue is
-*timing* (prose arrives before `structured_output`); here the schema is rejected outright, so
+_timing_ (prose arrives before `structured_output`); here the schema is rejected outright, so
 `structured_output` is **never** produced.
 
 ## Solution
@@ -78,13 +78,13 @@ draft 2020-12 regardless of the key.
 ```
 
 Note the explicit `: JsonSchema` (= `Record<string, unknown>`) annotation on the destructure: typing
-`input` via `Parameters<typeof z.toJSONSchema>[0]` selects zod's *registry* overload, whose return type
+`input` via `Parameters<typeof z.toJSONSchema>[0]` selects zod's _registry_ overload, whose return type
 lacks `$schema`, so destructuring it directly fails the DTS build. Annotating the binding restores the
 plain-object view.
 
 ## Why This Works
 
-The `$schema` URI is a JSON-Schema *annotation*, not a constraint — every internal consumer ignores it
+The `$schema` URI is a JSON-Schema _annotation_, not a constraint — every internal consumer ignores it
 (AJV is configured for 2020-12 explicitly). Removing it makes Claude's native structured output engage,
 so the model is actually constrained and returns `{ title, impact, tags }` that validates first try.
 

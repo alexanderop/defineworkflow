@@ -27,7 +27,13 @@ export interface NavCtx {
   readonly maxScroll: number;
 }
 
-export const initialNav: NavState = { focus: "phases", phaseIndex: 0, agentIndex: 0, scroll: 0, expanded: false };
+export const initialNav: NavState = {
+  focus: "phases",
+  phaseIndex: 0,
+  agentIndex: 0,
+  scroll: 0,
+  expanded: false,
+};
 
 const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n));
 
@@ -39,8 +45,19 @@ const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.m
 // phase/agent resets detail scroll + prompt expansion.
 function move(state: NavState, ctx: NavCtx, delta: number): NavState {
   if (state.focus === "phases")
-    return { ...state, phaseIndex: clamp(state.phaseIndex + delta, 0, Math.max(0, ctx.phaseCount - 1)), agentIndex: 0, scroll: 0, expanded: false };
-  return { ...state, agentIndex: clamp(state.agentIndex + delta, 0, Math.max(0, ctx.agentCount - 1)), scroll: 0, expanded: false };
+    return {
+      ...state,
+      phaseIndex: clamp(state.phaseIndex + delta, 0, Math.max(0, ctx.phaseCount - 1)),
+      agentIndex: 0,
+      scroll: 0,
+      expanded: false,
+    };
+  return {
+    ...state,
+    agentIndex: clamp(state.agentIndex + delta, 0, Math.max(0, ctx.agentCount - 1)),
+    scroll: 0,
+    expanded: false,
+  };
 }
 
 export function navReducer(state: NavState, action: NavAction, ctx: NavCtx): NavState {

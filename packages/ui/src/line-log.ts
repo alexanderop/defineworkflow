@@ -40,7 +40,11 @@ export function createLineLogger(): (event: WorkflowEvent) => string | null {
       case "agent-failed":
         return `  ✗ ${nameOf(event.key)}: ${formatError(event.error)}`;
       case "question-asked": {
-        const firstLine = event.question.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
+        const firstLine =
+          event.question
+            .split("\n")
+            .map((l) => l.trim())
+            .find((l) => l.length > 0) ?? "";
         return `? ${event.key}: ${firstLine}`;
       }
       case "question-answered":

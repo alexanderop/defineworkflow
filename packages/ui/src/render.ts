@@ -45,9 +45,13 @@ export function startUi(opts: StartUiOptions): UiHandle {
     return { unmount: () => instance.unmount() };
   }
 
-  const instance = render(createElement(App, { events, adapter: opts.adapter, onAction: opts.onAction }));
+  const instance = render(
+    createElement(App, { events, adapter: opts.adapter, onAction: opts.onAction }),
+  );
   const rerenderNow = (): void => {
-    instance.rerender(createElement(App, { events: [...events], adapter: opts.adapter, onAction: opts.onAction }));
+    instance.rerender(
+      createElement(App, { events: [...events], adapter: opts.adapter, onAction: opts.onAction }),
+    );
   };
   const throttled = throttle(rerenderNow, 100, {
     now: () => Date.now(),

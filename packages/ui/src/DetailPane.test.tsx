@@ -21,7 +21,9 @@ const agent: AgentState = {
 
 describe("DetailPane", () => {
   it("renders Status / Metrics / Prompt / Activity / Outcome sections", () => {
-    const { lastFrame } = render(<DetailPane agent={agent} scroll={0} rows={20} focused now={30000} expanded={false} />);
+    const { lastFrame } = render(
+      <DetailPane agent={agent} scroll={0} rows={20} focused now={30000} expanded={false} />,
+    );
     const frame = lastFrame() ?? "";
     expect(frame).toContain("Running");
     expect(frame).toContain("44k tok");
@@ -33,21 +35,31 @@ describe("DetailPane", () => {
   });
 
   it("shows a scroll indicator and windows the lines when content overflows", () => {
-    const { lastFrame } = render(<DetailPane agent={agent} scroll={0} rows={4} focused now={0} expanded={false} />);
+    const { lastFrame } = render(
+      <DetailPane agent={agent} scroll={0} rows={4} focused now={0} expanded={false} />,
+    );
     const frame = lastFrame() ?? "";
     expect(frame).toMatch(/1–3 of \d+ ↓/);
   });
 
   it("truncates long lines so the pane never grows past its row budget", () => {
-    const longAgent: AgentState = { ...agent, prompt: "x".repeat(400), resultText: "y".repeat(400) };
+    const longAgent: AgentState = {
+      ...agent,
+      prompt: "x".repeat(400),
+      resultText: "y".repeat(400),
+    };
     const rows = 4;
-    const { lastFrame } = render(<DetailPane agent={longAgent} scroll={0} rows={rows} focused now={0} expanded={false} />);
+    const { lastFrame } = render(
+      <DetailPane agent={longAgent} scroll={0} rows={rows} focused now={0} expanded={false} />,
+    );
     const rowCount = (lastFrame() ?? "").split("\n").length;
     expect(rowCount).toBeLessThanOrEqual(rows + 2);
   });
 
   it("shows a placeholder when no agent is selected", () => {
-    const { lastFrame } = render(<DetailPane agent={undefined} scroll={0} rows={5} focused={false} now={0} expanded={false} />);
+    const { lastFrame } = render(
+      <DetailPane agent={undefined} scroll={0} rows={5} focused={false} now={0} expanded={false} />,
+    );
     expect(lastFrame() ?? "").toContain("no agent selected");
   });
 });

@@ -17,7 +17,7 @@ losing the explicitness of the existing `agent()` call site.
 
 - **Cross-workflow sharing.** The sandbox runs scripts through `new vm.Script` with no module
   loader; only `import … from "workflow"` is stripped. A real cross-file `import { reviewer }
-  from "./profiles.js"` would survive into the VM and throw. Profiles are therefore **within-file**
+from "./profiles.js"` would survive into the VM and throw. Profiles are therefore **within-file**
   in v1. `export` is allowed so files are forward-compatible, but actual sharing waits for a
   future bundling effort.
 - **Composition API.** No `extend()`. Compose with plain object spread of a config object.
@@ -66,7 +66,7 @@ When the first arg to `agent()` is a `Profile`:
 
 - The `agent-queued` event gains an optional `overrides?: readonly string[]` (e.g. `["model"]`).
   No console noise. The UI may render an "overridden" marker off the event.
-- Profiles are anonymous config — no profile *name* in events in v1 (the `const` name is not
+- Profiles are anonymous config — no profile _name_ in events in v1 (the `const` name is not
   available at runtime).
 
 ## Runtime / sandbox wiring

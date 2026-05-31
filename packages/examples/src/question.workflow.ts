@@ -35,7 +35,8 @@ export default defineWorkflow({
     // Choices plus an "Other → type your own" escape hatch, with a headless default.
     const topic = await askUserQuestion({
       key: "topic",
-      question: "## What should the haiku be about?\nPick a topic, or choose Other to type your own.",
+      question:
+        "## What should the haiku be about?\nPick a topic, or choose Other to type your own.",
       choices: ["durable workflows", "the ocean", "a sleeping cat"],
       allowOther: true,
       default: "durable workflows",

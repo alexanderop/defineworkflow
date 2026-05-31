@@ -13,7 +13,10 @@ function memFs(): RegistryFs {
     writeFile: (p, data) => files.set(p, data),
     appendFile: (p, data) => files.set(p, (files.get(p) ?? "") + data),
     readFile: (p) => files.get(p),
-    readDir: (dir) => [...dirs].filter((d) => d.startsWith(dir + "/")).map((d) => d.slice(dir.length + 1).split("/")[0]!),
+    readDir: (dir) =>
+      [...dirs]
+        .filter((d) => d.startsWith(dir + "/"))
+        .map((d) => d.slice(dir.length + 1).split("/")[0]!),
     exists: (p) => files.has(p) || dirs.has(p),
   };
 }
@@ -25,8 +28,16 @@ const b = await agent("second", { label: "b" });
 return { a, b };`;
 
 const META: RunMeta = {
-  runId: "demo-1" as RunId, name: "demo", scriptPath: null, args: {}, adapter: "codex",
-  status: "running", startedAt: 0, endedAt: null, pid: null, scriptHash: "h" as ScriptHash,
+  runId: "demo-1" as RunId,
+  name: "demo",
+  scriptPath: null,
+  args: {},
+  adapter: "codex",
+  status: "running",
+  startedAt: 0,
+  endedAt: null,
+  pid: null,
+  scriptHash: "h" as ScriptHash,
 };
 
 function wire(runId: RunId) {
@@ -39,11 +50,22 @@ function wire(runId: RunId) {
 describe("runWorkflow", () => {
   it("runs the script, returns its value, and persists events + journal", async () => {
     const { reg, emit } = wire("demo-1" as RunId);
-    const runner = createScriptedRunner({ a: { text: "A", outputTokens: 3 }, b: { text: "B", outputTokens: 4 } });
+    const runner = createScriptedRunner({
+      a: { text: "A", outputTokens: 3 },
+      b: { text: "B", outputTokens: 4 },
+    });
     const result = await runWorkflow({
-      source: SCRIPT, args: {}, runner, runId: "demo-1" as RunId, cwd: "/tmp",
-      concurrency: 4, maxAgents: 1000, budgetTotal: null,
-      journal: reg.persistentJournal("demo-1", []), emit, now: () => 0,
+      source: SCRIPT,
+      args: {},
+      runner,
+      runId: "demo-1" as RunId,
+      cwd: "/tmp",
+      concurrency: 4,
+      maxAgents: 1000,
+      budgetTotal: null,
+      journal: reg.persistentJournal("demo-1", []),
+      emit,
+      now: () => 0,
     });
 
     expect(result._unsafeUnwrap().returnValue).toEqual({ a: "A", b: "B" });
@@ -57,9 +79,17 @@ describe("runWorkflow", () => {
     const { reg, emit } = wire("demo-b" as RunId);
     const runner = createScriptedRunner({ a: { text: "A" }, b: { text: "B" } });
     await runWorkflow({
-      source: SCRIPT, args: {}, runner, runId: "demo-b" as RunId, cwd: "/tmp",
-      concurrency: 4, maxAgents: 1000, budgetTotal: 500_000,
-      journal: reg.persistentJournal("demo-b", []), emit, now: () => 0,
+      source: SCRIPT,
+      args: {},
+      runner,
+      runId: "demo-b" as RunId,
+      cwd: "/tmp",
+      concurrency: 4,
+      maxAgents: 1000,
+      budgetTotal: 500_000,
+      journal: reg.persistentJournal("demo-b", []),
+      emit,
+      now: () => 0,
     });
     const started = reg.readEvents("demo-b").find((e) => e.type === "run-started");
     expect(started).toMatchObject({ type: "run-started", budgetTotal: 500_000 });
@@ -78,9 +108,17 @@ return { a };`;
     const emit = (e: Parameters<typeof reg.appendEvent>[1]) => reg.appendEvent("multi-1", e);
     const runner = createScriptedRunner({ a: { text: "A" } });
     await runWorkflow({
-      source: script, args: {}, runner, runId: "multi-1" as RunId, cwd: "/tmp",
-      concurrency: 4, maxAgents: 1000, budgetTotal: null,
-      journal: reg.persistentJournal("multi-1", []), emit, now: () => 0,
+      source: script,
+      args: {},
+      runner,
+      runId: "multi-1" as RunId,
+      cwd: "/tmp",
+      concurrency: 4,
+      maxAgents: 1000,
+      budgetTotal: null,
+      journal: reg.persistentJournal("multi-1", []),
+      emit,
+      now: () => 0,
     });
 
     const phaseTitles = reg
@@ -96,9 +134,17 @@ return { a };`;
     const first = wire("demo-2" as RunId);
     const r1 = createScriptedRunner({ a: { text: "A" }, b: { text: "B" } });
     await runWorkflow({
-      source: SCRIPT, args: {}, runner: r1, runId: "demo-2" as RunId, cwd: "/tmp",
-      concurrency: 4, maxAgents: 1000, budgetTotal: null,
-      journal: first.reg.persistentJournal("demo-2", []), emit: first.emit, now: () => 0,
+      source: SCRIPT,
+      args: {},
+      runner: r1,
+      runId: "demo-2" as RunId,
+      cwd: "/tmp",
+      concurrency: 4,
+      maxAgents: 1000,
+      budgetTotal: null,
+      journal: first.reg.persistentJournal("demo-2", []),
+      emit: first.emit,
+      now: () => 0,
     });
     expect(r1.callCount()).toBe(2);
 
@@ -106,9 +152,17 @@ return { a };`;
     const seed = first.reg.readJournal("demo-2")._unsafeUnwrap();
     const r2 = createScriptedRunner({ a: { text: "A" }, b: { text: "B" } });
     const resumed = await runWorkflow({
-      source: SCRIPT, args: {}, runner: r2, runId: "demo-2" as RunId, cwd: "/tmp",
-      concurrency: 4, maxAgents: 1000, budgetTotal: null,
-      journal: first.reg.persistentJournal("demo-2", seed), emit: () => {}, now: () => 0,
+      source: SCRIPT,
+      args: {},
+      runner: r2,
+      runId: "demo-2" as RunId,
+      cwd: "/tmp",
+      concurrency: 4,
+      maxAgents: 1000,
+      budgetTotal: null,
+      journal: first.reg.persistentJournal("demo-2", seed),
+      emit: () => {},
+      now: () => 0,
     });
     expect(resumed._unsafeUnwrap().returnValue).toEqual({ a: "A", b: "B" });
     expect(r2.callCount()).toBe(0);
@@ -120,9 +174,18 @@ return { a };`;
     const controller = new AbortController();
     controller.abort();
     const result = await runWorkflow({
-      source: SCRIPT, args: {}, runner, runId: "demo-3" as RunId, cwd: "/tmp",
-      concurrency: 4, maxAgents: 1000, budgetTotal: null,
-      journal: reg.persistentJournal("demo-3", []), emit, now: () => 0, signal: controller.signal,
+      source: SCRIPT,
+      args: {},
+      runner,
+      runId: "demo-3" as RunId,
+      cwd: "/tmp",
+      concurrency: 4,
+      maxAgents: 1000,
+      budgetTotal: null,
+      journal: reg.persistentJournal("demo-3", []),
+      emit,
+      now: () => 0,
+      signal: controller.signal,
     });
     expect(result.isErr()).toBe(true);
     expect(runner.callCount()).toBe(0);

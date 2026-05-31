@@ -7,7 +7,7 @@
 
 Today a workflow is a single `*.workflow.ts` file. Everything — meta, every zod schema,
 every prompt string, every helper — is crammed into one file, and schemas must be declared
-*inside* `run()` because of the "`defineWorkflow` must be the first runtime statement" rule
+_inside_ `run()` because of the "`defineWorkflow` must be the first runtime statement" rule
 (see `vue-todo-pipeline.workflow.ts`, where ~50 lines of schemas open `run()` before any
 orchestration). The orchestration logic — the part a reader cares about — is buried.
 
@@ -32,7 +32,7 @@ and helpers in others, and a slim entry file whose `run()` reads like a table of
 ### Key insight
 
 Because every primitive is a **global** and the journal is keyed by global call-order, it
-does not matter which *file* an `agent()` call textually lives in. A helper module that calls
+does not matter which _file_ an `agent()` call textually lives in. A helper module that calls
 `agent()` is just calling the same global in deterministic order. So pure helpers (schemas,
 prompt builders) and sub-orchestrator helpers (that call `agent()` themselves) cost the
 runtime **exactly the same** — journal, resume, and the determinism guards keep working
@@ -45,11 +45,11 @@ untouched. **Almost all the work is in one new place: a bundle step before the s
    everything else is normal TS imported with relative (`./`, `../`) paths.
 2. **Import scope — local files only.** Helpers may import other files within the workflow's
    own project (relative paths) plus `defineworkflow`. **No npm packages.** This keeps the
-   bundle self-contained and the sandbox deterministic *by construction* — nothing can pull
+   bundle self-contained and the sandbox deterministic _by construction_ — nothing can pull
    in `fs`, clocks, or network. Enforced at bundle time (clear error), not left to chance.
 3. **Meta stays in the entry file** as a pure literal in the `defineWorkflow({...})` call —
    same rule as today. The consent gate reads it from the entry file alone.
-4. **`workflow save` persists the *bundled* string**, so a saved/named workflow stays a
+4. **`workflow save` persists the _bundled_ string**, so a saved/named workflow stays a
    portable, self-contained unit in the registry.
 
 ## Design
@@ -70,8 +70,12 @@ vue-todo/
 ```ts
 // schemas.ts
 import { z } from "defineworkflow";
-export const ResearchSchema = z.object({ /* … */ });
-export const PlanSchema = z.object({ /* … */ });
+export const ResearchSchema = z.object({
+  /* … */
+});
+export const PlanSchema = z.object({
+  /* … */
+});
 ```
 
 ```ts
@@ -81,7 +85,8 @@ import { ResearchSchema, PlanSchema } from "./schemas";
 import { researchPrompt, planPrompt } from "./prompts/research";
 
 export default defineWorkflow({
-  name: "vue-todo", harness: "claude", /* …meta… */
+  name: "vue-todo",
+  harness: "claude" /* …meta… */,
   async run() {
     phase("Research");
     const research = await agent(researchPrompt(feature), { schema: ResearchSchema });
@@ -110,8 +115,8 @@ Run it as today: `workflow run vue-todo/vue-todo.workflow.ts`, plus optional fol
 
 ### Bonus unlocked by the bundle
 
-The awkward "schemas must be declared *inside* `run()`" rule disappears for helper-defined
-schemas. Because `extractMeta` only inspects the *entry* file, a `schemas.ts` can declare
+The awkward "schemas must be declared _inside_ `run()`" rule disappears for helper-defined
+schemas. Because `extractMeta` only inspects the _entry_ file, a `schemas.ts` can declare
 top-level `export const ResearchSchema = z.object({…})` — `z` is a sandbox global at run
 time, so helper-module init (which runs inside the sandbox) just works. This is exactly the
 "all the schema in one file" the user asked for.

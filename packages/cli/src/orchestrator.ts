@@ -50,9 +50,17 @@ export interface RunResult {
  * concern (wired via `journal` + `emit`). Returns the script's value, or the underlying
  * `WorkflowError` when the run throws — `run-finished` is always emitted so watchers stop.
  */
-export async function runWorkflow(deps: RunWorkflowDeps): Promise<Result<RunResult, WorkflowError>> {
+export async function runWorkflow(
+  deps: RunWorkflowDeps,
+): Promise<Result<RunResult, WorkflowError>> {
   const loaded = loadWorkflow(deps.source);
-  deps.emit({ type: "run-started", runId: deps.runId, name: loaded.meta.name, budgetTotal: deps.budgetTotal, at: deps.now() });
+  deps.emit({
+    type: "run-started",
+    runId: deps.runId,
+    name: loaded.meta.name,
+    budgetTotal: deps.budgetTotal,
+    at: deps.now(),
+  });
 
   // Seed the declared phases so the UI shows the full pipeline upfront, in order —
   // not just the phases the script has reached. A long `await` (e.g. parallel research)
@@ -89,7 +97,9 @@ export async function runWorkflow(deps: RunWorkflowDeps): Promise<Result<RunResu
   } catch (e) {
     deps.emit({ type: "run-finished", runId: deps.runId, at: deps.now() });
     const error: WorkflowError =
-      e instanceof WorkflowThrow ? e.workflowError : { kind: "AdapterSpawn", adapter: "run", cause: String(e) };
+      e instanceof WorkflowThrow
+        ? e.workflowError
+        : { kind: "AdapterSpawn", adapter: "run", cause: String(e) };
     return err(error);
   }
 }

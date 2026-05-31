@@ -13,15 +13,27 @@ function memFs(): RegistryFs & { dump(): Record<string, string> } {
     writeFile: (p, data) => files.set(p, data),
     appendFile: (p, data) => files.set(p, (files.get(p) ?? "") + data),
     readFile: (p) => files.get(p),
-    readDir: (dir) => [...dirs].filter((d) => d.startsWith(dir + "/")).map((d) => d.slice(dir.length + 1).split("/")[0]!).filter((v, i, a) => a.indexOf(v) === i),
+    readDir: (dir) =>
+      [...dirs]
+        .filter((d) => d.startsWith(dir + "/"))
+        .map((d) => d.slice(dir.length + 1).split("/")[0]!)
+        .filter((v, i, a) => a.indexOf(v) === i),
     exists: (p) => files.has(p) || dirs.has(p),
     dump: () => Object.fromEntries(files),
   };
 }
 
 const baseMeta: RunMeta = {
-  runId: "demo-1" as RunId, name: "demo", scriptPath: "/s.ts", args: { topic: "vue" },
-  adapter: "codex", status: "running", startedAt: 100, endedAt: null, pid: 4242, scriptHash: "h" as ScriptHash,
+  runId: "demo-1" as RunId,
+  name: "demo",
+  scriptPath: "/s.ts",
+  args: { topic: "vue" },
+  adapter: "codex",
+  status: "running",
+  startedAt: 100,
+  endedAt: null,
+  pid: 4242,
+  scriptHash: "h" as ScriptHash,
 };
 
 function setup() {
@@ -89,7 +101,9 @@ describe("registry", () => {
     expect(journal.lookup(0)?.text).toBe("hi");
     const fromDisk = reg.readJournal("demo-1");
     expect(fromDisk.isOk()).toBe(true);
-    expect(fromDisk._unsafeUnwrap()).toEqual([{ seq: 0, key: "0:P:a", text: "hi", data: null, outputTokens: 9 }]);
+    expect(fromDisk._unsafeUnwrap()).toEqual([
+      { seq: 0, key: "0:P:a", text: "hi", data: null, outputTokens: 9 },
+    ]);
   });
 
   it("readJournal surfaces JournalCorrupt on a bad line", () => {
@@ -103,7 +117,10 @@ describe("registry", () => {
     const { reg } = setup();
     reg.init(baseMeta, "x");
     reg.init({ ...baseMeta, runId: "demo-2" as RunId, name: "other" }, "y");
-    const ids = reg.listRuns().map((m) => m.runId).sort();
+    const ids = reg
+      .listRuns()
+      .map((m) => m.runId)
+      .sort();
     expect(ids).toEqual(["demo-1", "demo-2"]);
   });
 });

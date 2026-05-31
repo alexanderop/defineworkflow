@@ -86,8 +86,16 @@ describe("resolveOutputDir", () => {
 describe("writeArtifacts", () => {
   test("writes every file under the target dir and returns their names", () => {
     const written = new Map<string, string>();
-    const set = { files: [{ name: "newsletter.md", content: "# hi" }, { name: "result.json", content: "{}" }], terminal: "{}" };
-    const names = writeArtifacts(set, "./newsletters", (path, content) => written.set(path, content));
+    const set = {
+      files: [
+        { name: "newsletter.md", content: "# hi" },
+        { name: "result.json", content: "{}" },
+      ],
+      terminal: "{}",
+    };
+    const names = writeArtifacts(set, "./newsletters", (path, content) =>
+      written.set(path, content),
+    );
     expect(written.get("./newsletters/newsletter.md")).toBe("# hi");
     expect(written.get("./newsletters/result.json")).toBe("{}");
     expect(names).toEqual(["newsletter.md", "result.json"]);

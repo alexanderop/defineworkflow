@@ -65,7 +65,8 @@ function mergeConsents(
   if (!base && !over) return undefined;
   const out: Record<string, Record<string, boolean>> = {};
   for (const [project, names] of Object.entries(base ?? {})) out[project] = { ...names };
-  for (const [project, names] of Object.entries(over ?? {})) out[project] = { ...out[project], ...names };
+  for (const [project, names] of Object.entries(over ?? {}))
+    out[project] = { ...out[project], ...names };
   return out;
 }
 
@@ -86,7 +87,8 @@ export function loadConfig(deps: ConfigDeps): Immutable<WorkflowConfig> {
     ...base,
     ...over,
     ...(consents ? { consents } : {}),
-    disableWorkflows: base.disableWorkflows || over.disableWorkflows || deps.env["WORKFLOW_DISABLE"] === "1",
+    disableWorkflows:
+      base.disableWorkflows || over.disableWorkflows || deps.env["WORKFLOW_DISABLE"] === "1",
   };
 }
 

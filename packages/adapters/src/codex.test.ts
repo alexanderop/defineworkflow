@@ -10,7 +10,11 @@ const stream = readFileSync(new URL("../fixtures/codex-stream.ndjson", import.me
 const stubFileStore = () => {
   const files = new Map<string, string>();
   return {
-    writeTemp: async (name: string, content: string) => { const p = `/tmp/${name}`; files.set(p, content); return p; },
+    writeTemp: async (name: string, content: string) => {
+      const p = `/tmp/${name}`;
+      files.set(p, content);
+      return p;
+    },
     read: async (p: string) => files.get(p) ?? "",
     cleanup: async () => {},
   };
@@ -24,7 +28,18 @@ describe("codex adapter", () => {
 
     const progress: AgentProgress[] = [];
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", label: "a", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        label: "a",
+        signal: new AbortController().signal,
+      },
       { runId: "r" as RunId, seq: 0, onProgress: (p) => progress.push(p) },
     );
     expect(res.isOk()).toBe(true);
@@ -50,7 +65,10 @@ describe("codex adapter", () => {
       processRunner: createFakeProcessRunner({ codex: { stdout: "", stderr: "bad", code: 2 } }),
       fileStore: stubFileStore(),
     });
-    const res = await adapter.run({ prompt: "x", cwd: "/tmp", signal: new AbortController().signal }, { runId: "r" as RunId, seq: 0 });
+    const res = await adapter.run(
+      { prompt: "x", cwd: "/tmp", signal: new AbortController().signal },
+      { runId: "r" as RunId, seq: 0 },
+    );
     expect(res._unsafeUnwrapErr().kind).toBe("AdapterSpawn");
   });
 
@@ -67,7 +85,17 @@ describe("codex adapter", () => {
       fileStore: stubFileStore(),
     });
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        signal: new AbortController().signal,
+      },
       { runId: "r" as RunId, seq: 0 },
     );
     expect(res.isErr()).toBe(true);
@@ -107,7 +135,17 @@ describe("codex adapter", () => {
     });
 
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        signal: new AbortController().signal,
+      },
       { runId: "r" as RunId, seq: 0 },
     );
 

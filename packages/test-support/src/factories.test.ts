@@ -14,8 +14,18 @@ describe("factories", () => {
   });
 
   it("event() returns the precise variant with its required fields filled", () => {
-    const finished = event("agent-finished", { key: "k1", usage: usage({ outputTokens: 9 }), at: 3 });
-    expect(finished).toEqual({ type: "agent-finished", key: "k1", usage: { inputTokens: 0, outputTokens: 9 }, cached: false, at: 3 });
+    const finished = event("agent-finished", {
+      key: "k1",
+      usage: usage({ outputTokens: 9 }),
+      at: 3,
+    });
+    expect(finished).toEqual({
+      type: "agent-finished",
+      key: "k1",
+      usage: { inputTokens: 0, outputTokens: 9 },
+      cached: false,
+      at: 3,
+    });
 
     const log = event("log", { message: "hello" });
     expect(log).toEqual({ type: "log", message: "hello", at: 0 });

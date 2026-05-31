@@ -24,10 +24,13 @@ export default defineWorkflow({
     phase("Write");
     log("asking the agent for a haiku…");
 
-    const poem = await agent("Write a haiku about durable, crash-safe workflows. Return only the haiku.", {
-      label: "haiku-writer",
-      phase: "Write",
-    });
+    const poem = await agent(
+      "Write a haiku about durable, crash-safe workflows. Return only the haiku.",
+      {
+        label: "haiku-writer",
+        phase: "Write",
+      },
+    );
 
     return { poem };
   },

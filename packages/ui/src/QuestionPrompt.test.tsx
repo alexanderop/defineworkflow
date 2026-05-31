@@ -8,7 +8,10 @@ const KEY = { down: "[B", up: "[A", enter: "\r" };
 describe("QuestionPrompt", () => {
   it("renders the question text and its choices", () => {
     const { lastFrame } = render(
-      <QuestionPrompt question={{ key: "k", question: "## Where to deploy?", choices: ["staging", "production"] }} onSubmit={() => {}} />,
+      <QuestionPrompt
+        question={{ key: "k", question: "## Where to deploy?", choices: ["staging", "production"] }}
+        onSubmit={() => {}}
+      />,
     );
     const f = lastFrame() ?? "";
     expect(f).toContain("Where to deploy?");

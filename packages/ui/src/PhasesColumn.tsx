@@ -18,7 +18,9 @@ export function PhasesColumn({ phases, selectedIndex, focused, frame }: PhasesCo
         const complete = p.total > 0 && p.done >= p.total && p.running === 0;
         return (
           <Box key={p.title}>
-            <Text {...(selected && focused ? { color: "blueBright" as const } : {})}>{selected ? "› " : "  "}</Text>
+            <Text {...(selected && focused ? { color: "blueBright" as const } : {})}>
+              {selected ? "› " : "  "}
+            </Text>
             {p.running > 0 ? (
               <Spinner frame={frame} />
             ) : (

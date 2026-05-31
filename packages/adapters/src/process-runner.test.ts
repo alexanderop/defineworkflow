@@ -34,7 +34,10 @@ describe("createProcessRunner", () => {
     const out = await runner.run({
       command: process.execPath,
       // Write 3 newline-delimited lines across separate ticks so they arrive in chunks.
-      args: ["-e", "let i=0;const t=setInterval(()=>{process.stdout.write('line'+i+'\\n');if(++i===3){clearInterval(t);process.exit(0)}},5)"],
+      args: [
+        "-e",
+        "let i=0;const t=setInterval(()=>{process.stdout.write('line'+i+'\\n');if(++i===3){clearInterval(t);process.exit(0)}},5)",
+      ],
       cwd: process.cwd(),
       signal: new AbortController().signal,
       onLine: (l) => lines.push(l),
@@ -47,7 +50,10 @@ describe("createProcessRunner", () => {
     const runner = createProcessRunner();
     const out = await runner.run({
       command: process.execPath,
-      args: ["-e", "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>process.stdout.write(d.toUpperCase()))"],
+      args: [
+        "-e",
+        "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>process.stdout.write(d.toUpperCase()))",
+      ],
       cwd: process.cwd(),
       signal: new AbortController().signal,
       stdin: "abc",

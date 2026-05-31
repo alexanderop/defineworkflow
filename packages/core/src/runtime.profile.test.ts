@@ -11,7 +11,12 @@ import type { WorkflowEvent } from "./events.js";
 /** A runner that records every AgentRequest it receives so tests can assert on the merged opts. */
 function createRecordingRunner(id: string, text = "ok"): AgentRunner & { calls: AgentRequest[] } {
   const calls: AgentRequest[] = [];
-  const response: AgentResult = { text, data: undefined, usage: { inputTokens: 0, outputTokens: 0 }, toolCalls: [] };
+  const response: AgentResult = {
+    text,
+    data: undefined,
+    usage: { inputTokens: 0, outputTokens: 0 },
+    toolCalls: [],
+  };
   return {
     id,
     capabilities: { nativeSchema: true, reportsTokens: true, toolEvents: false },

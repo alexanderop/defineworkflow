@@ -54,7 +54,15 @@ export default defineWorkflow({
       title: z.string(),
       url: z.string(),
       summary: z.string().describe("1-3 sentence plain summary of what changed / why it matters"),
-      category: z.enum(["release", "article", "tooling", "discussion", "tutorial", "people", "other"]),
+      category: z.enum([
+        "release",
+        "article",
+        "tooling",
+        "discussion",
+        "tutorial",
+        "people",
+        "other",
+      ]),
       date: z.string().describe("ISO date if known, else empty"),
       impact: z.enum(["high", "medium", "low"]),
     });
@@ -106,11 +114,17 @@ export default defineWorkflow({
     log(`researching ${SOURCES.length} sources for ${label} (${window})…`);
 
     const raw = await parallel(
-      SOURCES.map((s) => () =>
-        agent(
-          `You are researching the Vue.js / Nuxt ecosystem for a weekly newsletter covering ${label} (${window}).\n\n${s.prompt}\n\nUse web search and fetch real URLs. Only include items genuinely within the date window. Return real, verifiable URLs — never invent links. If you find nothing in the window, return an empty items array. Set "source" to "${s.key}". Set impact based on how much the average Vue developer should care.`,
-          { label: `research:${s.key}`, phase: "Research", schema: SOURCE_RESULT, model: "haiku" },
-        ),
+      SOURCES.map(
+        (s) => () =>
+          agent(
+            `You are researching the Vue.js / Nuxt ecosystem for a weekly newsletter covering ${label} (${window}).\n\n${s.prompt}\n\nUse web search and fetch real URLs. Only include items genuinely within the date window. Return real, verifiable URLs — never invent links. If you find nothing in the window, return an empty items array. Set "source" to "${s.key}". Set impact based on how much the average Vue developer should care.`,
+            {
+              label: `research:${s.key}`,
+              phase: "Research",
+              schema: SOURCE_RESULT,
+              model: "haiku",
+            },
+          ),
       ),
     );
 
@@ -122,7 +136,9 @@ export default defineWorkflow({
 
     phase("Curate");
     const CURATED = z.object({
-      highlights: z.array(z.string()).describe("3-5 punchy bullets capturing the week's biggest stories"),
+      highlights: z
+        .array(z.string())
+        .describe("3-5 punchy bullets capturing the week's biggest stories"),
       items: z.array(
         z.object({
           title: z.string(),

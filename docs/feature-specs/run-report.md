@@ -15,13 +15,13 @@ A workflow run already journals nearly everything worth reporting to `~/.workflo
 
 ## Decisions (from brainstorm)
 
-| Question | Decision |
-|---|---|
+| Question    | Decision                                                                         |
+| ----------- | -------------------------------------------------------------------------------- |
 | Entry point | **Auto-print at end of foreground run**; detached runs surface it **on `watch`** |
-| Format | **Human terminal table** only (JSON / markdown deferred) |
-| Granularity | **Run + phase + agent**; per-tool-call detail behind a verbose flag (future) |
-| Cost ($) | **Tokens only** — no per-model price table |
-| Budget line | **Persist `budget.total` and show** spent/total/% |
+| Format      | **Human terminal table** only (JSON / markdown deferred)                         |
+| Granularity | **Run + phase + agent**; per-tool-call detail behind a verbose flag (future)     |
+| Cost ($)    | **Tokens only** — no per-model price table                                       |
+| Budget line | **Persist `budget.total` and show** spent/total/%                                |
 
 ## Data Model
 
@@ -34,18 +34,18 @@ interface RunReport {
   status: "finished" | "running" | "failed";
   startedAt?: number;
   endedAt?: number;
-  wallMs?: number;                 // endedAt - startedAt
+  wallMs?: number; // endedAt - startedAt
   totals: {
-    agents: number;                // total queued
-    cached: number;                // agent-finished.cached === true (replayed, ~0 spend)
+    agents: number; // total queued
+    cached: number; // agent-finished.cached === true (replayed, ~0 spend)
     failed: number;
     inputTokens: number;
     outputTokens: number;
     toolCalls: number;
   };
   budget?: { total: number | null; spent: number; pct?: number };
-  phases: PhaseReport[];           // ordered by first phase-started
-  agents: AgentReport[];           // ordered by startedAt
+  phases: PhaseReport[]; // ordered by first phase-started
+  agents: AgentReport[]; // ordered by startedAt
 }
 
 interface PhaseReport {
@@ -54,7 +54,7 @@ interface PhaseReport {
   inputTokens: number;
   outputTokens: number;
   toolCalls: number;
-  wallMs?: number;                 // last endedAt - first startedAt within phase
+  wallMs?: number; // last endedAt - first startedAt within phase
 }
 
 interface AgentReport {
@@ -66,7 +66,7 @@ interface AgentReport {
   outputTokens: number;
   toolCalls: number;
   wallMs?: number;
-  queuedMs?: number;               // started - queued (time spent waiting on the semaphore)
+  queuedMs?: number; // started - queued (time spent waiting on the semaphore)
 }
 ```
 
@@ -98,22 +98,27 @@ interface AgentReport {
 ## Implementation Details
 
 ### 1. Token split in the reducer (`packages/core/src/events.ts`)
+
 `AgentState` currently collapses `tokens = inputTokens + outputTokens` (events.ts:171). Add `inputTokens`/`outputTokens` fields (keep `tokens` for back-compat). Mirror onto `PhaseState` and `RunState` (`totalInputTokens`/`totalOutputTokens`). Additive, cheap, no event changes.
 
 ### 2. Persist budget total
+
 - Add `budgetTotal?: number | null` to the `run-started` event payload (events.ts:25-36) and have `createRuntime` populate it from `budget.total`.
 - Reducer stores it on `RunState`.
 - Registry writes it into `meta.json` (`RunMeta`) at run-started so a finished run can show the budget line without the live `Budget` object. The post-run `spent` = `totalOutputTokens` (matches how `budget.record` works today — output-only).
 
 ### 3. Projection selector
+
 Add `selectRunReport(state: RunState): RunReport` — a pure function (colocated with `selectors.ts` or a new `core/src/report.ts`). Derives phase ordering, per-phase rollups, queued/wall durations from existing timestamps. Unit-tested with `createScriptedRunner()` fixtures — no real agents.
 
 ### 4. Renderer (`packages/ui`)
+
 - An Ink `<RunReport>` component rendering the table above, plus a plain-text `renderReportText(report)` for the non-TTY `line-log.ts` fallback.
 - **Foreground run**: on `run-finished`, render the report frame after the returned object (execute.ts emits the result; append the report).
 - **`watch` on a finished run**: detect terminal status and render the same `<RunReport>` instead of the live three-pane layout. Reuses persisted `events.jsonl` → `reduce` → `selectRunReport`.
 
 ### Edge cases
+
 - **Cached/replayed runs**: cached agents show `—` and count toward `cached`, not token totals (their tokens are ~0; budget only re-records output on replay).
 - **Approximate tokens**: if any `agent-finished.usage.approximate` is set, annotate the totals with `~`.
 - **No budget set**: omit the Budget line entirely (`budget.total === null`).
@@ -124,6 +129,7 @@ Add `selectRunReport(state: RunState): RunReport` — a pure function (colocated
 ## Scope
 
 ### MVP
+
 - Token split + budget persistence in core (reducer + run-started + meta).
 - `selectRunReport` pure projection with unit tests.
 - Ink `<RunReport>` + plain-text fallback.
@@ -131,6 +137,7 @@ Add `selectRunReport(state: RunState): RunReport` — a pure function (colocated
 - Re-render on `watch` of a finished run.
 
 ### Future Enhancements
+
 - [ ] `--json` machine output and `report.json` persisted artifact (stable schema already designed above).
 - [ ] `report.md` written into the run dir (and a `workflow report <id>` command) for detached/CI grab.
 - [ ] Verbose tier: per-tool-call breakdown (name + input) per agent.
@@ -138,6 +145,7 @@ Add `selectRunReport(state: RunState): RunReport` — a pure function (colocated
 - [ ] Per-tool timing / restart counts (needs new events — restart events aren't emitted today).
 
 ## Status
+
 **Status:** Spec Complete
 **Created:** 2026-05-30
 **Priority:** TBD

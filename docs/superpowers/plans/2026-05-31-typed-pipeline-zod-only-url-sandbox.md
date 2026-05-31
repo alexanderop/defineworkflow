@@ -30,6 +30,7 @@
 ## Task 1: Typed `pipeline()` overloads on the `Runtime` interface
 
 **Files:**
+
 - Modify: `packages/core/src/runtime.ts:93` (the `Runtime.pipeline` signature)
 - Modify: `packages/workflow/src/index.test.ts` (add type-level pipeline tests)
 - Modify: `packages/core/src/runtime.pipeline.test.ts` (extend runtime coverage — item/index threading)
@@ -131,7 +132,7 @@ with:
   ): Promise<Array<unknown | null>>;
 ```
 
-Leave the runtime *implementation* signature (line ~341) UNCHANGED (the loose variadic). Overloads are a type-only concern.
+Leave the runtime _implementation_ signature (line ~341) UNCHANGED (the loose variadic). Overloads are a type-only concern.
 
 - [ ] **Step 4: Verify type-level tests now typecheck**
 
@@ -193,6 +194,7 @@ git commit -m "feat(core): typed pipeline() via fixed-arity overloads"
 ## Task 2: zod-only authoring for `agent({ schema })`
 
 **Files:**
+
 - Modify: `packages/core/src/runtime.ts` (`AgentOptions.schema`, the schema-normalization block, remove `toJsonSchemaObject`)
 - Modify: `packages/workflow/src/index.ts` (`agent` overloads — no schema→`unknown` shape)
 - Modify: `packages/workflow/src/index.test.ts` (type test: plain-object schema is a type error)
@@ -210,13 +212,25 @@ it("converts a zod schema to JSON Schema in the emitted AgentRequest", async () 
     capabilities: { nativeSchema: true, reportsTokens: true, toolEvents: false },
     async run(req) {
       captured = req;
-      return ok({ text: '{"n":1}', data: { n: 1 }, usage: { inputTokens: 0, outputTokens: 0 }, toolCalls: [] });
+      return ok({
+        text: '{"n":1}',
+        data: { n: 1 },
+        usage: { inputTokens: 0, outputTokens: 0 },
+        toolCalls: [],
+      });
     },
   };
   const r = createRuntime({
-    runner, semaphore: createSemaphore(1), journal: createJournal(),
-    maxAgents: 10, budgetTotal: null, args: {}, cwd: "/tmp",
-    runId: "r" as RunId, emit: () => {}, now: () => 0,
+    runner,
+    semaphore: createSemaphore(1),
+    journal: createJournal(),
+    maxAgents: 10,
+    budgetTotal: null,
+    args: {},
+    cwd: "/tmp",
+    runId: "r" as RunId,
+    emit: () => {},
+    now: () => 0,
   });
   const out = await r.agent("p", { schema: z.object({ n: z.number() }) });
   expect(out).toEqual({ n: 1 });
@@ -227,9 +241,16 @@ it("converts a zod schema to JSON Schema in the emitted AgentRequest", async () 
 
 it("fails with SchemaValidation when a non-zod schema object reaches agent()", async () => {
   const r = createRuntime({
-    runner: createScriptedRunner({}), semaphore: createSemaphore(1), journal: createJournal(),
-    maxAgents: 10, budgetTotal: null, args: {}, cwd: "/tmp",
-    runId: "r" as RunId, emit: () => {}, now: () => 0,
+    runner: createScriptedRunner({}),
+    semaphore: createSemaphore(1),
+    journal: createJournal(),
+    maxAgents: 10,
+    budgetTotal: null,
+    args: {},
+    cwd: "/tmp",
+    runId: "r" as RunId,
+    emit: () => {},
+    now: () => 0,
   });
   // A plain JSON Schema object is only reachable from type-erased sandbox JS. Cast through
   // unknown to simulate that ingress without the (now zod-only) AgentOptions type complaining.
@@ -253,15 +274,26 @@ In `packages/core/src/runtime.ts`:
 Change the import (line 1) — `JsonSchema` and `isZodSchema`/`toJsonSchema` are still needed; `compileValidator`, `validate`, `ZodLike` stay:
 
 ```ts
-import { validate, compileValidator, isZodSchema, toJsonSchema, type JsonSchema, type ZodLike } from "@workflow/schema";
+import {
+  validate,
+  compileValidator,
+  isZodSchema,
+  toJsonSchema,
+  type JsonSchema,
+  type ZodLike,
+} from "@workflow/schema";
 ```
+
 (unchanged import line — keep as-is.)
 
 Change `AgentOptions.schema` (line 24) from:
+
 ```ts
   readonly schema?: JsonSchema | ZodLike;
 ```
+
 to:
+
 ```ts
   readonly schema?: ZodLike;
 ```
@@ -271,25 +303,29 @@ Delete the `toJsonSchemaObject` helper (lines 111–118) entirely.
 Replace the normalization block (lines 219–235) with a zod-required version:
 
 ```ts
-    // `opts.schema` must be a zod schema (the authoring surface is zod-only). Normalize it to
-    // the JSON Schema the harnesses + AJV consume, and compile it here so a malformed schema
-    // surfaces as a clean SchemaValidation error. A non-zod value is only reachable from
-    // type-erased sandbox JS — reject it with the same error kind rather than guessing.
-    let jsonSchema: JsonSchema | undefined;
-    if (opts.schema) {
-      try {
-        if (!isZodSchema(opts.schema)) {
-          throw new Error("agent({ schema }) requires a zod schema (e.g. z.object({ … }))");
-        }
-        const candidate = toJsonSchema(opts.schema);
-        compileValidator(candidate);
-        jsonSchema = candidate;
-      } catch (cause) {
-        const e: WorkflowError = { kind: "SchemaValidation", issues: [cause instanceof Error ? cause.message : String(cause)], attempts: 0 };
-        deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
-        throw new WorkflowThrow(e);
-      }
+// `opts.schema` must be a zod schema (the authoring surface is zod-only). Normalize it to
+// the JSON Schema the harnesses + AJV consume, and compile it here so a malformed schema
+// surfaces as a clean SchemaValidation error. A non-zod value is only reachable from
+// type-erased sandbox JS — reject it with the same error kind rather than guessing.
+let jsonSchema: JsonSchema | undefined;
+if (opts.schema) {
+  try {
+    if (!isZodSchema(opts.schema)) {
+      throw new Error("agent({ schema }) requires a zod schema (e.g. z.object({ … }))");
     }
+    const candidate = toJsonSchema(opts.schema);
+    compileValidator(candidate);
+    jsonSchema = candidate;
+  } catch (cause) {
+    const e: WorkflowError = {
+      kind: "SchemaValidation",
+      issues: [cause instanceof Error ? cause.message : String(cause)],
+      attempts: 0,
+    };
+    deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
+    throw new WorkflowThrow(e);
+  }
+}
 ```
 
 - [ ] **Step 4: Add the type-level test that a plain object schema is rejected**
@@ -311,12 +347,18 @@ it("rejects a plain JSON Schema object as a type error", () => {
 - [ ] **Step 5: Update the `agent` overloads in `workflow/index.ts` (drop the schema→unknown shape)**
 
 The current overloads (lines 50–53) already express the right shapes:
+
 ```ts
-export function agent<T>(profile: Profile, prompt: string, opts: AgentOptions & { schema: z.ZodType<T> }): Promise<T>;
+export function agent<T>(
+  profile: Profile,
+  prompt: string,
+  opts: AgentOptions & { schema: z.ZodType<T> },
+): Promise<T>;
 export function agent(profile: Profile, prompt: string, opts?: AgentOptions): Promise<unknown>;
 export function agent<T>(prompt: string, opts: AgentOptions & { schema: z.ZodType<T> }): Promise<T>;
 export function agent(prompt: string, opts?: AgentOptions): Promise<unknown>;
 ```
+
 With `AgentOptions.schema` now `ZodLike`, `AgentOptions & { schema: z.ZodType<T> }` still narrows correctly and there is no call shape where a schema yields `unknown`. **No code change needed here** — confirm by re-reading after Task 2 Step 3, and verify the `@ts-expect-error` test passes.
 
 - [ ] **Step 6: Run typecheck + the runtime tests**
@@ -336,6 +378,7 @@ git commit -m "feat(core): zod-only agent({ schema }) authoring"
 ## Task 3: `URL` / `URLSearchParams` in the sandbox
 
 **Files:**
+
 - Modify: `packages/core/src/sandbox.ts` (inject the globals)
 - Modify: `packages/core/src/sandbox.test.ts` (a script using `new URL()` runs without ReferenceError)
 - Modify: `packages/workflow/src/index.ts` (ambient `declare global` for the types)
@@ -376,23 +419,23 @@ Expected: FAIL with "URL is not defined" ReferenceError.
 In `packages/core/src/sandbox.ts`, in the `sandbox` object (~line 299–313), add the two host globals alongside the existing builtins:
 
 ```ts
-  const sandbox: Record<string, unknown> = {
-    ...globals,
-    Math: bannedMath,
-    Date: makeBannedDate(),
-    __meta: undefined,
-    Promise,
-    JSON,
-    Array,
-    Object,
-    String,
-    Number,
-    Boolean,
-    Error,
-    console,
-    URL,
-    URLSearchParams,
-  };
+const sandbox: Record<string, unknown> = {
+  ...globals,
+  Math: bannedMath,
+  Date: makeBannedDate(),
+  __meta: undefined,
+  Promise,
+  JSON,
+  Array,
+  Object,
+  String,
+  Number,
+  Boolean,
+  Error,
+  console,
+  URL,
+  URLSearchParams,
+};
 ```
 
 `URL`/`URLSearchParams` are Node globals at runtime (no import needed). They are deterministic (no clock/random) so they do not violate the replay invariant.
@@ -441,6 +484,7 @@ git commit -m "feat(core): inject URL/URLSearchParams into the sandbox"
 ## Task 4: Example rewrites (cast-free)
 
 **Files:**
+
 - Modify: `packages/examples/src/deep-research.workflow.ts`
 - Modify: `packages/examples/src/vue-newsletter.workflow.ts`
 - Modify: `packages/examples/src/feature-pipeline.workflow.ts`
@@ -451,7 +495,7 @@ git commit -m "feat(core): inject URL/URLSearchParams into the sandbox"
 
 The pipeline now infers `subtask: Subtask` (items are `subtasks`, typed by `SubtasksSchema`'s inferred element) and each `prev`. Remove the three `oxlint-disable … consistent-type-assertions` comments + `as` casts in the stage callbacks (lines ~185–186, ~204–205, ~221–228). After removal each stage destructures the typed `prev`/`item` directly:
 
-- Stage 1: `(_prev, subtask) => { const dir = \`${workspace}/${subtask.id}\`; … }` — `subtask` is `Subtask` (the `subtasks` element type). The local `interface Subtask` can stay as documentation but the cast is gone.
+- Stage 1: `(_prev, subtask) => { const dir = \`${workspace}/${subtask.id}\`; … }`—`subtask`is`Subtask`(the`subtasks`element type). The local`interface Subtask` can stay as documentation but the cast is gone.
 - Stage 2: `(prev) => { const { subtask, dir, tdd } = prev; … }` — `prev` is stage 1's return `{ subtask; dir; tdd }`.
 - Stage 3: `(prev) => { const { subtask, dir, tdd, review } = prev; … }` — `prev` is stage 2's return.
 
@@ -469,7 +513,15 @@ Keep the `args` cast (lines ~125–126). Keep all prompts/logic identical.
     title: z.string(),
     url: z.string(),
     summary: z.string().describe("1-3 sentence plain summary of what changed / why it matters"),
-    category: z.enum(["release", "article", "tooling", "discussion", "tutorial", "people", "other"]),
+    category: z.enum([
+      "release",
+      "article",
+      "tooling",
+      "discussion",
+      "tutorial",
+      "people",
+      "other",
+    ]),
     date: z.string().describe("ISO date if known, else empty"),
     impact: z.enum(["high", "medium", "low"]),
   });
@@ -478,7 +530,9 @@ Keep the `args` cast (lines ~125–126). Keep all prompts/logic identical.
   and (in the Curate phase):
   ```ts
   const CURATED = z.object({
-    highlights: z.array(z.string()).describe("3-5 punchy bullets capturing the week's biggest stories"),
+    highlights: z
+      .array(z.string())
+      .describe("3-5 punchy bullets capturing the week's biggest stories"),
     items: z.array(
       z.object({
         title: z.string(),
@@ -499,6 +553,7 @@ Keep the `args` cast (lines ~125–126). Keep all prompts/logic identical.
 This is the largest rewrite. Apply faithfully, preserving all defensive null-handling:
 
 1. **`new URL()` in `hostOf`/`normURL`** (replace the regex parsers, lines ~173–181):
+
    ```ts
    const hostOf = (u: string): string | undefined => {
      try {
@@ -518,6 +573,7 @@ This is the largest rewrite. Apply faithfully, preserving all defensive null-han
      }
    };
    ```
+
    Drop the comment "Parse with a regex rather than `new URL()`…".
 
 2. **Generic pipeline — remove all three `as` casts.** With typed `pipeline`, stage 1's `prev`/`item` is the `scope.angles` element type (`{ label; query; rationale? }`); stage 2's `prev` is stage 1's return. Remove the `oxlint-disable … consistent-type-assertions` comment + `const angle = anglePrev as …` (stage 1) and `const searchResult = prev as AngleResults | null` (stage 2), and the post-pipeline `as Array<…>` cast (lines ~315–316). The result of `pipeline(...)` is now `Array<Array<FetchedSource | null> | null>` inferred — assign it directly to `const perAngle = searchResults;`.
@@ -535,23 +591,29 @@ This is the largest rewrite. Apply faithfully, preserving all defensive null-han
 - [ ] **Step 4: Verify examples are cast-free (except the documented `args` cast)**
 
 Run:
+
 ```bash
 grep -n "consistent-type-assertions" packages/examples/src/deep-research.workflow.ts packages/examples/src/vue-newsletter.workflow.ts packages/examples/src/feature-pipeline.workflow.ts
 ```
+
 Expected: exactly ONE hit per file — the `args` narrowing cast. No `JsonSchema` import remains:
+
 ```bash
 grep -n "JsonSchema" packages/examples/src/*.workflow.ts
 ```
+
 Expected: no hits.
 
 - [ ] **Step 5: Verify examples still run end-to-end via `--mock`**
 
 Run (after `pnpm build`):
+
 ```bash
 node packages/workflow/dist/cli.js run packages/examples/src/feature-pipeline.workflow.ts --mock
 node packages/workflow/dist/cli.js run packages/examples/src/vue-newsletter.workflow.ts --mock
 node packages/workflow/dist/cli.js run packages/examples/src/deep-research.workflow.ts --mock
 ```
+
 Expected: each completes and prints a returned object (no `SandboxViolation`, no `URL is not defined`, no schema errors). Use the installed bin if available (`pnpm --filter @workflow/examples exec defineworkflow run … --mock`).
 
 - [ ] **Step 6: Commit**
@@ -566,6 +628,7 @@ git commit -m "refactor(examples): typed pipeline + zod-only schemas + new URL()
 ## Task 5: Docs
 
 **Files:**
+
 - Modify: `CLAUDE.md` (lines ~214–218)
 - Modify: `.claude/skills/building-workflows/SKILL.md` (lines ~87, ~98–110, ~158)
 
@@ -575,7 +638,7 @@ Replace the "accepts either a plain JSON Schema object or a zod schema … while
 
 - [ ] **Step 2: Update the `building-workflows` skill**
 
-- The table row (line ~87) and the "Structured output with zod" section already say zod; remove any lingering "or cast the text"/plain-JSON-Schema phrasing in the troubleshooting row (line ~158) that implies a non-zod schema path. Keep "Add a zod `schema`, or cast the text" only for the *no-schema* case.
+- The table row (line ~87) and the "Structured output with zod" section already say zod; remove any lingering "or cast the text"/plain-JSON-Schema phrasing in the troubleshooting row (line ~158) that implies a non-zod schema path. Keep "Add a zod `schema`, or cast the text" only for the _no-schema_ case.
 - If the skill documents `pipeline()` as untyped or shows `prev as X` casts, update to the typed form (no cast). Add a one-line note that `new URL()` is available in the sandbox.
 
 - [ ] **Step 3: Commit**
@@ -610,5 +673,5 @@ Plus the `--mock` runs of `deep-research` and `vue-newsletter` (Task 4 Step 5).
 1. **Spec coverage:** pipeline overloads (T1) ✓, zod-only (T2) ✓, URL sandbox + types (T3) ✓, all three example rewrites (T4) ✓, docs (T5) ✓, tests at every layer ✓.
 2. **Type consistency:** `SCOPE_SCHEMA`/`SEARCH_SCHEMA`/`EXTRACT_SCHEMA`/`VERDICT_SCHEMA`/`REPORT_SCHEMA` + `SEARCH_PROMPT`/`FETCH_PROMPT`/`VERIFY_PROMPT` used consistently in deep-research; `z.infer<typeof SOURCE_RESULT>`/`z.infer<typeof CURATED>` in vue-newsletter; `AgentOptions.schema: ZodLike` matches the `agent` overloads' `AgentOptions & { schema: z.ZodType<T> }`.
 3. **No placeholders:** every step has concrete code/commands.
-</content>
-</invoke>
+   </content>
+   </invoke>

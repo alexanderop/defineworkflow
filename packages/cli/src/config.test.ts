@@ -8,7 +8,11 @@ import {
   type ConfigDeps,
 } from "./config.js";
 
-function deps(files: Record<string, string>, env: Record<string, string | undefined> = {}, cores = 12): ConfigDeps {
+function deps(
+  files: Record<string, string>,
+  env: Record<string, string | undefined> = {},
+  cores = 12,
+): ConfigDeps {
   return {
     readFile: (p) => files[p],
     homeDir: "/home/me",
@@ -101,20 +105,31 @@ describe("caps (property-based)", () => {
 
   it("effectiveConcurrency stays within [1, concurrencyCap(cores)]", () => {
     fc.assert(
-      fc.property(fc.option(fc.integer(), { nil: undefined }), fc.integer(), (concurrency, cores) => {
-        const result = effectiveConcurrency(concurrency === undefined ? {} : { concurrency }, cores);
-        expect(result).toBeGreaterThanOrEqual(1);
-        expect(result).toBeLessThanOrEqual(concurrencyCap(cores));
-      }),
+      fc.property(
+        fc.option(fc.integer(), { nil: undefined }),
+        fc.integer(),
+        (concurrency, cores) => {
+          const result = effectiveConcurrency(
+            concurrency === undefined ? {} : { concurrency },
+            cores,
+          );
+          expect(result).toBeGreaterThanOrEqual(1);
+          expect(result).toBeLessThanOrEqual(concurrencyCap(cores));
+        },
+      ),
     );
   });
 
   it("effectiveConcurrency honours an in-range request verbatim", () => {
     fc.assert(
-      fc.property(fc.integer({ min: 2, max: 1024 }), fc.integer({ min: 1, max: 16 }), (cores, request) => {
-        fc.pre(request <= concurrencyCap(cores)); // only meaningful when the request is within the cap
-        expect(effectiveConcurrency({ concurrency: request }, cores)).toBe(request);
-      }),
+      fc.property(
+        fc.integer({ min: 2, max: 1024 }),
+        fc.integer({ min: 1, max: 16 }),
+        (cores, request) => {
+          fc.pre(request <= concurrencyCap(cores)); // only meaningful when the request is within the cap
+          expect(effectiveConcurrency({ concurrency: request }, cores)).toBe(request);
+        },
+      ),
     );
   });
 

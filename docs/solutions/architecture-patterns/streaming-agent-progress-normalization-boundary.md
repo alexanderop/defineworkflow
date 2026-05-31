@@ -6,7 +6,19 @@ category: architecture-patterns
 problem_type: "workflow_pattern"
 module: "adapters"
 component: "stream-translators"
-tags: ["streaming", "adapters", "progress", "onprogress", "stream-translator", "ui", "liveness", "tokens", "tool-events", "coalescing"]
+tags:
+  [
+    "streaming",
+    "adapters",
+    "progress",
+    "onprogress",
+    "stream-translator",
+    "ui",
+    "liveness",
+    "tokens",
+    "tool-events",
+    "coalescing",
+  ]
 applies_when: "adding live progress (tokens/tools/model/elapsed) for a coding-agent harness, or touching the agent-progress/agent-tool event path"
 related:
   - "architecture-patterns/workflow-sandbox-script-constraints.md"
@@ -18,7 +30,7 @@ related:
 
 The TUI used to show every agent stuck on `running · 0 tok · 0s` for a whole run: the claude
 adapter used non-streaming `--output-format json` (nothing emitted until the process exits) and
-the header's elapsed was derived from the *last event's* timestamp, so with no mid-run events the
+the header's elapsed was derived from the _last event's_ timestamp, so with no mid-run events the
 clock visibly froze. The three installed CLIs (claude/codex/copilot) all emit newline-delimited
 JSON event streams, but with **different taxonomies**. We needed one live progress story that the
 reducer/selectors/UI never have to special-case per harness.
@@ -55,21 +67,21 @@ Concrete pieces (all wired by dependency injection, testable with the in-memory 
   `model`. `AgentState` gains `startedAt/endedAt/model/liveTokens`; `RunState` gains
   `startedAt/endedAt`. The reducer keeps `liveTokens` **monotonic** (`Math.max`).
 - **UI selectors are pure with `now` injected** (`formatDuration/formatModel/humanizeTool/
-  activityDigest/promptPreview/agentRow/detailSections`). `App` runs a single ~250ms ticker that
+activityDigest/promptPreview/agentRow/detailSections`). `App` runs a single ~250ms ticker that
   bumps the spinner frame + `now` **only while `RunState.status === "running"`**.
 
 ### Non-obvious rules that bite
 
-1. **Coalescing must seed `lastProgressAt = -Infinity`** so the *first* update always emits;
+1. **Coalescing must seed `lastProgressAt = -Infinity`** so the _first_ update always emits;
    otherwise with a fixed clock (`now() === 0` in tests) every progress is dropped. And emit the
-   **best-known** `maxTokens` on every coalesced flush (not just when *this* update carried
+   **best-known** `maxTokens` on every coalesced flush (not just when _this_ update carried
    tokens), so a model-only update still flushes tokens seen since the last emit.
 2. **Per-harness token semantics differ — accumulate, don't overwrite.** codex emits one
-   `turn.completed` *per turn*; sum their usage or a multi-turn run undercounts (and the budget
-   gate reads that). claude reports `output_tokens` *per assistant message*; sum across messages
+   `turn.completed` _per turn_; sum their usage or a multi-turn run undercounts (and the budget
+   gate reads that). claude reports `output_tokens` _per assistant message_; sum across messages
    for a cumulative live count. The authoritative final usage still comes from each harness's
    terminal (`result`/`turn.completed`) event.
-3. **Freeze elapsed at `run-finished`** (`RunState.endedAt`), not live `now`. Otherwise *watching*
+3. **Freeze elapsed at `run-finished`** (`RunState.endedAt`), not live `now`. Otherwise _watching_
    a finished run shows wall-clock-since-finish instead of the true duration.
 4. **The UI may call `Date.now()`; the workflow sandbox may not.** The ticker is a normal process;
    the `Date.now()`/`Math.random()` ban only applies inside the VM sandbox (see related doc).
@@ -85,7 +97,7 @@ Concrete pieces (all wired by dependency injection, testable with the in-memory 
 Isolating each CLI's quirks in a small, fixture-tested translator contains the blast radius when a
 CLI's event taxonomy drifts across versions, and keeps the reducer/selectors/components 100%
 harness-agnostic — a new harness is one translator + one fixture, no UI changes. Getting the
-coalescing seed, token accumulation, and elapsed-freeze rules wrong produces *plausible-looking*
+coalescing seed, token accumulation, and elapsed-freeze rules wrong produces _plausible-looking_
 but wrong numbers (frozen clocks, undercounted budgets, giant elapsed on watched runs) that unit
 tests with a fixed clock won't surface unless you test those exact edges.
 
@@ -110,7 +122,11 @@ const runner = {
     ctx.onProgress?.({ tool: { name: "WebFetch", input: { url: "https://alexop.dev" } } });
     ctx.onProgress?.({ tokens: 120, model: "claude-opus-4-8[1m]" });
     ctx.onProgress?.({ tokens: 340 });
-    return ok({ text: "found 2 posts", usage: { inputTokens: 10, outputTokens: 106 }, toolCalls: [] });
+    return ok({
+      text: "found 2 posts",
+      usage: { inputTokens: 10, outputTokens: 106 },
+      toolCalls: [],
+    });
   },
 };
 // Use a monotonically increasing now() (e.g. +1500/call) so coalescing (≥1s) lets progress through.

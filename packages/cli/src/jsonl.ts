@@ -44,16 +44,15 @@ export function serializeJournalEntry(entry: JournalEntry): string {
 
 export function parseEventLine(line: string): Result<WorkflowEvent, WorkflowError> {
   return parseJson(line).andThen((value) =>
-    isEventLike(value)
-      ? ok(value)
-      : err(corrupt("not a workflow event (missing string `type`)")),
+    isEventLike(value) ? ok(value) : err(corrupt("not a workflow event (missing string `type`)")),
   );
 }
 
 export function parseJournalLine(line: string): Result<JournalEntry, WorkflowError> {
   return parseJson(line).andThen((value) => {
     const result = journalEntrySchema.safeParse(value);
-    if (!result.success) return err(corrupt("not a journal entry (expected seq/key/text/data/outputTokens)"));
+    if (!result.success)
+      return err(corrupt("not a journal entry (expected seq/key/text/data/outputTokens)"));
     // oxlint-disable-next-line typescript/consistent-type-assertions -- validated shape; z.unknown() leaves `data` optional in zod's inferred type, narrowed to JournalEntry at this trusted disk boundary
     return ok(result.data as JournalEntry);
   });

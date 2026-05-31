@@ -41,7 +41,7 @@ LLM agents are non-deterministic and expensive to call. A long, multi-step
 agentic process that dies halfway through shouldn't have to start over — and
 re-running it shouldn't re-spend tokens on work that already succeeded.
 
-`workflow` makes the *orchestration* deterministic while the *agents* stay
+`workflow` makes the _orchestration_ deterministic while the _agents_ stay
 probabilistic:
 
 - **Durable & crash-safe** — each `agent()` result is appended to a per-run
@@ -85,17 +85,17 @@ runner strips those imports and injects the live runtime at execution time.
 A workflow is a TS file whose default export is `defineWorkflow({ ..., run() })`.
 The runtime hands `run()` these primitives:
 
-| Primitive | Purpose |
-| --- | --- |
-| `agent(prompt, opts?)` | Invoke a coding agent; returns its text, or a typed object when `opts.schema` is given |
-| `parallel(thunks)` | Run agent calls concurrently (barrier — awaits all) |
-| `pipeline(items, ...stages)` | Run each item through staged agent calls, no barrier between stages |
-| `phase(title)` | Group subsequent agents under a phase in the UI |
-| `log(message)` | Emit a progress line to the user |
-| `askUserQuestion(opts)` | Ask the human a question mid-run and await the answer (journaled, so resume never re-asks) |
-| `workflow(name, args?)` | Run another workflow inline (one level deep; shares the budget) |
-| `budget` | Token budget: `total`, `spent()`, `remaining()` |
-| `args` | The value passed via `--args` |
+| Primitive                    | Purpose                                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------ |
+| `agent(prompt, opts?)`       | Invoke a coding agent; returns its text, or a typed object when `opts.schema` is given     |
+| `parallel(thunks)`           | Run agent calls concurrently (barrier — awaits all)                                        |
+| `pipeline(items, ...stages)` | Run each item through staged agent calls, no barrier between stages                        |
+| `phase(title)`               | Group subsequent agents under a phase in the UI                                            |
+| `log(message)`               | Emit a progress line to the user                                                           |
+| `askUserQuestion(opts)`      | Ask the human a question mid-run and await the answer (journaled, so resume never re-asks) |
+| `workflow(name, args?)`      | Run another workflow inline (one level deep; shares the budget)                            |
+| `budget`                     | Token budget: `total`, `spent()`, `remaining()`                                            |
+| `args`                       | The value passed via `--args`                                                              |
 
 `agent(prompt, opts?)` accepts these `opts`: `schema` (zod → typed output),
 `label` and `phase` (UI grouping), `model`, `agentType`, `adapter` (per-call
@@ -126,7 +126,7 @@ runs both the same way (`workflow run <path>`).
 **Single file** — everything in one `*.workflow.ts`. Best for small workflows;
 this is the `haiku.workflow.ts` shown at the top of this README.
 
-**Multi-file** — a slim *entry* file that exports `defineWorkflow({...})`, plus
+**Multi-file** — a slim _entry_ file that exports `defineWorkflow({...})`, plus
 local helper files (schemas, prompts, …) imported with **relative paths**, so the
 entry reads like a table of contents:
 
@@ -222,16 +222,16 @@ Dependency direction: `schema` → `core` → `adapters` → `cli`, with `ui`,
 at the edges. Packages are wired by dependency injection, which is what makes
 them testable with in-memory fakes.
 
-| Package | Responsibility |
-| --- | --- |
-| `@workflow/schema` | zod → JSON Schema conversion and validation (the only place that touches `z.toJSONSchema()`) |
-| `@workflow/core` | The execution engine: `createRuntime()`, journaling/replay, events, budget, sandbox |
-| `@workflow/adapters` | Harness backends (Claude / Codex / Copilot CLIs, raw Anthropic API) behind a uniform `AgentRunner` |
-| `@workflow/cli` | The `workflow` binary — run, watch, resume, save, consent, persistence |
-| `@workflow/ui` | React + Ink terminal dashboard driven by the event stream |
-| `defineworkflow` (`packages/workflow`) | The public authoring entrypoint workflow files import from |
-| `@workflow/examples` | Runnable example workflows |
-| `@workflow/test-support` | Private, test-only — shared deterministic fakes and data factories |
+| Package                                | Responsibility                                                                                     |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `@workflow/schema`                     | zod → JSON Schema conversion and validation (the only place that touches `z.toJSONSchema()`)       |
+| `@workflow/core`                       | The execution engine: `createRuntime()`, journaling/replay, events, budget, sandbox                |
+| `@workflow/adapters`                   | Harness backends (Claude / Codex / Copilot CLIs, raw Anthropic API) behind a uniform `AgentRunner` |
+| `@workflow/cli`                        | The `workflow` binary — run, watch, resume, save, consent, persistence                             |
+| `@workflow/ui`                         | React + Ink terminal dashboard driven by the event stream                                          |
+| `defineworkflow` (`packages/workflow`) | The public authoring entrypoint workflow files import from                                         |
+| `@workflow/examples`                   | Runnable example workflows                                                                         |
+| `@workflow/test-support`               | Private, test-only — shared deterministic fakes and data factories                                 |
 
 The engine is **event-sourced**: the runtime emits a typed `WorkflowEvent`
 stream, and `reduce(state, event)` rebuilds the `RunState` consumed by the UI and

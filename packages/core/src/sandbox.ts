@@ -50,7 +50,9 @@ export function transformScript(source: string): string {
   // Match the `<name> as default` specifier anywhere in the block and strip the whole
   // `export { … }` statement (exports are inert inside the sandbox IIFE; the captured
   // declaration stays in the body).
-  const bundledDefault = /export\s*\{[^}]*?\b([A-Za-z0-9_$]+)\s+as\s+default\b[^}]*\}\s*;?/.exec(authoringSource);
+  const bundledDefault = /export\s*\{[^}]*?\b([A-Za-z0-9_$]+)\s+as\s+default\b[^}]*\}\s*;?/.exec(
+    authoringSource,
+  );
   const bundledName = bundledDefault?.[1];
   if (bundledDefault && bundledName) {
     const body = authoringSource.replace(bundledDefault[0], "");
@@ -65,7 +67,9 @@ export function transformScript(source: string): string {
   const hasMeta = /export\s+const\s+meta\s*=/.test(masked);
   const hasDefineWorkflow = /\bexport\s+default\s+defineWorkflow\s*\(/.test(masked);
   if (!hasMeta && !hasDefineWorkflow) {
-    throw new Error("SandboxViolation: workflow script must export `const meta` or `export default defineWorkflow({ … })`");
+    throw new Error(
+      "SandboxViolation: workflow script must export `const meta` or `export default defineWorkflow({ … })`",
+    );
   }
   if (hasDefineWorkflow) {
     const safe = replaceFirstReal(
@@ -81,9 +85,19 @@ export function transformScript(source: string): string {
   // value onto a global for extraction — without needing to locate the end of the
   // meta literal. Robust to multi-line literals, `as const`, semicolons inside
   // strings, and a missing trailing semicolon.
-  const metaRenamed = replaceFirstReal(authoringSource, masked, /export\s+const\s+meta\s*=\s*/, "const meta = globalThis.__meta = ");
+  const metaRenamed = replaceFirstReal(
+    authoringSource,
+    masked,
+    /export\s+const\s+meta\s*=\s*/,
+    "const meta = globalThis.__meta = ",
+  );
   // The first splice shifts offsets, so re-mask before locating the `export default` return.
-  const safe = replaceFirstReal(metaRenamed, maskNonCode(metaRenamed), /\bexport\s+default\b/, "return");
+  const safe = replaceFirstReal(
+    metaRenamed,
+    maskNonCode(metaRenamed),
+    /\bexport\s+default\b/,
+    "return",
+  );
   const wrapped = `(async () => {\n${safe}\n})()`;
   return transformSync(wrapped, { loader: "ts", format: "esm" }).code;
 }
@@ -108,31 +122,81 @@ function maskNonCode(source: string): string {
     const c = source[i];
     const next = i + 1 < n ? source[i + 1] : "";
     if (state === "code") {
-      if (c === "/" && next === "/") { state = "line"; i += 2; continue; }
-      if (c === "/" && next === "*") { state = "block"; i += 2; continue; }
-      if (c === "'") { state = "single"; i += 1; continue; }
-      if (c === '"') { state = "double"; i += 1; continue; }
-      if (c === "`") { state = "template"; i += 1; continue; }
+      if (c === "/" && next === "/") {
+        state = "line";
+        i += 2;
+        continue;
+      }
+      if (c === "/" && next === "*") {
+        state = "block";
+        i += 2;
+        continue;
+      }
+      if (c === "'") {
+        state = "single";
+        i += 1;
+        continue;
+      }
+      if (c === '"') {
+        state = "double";
+        i += 1;
+        continue;
+      }
+      if (c === "`") {
+        state = "template";
+        i += 1;
+        continue;
+      }
       i += 1;
       continue;
     }
     if (state === "line") {
-      if (c === "\n") { state = "code"; i += 1; continue; }
-      blank(i); i += 1; continue;
+      if (c === "\n") {
+        state = "code";
+        i += 1;
+        continue;
+      }
+      blank(i);
+      i += 1;
+      continue;
     }
     if (state === "block") {
-      if (c === "*" && next === "/") { blank(i); blank(i + 1); state = "code"; i += 2; continue; }
-      blank(i); i += 1; continue;
+      if (c === "*" && next === "/") {
+        blank(i);
+        blank(i + 1);
+        state = "code";
+        i += 2;
+        continue;
+      }
+      blank(i);
+      i += 1;
+      continue;
     }
     // string ("single"/"double") or template literal
-    if (c === "\\") { blank(i); blank(i + 1); i += 2; continue; }
-    if ((state === "single" && c === "'") || (state === "double" && c === '"') || (state === "template" && c === "`")) {
-      state = "code"; i += 1; continue;
+    if (c === "\\") {
+      blank(i);
+      blank(i + 1);
+      i += 2;
+      continue;
+    }
+    if (
+      (state === "single" && c === "'") ||
+      (state === "double" && c === '"') ||
+      (state === "template" && c === "`")
+    ) {
+      state = "code";
+      i += 1;
+      continue;
     }
     // A bare newline terminates a single/double quoted string (it's unterminated source); template
     // literals legally span lines, so they keep going.
-    if ((state === "single" || state === "double") && c === "\n") { state = "code"; i += 1; continue; }
-    blank(i); i += 1;
+    if ((state === "single" || state === "double") && c === "\n") {
+      state = "code";
+      i += 1;
+      continue;
+    }
+    blank(i);
+    i += 1;
   }
   return chars.join("");
 }
@@ -142,7 +206,12 @@ function maskNonCode(source: string): string {
  * `source`) by splicing `replacement` into `source` at the same offset. Detect and replace thus act
  * on the *same* real match; returns `source` unchanged when there is no real match.
  */
-function replaceFirstReal(source: string, masked: string, pattern: RegExp, replacement: string): string {
+function replaceFirstReal(
+  source: string,
+  masked: string,
+  pattern: RegExp,
+  replacement: string,
+): string {
   const m = pattern.exec(masked);
   if (!m) return source;
   return source.slice(0, m.index) + replacement + source.slice(m.index + m[0].length);
@@ -168,7 +237,10 @@ function stripWorkflowImports(source: string): string {
  * resolves no modules, so `import { z } from "zod"` must become `import { z } from "defineworkflow"`.
  */
 function assertNoForeignImports(source: string): void {
-  const match = /^\s*import\s+(?:type\s+)?(?:(?!^\s*import\s)[\s\S])*?\s+from\s+["']([^"']+)["'];?\s*$/m.exec(source);
+  const match =
+    /^\s*import\s+(?:type\s+)?(?:(?!^\s*import\s)[\s\S])*?\s+from\s+["']([^"']+)["'];?\s*$/m.exec(
+      source,
+    );
   const mod = match?.[1];
   if (mod === undefined) return;
   const hint =
@@ -268,7 +340,9 @@ function locateMetaLiteral(program: AstNode): LocatedMeta {
   const bundled = findBundledDefineWorkflow(stmts);
   if (bundled) return { node: bundled, mode: "defineWorkflow" };
 
-  throw new Error("SandboxViolation: workflow metadata must be the first statement in the workflow");
+  throw new Error(
+    "SandboxViolation: workflow metadata must be the first statement in the workflow",
+  );
 }
 
 /** Validate `init` is a `defineWorkflow(<objectLiteral>)` call and return its first argument node. */
@@ -302,18 +376,22 @@ function findBundledDefineWorkflow(stmts: Array<AstNode | undefined>): AstNode |
 }
 
 function evaluateWorkflowDefinitionLiteral(node: AstNode): unknown {
-  if (node.type !== "ObjectExpression") throw violation("defineWorkflow argument must be an object literal");
+  if (node.type !== "ObjectExpression")
+    throw violation("defineWorkflow argument must be an object literal");
   const out: Record<string, unknown> = {};
   for (const prop of asNodeArray(node.properties)) {
     if (!prop) throw violation("only plain properties allowed in defineWorkflow metadata");
-    if (prop.type === "SpreadElement") throw violation("spread not allowed in defineWorkflow metadata");
-    if (prop.type !== "Property") throw violation("only plain properties allowed in defineWorkflow metadata");
+    if (prop.type === "SpreadElement")
+      throw violation("spread not allowed in defineWorkflow metadata");
+    if (prop.type !== "Property")
+      throw violation("only plain properties allowed in defineWorkflow metadata");
     if (prop.computed) throw violation("computed keys not allowed in defineWorkflow metadata");
     const keyNode = childNode(prop, "key");
     if (!keyNode) throw violation("only plain properties allowed in defineWorkflow metadata");
     const key = propertyKey(keyNode, "defineWorkflow");
     if (key === "run") continue;
-    if (prop.kind !== "init" || prop.method) throw violation(`methods/accessors not allowed in defineWorkflow.${key}`);
+    if (prop.kind !== "init" || prop.method)
+      throw violation(`methods/accessors not allowed in defineWorkflow.${key}`);
     const valueNode = childNode(prop, "value");
     if (!valueNode) throw violation(`non-literal value in defineWorkflow.${key}`);
     out[key] = evaluateLiteral(valueNode, `defineWorkflow.${key}`);
@@ -332,7 +410,8 @@ function evaluateLiteral(node: AstNode, path: string): unknown {
         if (prop.type === "SpreadElement") throw violation(`spread not allowed in ${path}`);
         if (prop.type !== "Property") throw violation(`only plain properties allowed in ${path}`);
         if (prop.computed) throw violation(`computed keys not allowed in ${path}`);
-        if (prop.kind !== "init" || prop.method) throw violation(`methods/accessors not allowed in ${path}`);
+        if (prop.kind !== "init" || prop.method)
+          throw violation(`methods/accessors not allowed in ${path}`);
         const keyNode = childNode(prop, "key");
         if (!keyNode) throw violation(`only plain properties allowed in ${path}`);
         const key = propertyKey(keyNode, path);
@@ -362,7 +441,8 @@ function evaluateLiteral(node: AstNode, path: string): unknown {
     }
     case "UnaryExpression": {
       const arg = childNode(node, "argument");
-      if (node.operator === "-" && arg?.type === "Literal" && typeof arg.value === "number") return -arg.value;
+      if (node.operator === "-" && arg?.type === "Literal" && typeof arg.value === "number")
+        return -arg.value;
       throw violation(`only negative-number unary allowed in ${path}`);
     }
     default:
@@ -382,7 +462,10 @@ function quasiValue(quasi: AstNode | undefined): string {
 
 function propertyKey(node: AstNode, path: string): string {
   if (node.type === "Identifier" && typeof node.name === "string") return node.name;
-  if (node.type === "Literal" && (typeof node.value === "string" || typeof node.value === "number")) {
+  if (
+    node.type === "Literal" &&
+    (typeof node.value === "string" || typeof node.value === "number")
+  ) {
     return String(node.value);
   }
   throw violation(`unsupported key in ${path}: ${node.type}`);
@@ -392,7 +475,8 @@ function validateMeta(meta: unknown): WorkflowMeta {
   if (!meta || typeof meta !== "object") throw violation("meta must be an object");
   const m: Record<string, unknown> = { ...meta };
   const { name, description, whenToUse, harness, phases, output } = m;
-  if (typeof name !== "string" || !name.trim()) throw violation("meta.name must be a non-empty string");
+  if (typeof name !== "string" || !name.trim())
+    throw violation("meta.name must be a non-empty string");
   if (typeof description !== "string" || !description.trim()) {
     throw violation("meta.description must be a non-empty string");
   }
@@ -403,8 +487,10 @@ function validateMeta(meta: unknown): WorkflowMeta {
   // declared `meta.harness` is the single source of truth, but validating it
   // (→ `HarnessNotDeclared`) is the CLI layer's job (`resolveHarness`), so a
   // missing/unknown value is passed through untouched for that gate to report.
-  if (phases !== undefined && !Array.isArray(phases)) throw violation("meta.phases must be an array");
-  if (output !== undefined && typeof output !== "string") throw violation("meta.output must be a string");
+  if (phases !== undefined && !Array.isArray(phases))
+    throw violation("meta.phases must be an array");
+  if (output !== undefined && typeof output !== "string")
+    throw violation("meta.output must be a string");
   // `harness` flows through unvalidated (CLI's job). The HarnessId brand is a
   // narrowing the sandbox deliberately doesn't enforce, so accept it as-declared.
   // oxlint-disable-next-line typescript/consistent-type-assertions -- harness is validated downstream by the CLI; the sandbox passes the declared value through

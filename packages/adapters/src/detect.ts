@@ -22,7 +22,11 @@ export const CAPABILITIES: Readonly<Record<AdapterId, Capabilities>> = {
 };
 
 type CliAdapterId = Exclude<AdapterId, "raw-api">;
-const CLI_BINS: Readonly<Record<CliAdapterId, string>> = { claude: "claude", codex: "codex", copilot: "copilot" };
+const CLI_BINS: Readonly<Record<CliAdapterId, string>> = {
+  claude: "claude",
+  codex: "codex",
+  copilot: "copilot",
+};
 const CLI_ADAPTER_IDS: readonly CliAdapterId[] = ["claude", "codex", "copilot"];
 
 async function binExists(bin: string): Promise<boolean> {

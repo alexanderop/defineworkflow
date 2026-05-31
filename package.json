@@ -3,15 +3,12 @@
   "version": "0.5.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.5.0",
-  "engines": {
-    "node": ">=24",
-    "pnpm": ">=11"
-  },
   "scripts": {
     "build": "pnpm -r --filter=!./apps/* build",
     "typecheck": "pnpm -r --filter=!./apps/* build && pnpm -r typecheck",
     "lint": "oxlint . --ignore-pattern repos",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
     "knip": "knip",
     "docs:dev": "pnpm --filter @workflow/docs dev",
     "docs:build": "pnpm --filter @workflow/docs build",
@@ -34,10 +31,16 @@
     "fast-check": "^4.8.0",
     "knip": "^6.14.2",
     "lefthook": "^2.1.9",
+    "oxfmt": "^0.52.0",
     "oxlint": "^1.67.0",
     "tsup": "^8.3.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.14",
     "vitest": "^4.1.7"
-  }
+  },
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=11"
+  },
+  "packageManager": "pnpm@11.5.0"
 }

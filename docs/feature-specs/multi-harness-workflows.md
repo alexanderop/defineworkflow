@@ -5,12 +5,12 @@
 ## Overview
 
 Today `meta.harness` is the single source of truth for the whole run, resolved to one
-adapter. The runtime *already* supports per-call overrides (`AgentOptions.adapter` +
+adapter. The runtime _already_ supports per-call overrides (`AgentOptions.adapter` +
 `AgentOptions.model`) and reusable `profile()` configs, dispatched via `resolveRunner`
 (`runtime.ts:265`) and `buildRunnerMap` (`adapter-select.ts:66`) — so mixing harnesses is
 mechanically possible but undocumented and unguarded. The gap is safety and ergonomics:
 an unavailable per-call adapter currently **silently falls back** to the workflow default.
-This feature keeps `meta.harness` as the run *default*, lets any `agent()`/`profile()`
+This feature keeps `meta.harness` as the run _default_, lets any `agent()`/`profile()`
 override it for that step, and adds a fail-fast pre-flight that validates the full harness
 set before the first agent runs.
 

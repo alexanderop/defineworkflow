@@ -10,13 +10,13 @@
 When a workflow runs, the TUI shows `running · 0 tok · 0s` and every agent stuck on
 `started` for the entire duration. Two causes:
 
-1. The header's elapsed time is derived from the *last event's* timestamp, and no
+1. The header's elapsed time is derived from the _last event's_ timestamp, and no
    events arrive during a long `claude -p` call — so the clock visibly freezes.
 2. The claude adapter uses `--output-format json` (non-streaming): it emits nothing
    until the process exits, so there are no intermediate tokens, tool calls, or
    progress to show. `AgentState.tools` exists but is never populated.
 
-The user can't tell a healthy run from a hung one, and there's no sense of *what* an
+The user can't tell a healthy run from a hung one, and there's no sense of _what_ an
 agent is doing. (This is what made the stdin-hang bug feel like "nothing happens".)
 
 ## Goals
@@ -32,7 +32,7 @@ agent is doing. (This is what made the stdin-hang bug feel like "nothing happens
 
 - **No raw tool-call streaming in the detail view.** Always digested (last 3 of N).
 - **Schema reliability** (claude `--json-schema` sometimes returns prose instead of
-  `structured_output`) is a *separate* known bug. Streaming does not fix it; the
+  `structured_output`) is a _separate_ known bug. Streaming does not fix it; the
   coercion/retry fix is a follow-up, not part of this spec.
 - **Non-TTY line-log** does not get the live animation. It gets only a per-agent final
   recap line. (Future: optional periodic heartbeat line.)
@@ -114,16 +114,16 @@ Spinners resolve to `✓`/`✗`; rows freeze at final `tok · tools · duration`
 
 ### Where each datum comes from
 
-| UI element | Source (via the contract) |
-|---|---|
-| spinner / `✓` / `✗` | `AgentState.status` + the UI tick |
-| `20.4k tok` (live) → final | `agent-progress.tokens` → `agent-finished.usage` |
-| `5 tools` / Activity list | `agent-tool` events → `AgentState.tools` |
-| `Opus 4.8 (1M context)` | `agent-progress.model` → `formatModel(id)` |
-| `· 21s` / `· 18s` | `now − startedAt` (running) / `endedAt − startedAt` (done) |
-| Prompt / `… N more lines` | `AgentState.prompt` → `promptPreview()` |
-| Outcome | `AgentState.resultText` |
-| `0/1 agent` · `3/3 agents · done` | `RunState` phase/agent counts + `status` |
+| UI element                        | Source (via the contract)                                  |
+| --------------------------------- | ---------------------------------------------------------- |
+| spinner / `✓` / `✗`               | `AgentState.status` + the UI tick                          |
+| `20.4k tok` (live) → final        | `agent-progress.tokens` → `agent-finished.usage`           |
+| `5 tools` / Activity list         | `agent-tool` events → `AgentState.tools`                   |
+| `Opus 4.8 (1M context)`           | `agent-progress.model` → `formatModel(id)`                 |
+| `· 21s` / `· 18s`                 | `now − startedAt` (running) / `endedAt − startedAt` (done) |
+| Prompt / `… N more lines`         | `AgentState.prompt` → `promptPreview()`                    |
+| Outcome                           | `AgentState.resultText`                                    |
+| `0/1 agent` · `3/3 agents · done` | `RunState` phase/agent counts + `status`                   |
 
 ## Architecture: normalization boundary at the adapter
 
@@ -145,11 +145,11 @@ copilot --format json┘                              │
 
 Confirmed native envelopes (probed 2026-05-30):
 
-| Harness | Flag | Model from | Live tokens from | Tool calls from | Final from |
-|---|---|---|---|---|---|
-| claude | `--output-format stream-json --verbose` | `system/init.model` | `assistant.message.usage.output_tokens` | `assistant` `tool_use` content blocks | `result` (usage + `structured_output`) |
-| codex | `exec --json` | thread/turn init | `turn.completed` | `item.completed` (`item.type` = `command_execution` / `mcp_tool_call`) | `turn.completed` + `agent_message` item |
-| copilot | `--output-format json` | `session.*` | `assistant.message_delta` / `assistant.turn_end` | `assistant` tool-call events | `result` |
+| Harness | Flag                                    | Model from          | Live tokens from                                 | Tool calls from                                                        | Final from                              |
+| ------- | --------------------------------------- | ------------------- | ------------------------------------------------ | ---------------------------------------------------------------------- | --------------------------------------- |
+| claude  | `--output-format stream-json --verbose` | `system/init.model` | `assistant.message.usage.output_tokens`          | `assistant` `tool_use` content blocks                                  | `result` (usage + `structured_output`)  |
+| codex   | `exec --json`                           | thread/turn init    | `turn.completed`                                 | `item.completed` (`item.type` = `command_execution` / `mcp_tool_call`) | `turn.completed` + `agent_message` item |
+| copilot | `--output-format json`                  | `session.*`         | `assistant.message_delta` / `assistant.turn_end` | `assistant` tool-call events                                           | `result`                                |
 
 Noise each translator must skip: claude `hook_started`/`hook_response`/`rate_limit_event`/
 `notification`; codex `thread.started`/`turn.started`; copilot `session.*`.
@@ -162,14 +162,14 @@ Noise each translator must skip: claude `hook_started`/`hook_response`/`rate_lim
 
 ```ts
 interface AgentProgress {
-  readonly tool?: ToolEvent;     // a tool call just observed
-  readonly tokens?: number;      // cumulative output tokens so far
-  readonly model?: string;       // raw model id, e.g. "claude-opus-4-8[1m]"
+  readonly tool?: ToolEvent; // a tool call just observed
+  readonly tokens?: number; // cumulative output tokens so far
+  readonly model?: string; // raw model id, e.g. "claude-opus-4-8[1m]"
 }
 interface RunCtx {
   readonly runId: string;
   readonly seq: number;
-  readonly onProgress?: (p: AgentProgress) => void;   // NEW (optional)
+  readonly onProgress?: (p: AgentProgress) => void; // NEW (optional)
 }
 ```
 
@@ -177,11 +177,13 @@ Adapters that can't stream simply never call `onProgress`; everything still work
 just without live updates.
 
 **Events** (`core/events.ts`):
-- `agent-tool` `{ key, tool, at }` — *now actually emitted* (one per tool call).
+
+- `agent-tool` `{ key, tool, at }` — _now actually emitted_ (one per tool call).
 - **new** `agent-progress` `{ key, tokens?, model?, at }` — coalesced to ≤1/sec.
 - `agent-finished` gains `model?: string`.
 
 **State** (`core/events.ts`):
+
 - `AgentState` += `startedAt?`, `endedAt?`, `model?`, `liveTokens?` (`tools` already present).
 - `RunState` += `startedAt?`.
 - `reduce` sets `startedAt` from `agent-started.at`, `endedAt` from
@@ -191,6 +193,7 @@ just without live updates.
 ## Slice 1 — Streaming data foundation
 
 ### 1.1 ProcessRunner: incremental output
+
 `createProcessRunner` currently buffers all stdout and resolves on `close`. Add an
 optional `onLine?: (line: string) => void` to `ProcessSpec`. Implementation keeps a
 rolling buffer, splits on `\n`, and invokes `onLine` per complete line while still
@@ -199,14 +202,17 @@ stdin-close fix stays. Unit test: feed a fake child that writes 3 lines over tim
 `onLine` called 3× in order, final `stdout` still complete.
 
 ### 1.2 RunCtx.onProgress wiring (runtime)
+
 `agent()` constructs `ctx = { runId, seq: mySeq, onProgress }` where `onProgress`
 stamps the agent `key` and emits:
+
 - `tool` → `agent-tool`
 - `tokens`/`model` → `agent-progress`, **coalesced**: keep last-emitted timestamp per
-  agent; drop a progress update if < ~1000ms since the last *persisted* one (always
+  agent; drop a progress update if < ~1000ms since the last _persisted_ one (always
   keep the final state via `agent-finished`). Token monotonicity preserved.
 
 ### 1.3 StreamTranslators (one per adapter)
+
 Each adapter spawns with its streaming flag, passes `onLine` to the ProcessRunner, and
 runs a small pure translator `(line) => AgentProgress | null` plus terminal extraction
 (final text + schema data + usage). Translators are pure and unit-tested against
@@ -220,17 +226,20 @@ captured fixture streams (one `.ndjson` fixture per harness under `fixtures/`).
   `message_delta`→tokens, `result`→final. Keep existing schema coercion/retry.
 
 ### 1.4 Capabilities
+
 `detect.ts` `CAPABILITIES`: set `toolEvents: true` for claude/codex/copilot; set
 `reportsTokens: true` for codex and copilot (their turn/result events carry real usage,
 replacing today's `approximate` estimate). Drop `approximate` where real usage exists.
 
 ### 1.5 Persistence
+
 `agent-tool` and coalesced `agent-progress` are persisted to `events.jsonl` like any
 event (≤1/sec keeps volume modest, ~50 lines for a 50s agent), so detached `watch`
 also gets liveness. The journal (success-only, separate file) is unaffected — progress
 events are not journaled and do not influence replay/determinism.
 
 ### Slice 1 verification
+
 A headless run's `events.jsonl` shows, per agent: `agent-started` → `agent-tool`×N →
 rising `agent-progress` tokens (with `model`) → `agent-finished` carrying `model`.
 Translators covered by fixture-based unit tests for all three harnesses.
@@ -238,12 +247,14 @@ Translators covered by fixture-based unit tests for all three harnesses.
 ## Slice 2 — UI redesign (harness-agnostic)
 
 ### 2.1 now-ticker (`App.tsx`)
+
 A `setInterval(~250ms)` bumps a `tick` state while `RunState.status === "running"`,
 cleared on finish. Drives spinner frames and elapsed. `now = Date.now()` (the UI is a
 normal process — the `Date.now()` sandbox ban only applies inside the workflow VM).
 Plays with the existing 100ms render throttle.
 
 ### 2.2 selectors (`ui/selectors.ts`) — all pure, `now` injected
+
 - `formatDuration(ms)` → `m:ss` (`0:43`) or `Ns` for sub-minute as in mockups.
 - `formatModel(id)` → friendly name, e.g. `claude-opus-4-8[1m]` → `Opus 4.8 (1M context)`
   via a small known-id map with a graceful fallback to the raw id.
@@ -258,6 +269,7 @@ Plays with the existing 100ms render throttle.
   pane: Status, Metrics, **Prompt**, **Activity**, **Outcome**.
 
 ### 2.3 components
+
 - **Header.tsx** — `name` / `description` / right: `X/Y agents · {runElapsed} · {status}`.
 - **AgentsColumn.tsx** — rows: `icon label  ⟨dim model⟩` left, `{tok · tools · dur}`
   right-aligned; truncate label to fit.
@@ -271,6 +283,7 @@ Plays with the existing 100ms render throttle.
   unlabeled agents read like the mockup's "Use the WebFetch tool (…".
 
 ### Slice 2 verification
+
 Render tests (ink-testing-library) with fixed `RunState` + fixed `now` snapshot each
 pane in running and finished states; selector unit tests cover humanize/digest/preview/
 format edge cases (empty tools, long prompt, unknown model id, arg-less tool).

@@ -49,13 +49,10 @@ describe("pipeline", () => {
       emit: () => {},
       now: () => 0,
     });
-    const out = await r.pipeline(
-      [1, 2],
-      async (_p, item) => {
-        if (item === 1) throw new Error("nope");
-        return item;
-      },
-    );
+    const out = await r.pipeline([1, 2], async (_p, item) => {
+      if (item === 1) throw new Error("nope");
+      return item;
+    });
     expect(out).toEqual([null, 2]);
   });
 

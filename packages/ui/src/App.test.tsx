@@ -11,7 +11,13 @@ const events: WorkflowEvent[] = [
   { type: "agent-queued", key: "k0", label: "angle-0", phase: "Search", prompt: "Search X", at: 3 },
   { type: "agent-started", key: "k0", at: 4 },
   { type: "agent-output", key: "k0", chunk: "found stuff", at: 5 },
-  { type: "agent-finished", key: "k0", usage: { inputTokens: 1, outputTokens: 17 }, cached: false, at: 6 },
+  {
+    type: "agent-finished",
+    key: "k0",
+    usage: { inputTokens: 1, outputTokens: 17 },
+    cached: false,
+    at: 6,
+  },
 ];
 
 const KEY = { down: "[B", up: "[A", right: "[C", left: "[D", esc: "" };
@@ -56,7 +62,9 @@ describe("App", () => {
 
   it("emits pause/stop/save actions via onAction", async () => {
     const actions: UiAction[] = [];
-    const { stdin } = render(<App events={events} animate={false} onAction={(a) => actions.push(a)} />);
+    const { stdin } = render(
+      <App events={events} animate={false} onAction={(a) => actions.push(a)} />,
+    );
     await tick();
     stdin.write("p");
     await tick();
@@ -74,10 +82,18 @@ describe("App", () => {
   it("shows the question prompt and emits an answer action on selection", async () => {
     const qEvents: WorkflowEvent[] = [
       { type: "run-started", runId: "r" as RunId, name: "wf", at: 0 },
-      { type: "question-asked", key: "deploy-target", question: "## Where to deploy?", choices: ["staging", "production"], at: 1 },
+      {
+        type: "question-asked",
+        key: "deploy-target",
+        question: "## Where to deploy?",
+        choices: ["staging", "production"],
+        at: 1,
+      },
     ];
     const actions: UiAction[] = [];
-    const { lastFrame, stdin } = render(<App events={qEvents} animate={false} onAction={(a) => actions.push(a)} />);
+    const { lastFrame, stdin } = render(
+      <App events={qEvents} animate={false} onAction={(a) => actions.push(a)} />,
+    );
     await tick();
     expect(lastFrame() ?? "").toContain("Where to deploy?");
     stdin.write(KEY.down); // highlight "production"
@@ -93,7 +109,9 @@ describe("App", () => {
       { type: "question-asked", key: "k", question: "Name?", at: 1 },
     ];
     const actions: UiAction[] = [];
-    const { stdin } = render(<App events={qEvents} animate={false} onAction={(a) => actions.push(a)} />);
+    const { stdin } = render(
+      <App events={qEvents} animate={false} onAction={(a) => actions.push(a)} />,
+    );
     await tick();
     stdin.write("p"); // would normally pause — must be swallowed by the prompt
     await tick();
@@ -102,7 +120,9 @@ describe("App", () => {
 
   it("stop targets the selected agent when focus is on agents/detail", async () => {
     const actions: UiAction[] = [];
-    const { stdin } = render(<App events={events} animate={false} onAction={(a) => actions.push(a)} />);
+    const { stdin } = render(
+      <App events={events} animate={false} onAction={(a) => actions.push(a)} />,
+    );
     await tick();
     stdin.write(KEY.down); // Search
     await tick();

@@ -6,7 +6,19 @@ category: architecture-patterns
 problem_type: "sandbox_execution_model"
 module: "cli"
 component: "bundle"
-tags: ["multi-file-workflows", "esbuild", "bundle", "sandbox", "transformScript", "extractMeta", "defineWorkflow", "determinism", "registry", "knip"]
+tags:
+  [
+    "multi-file-workflows",
+    "esbuild",
+    "bundle",
+    "sandbox",
+    "transformScript",
+    "extractMeta",
+    "defineWorkflow",
+    "determinism",
+    "registry",
+    "knip",
+  ]
 applies_when: "adding multi-file workflow support, editing the workflow loader/sandbox, or splitting a workflow across a folder (entry + schemas + prompts)"
 ---
 
@@ -16,22 +28,22 @@ applies_when: "adding multi-file workflow support, editing the workflow loader/s
 
 A workflow used to be a single TS file run in a `vm` sandbox that is **not** a module loader (see
 [[workflow-sandbox-script-constraints]]): the loader strips only `import … from "defineworkflow"`
-and injects the runtime primitives as globals, so any *other* import survives into `vm.Script` and
+and injects the runtime primitives as globals, so any _other_ import survives into `vm.Script` and
 fails. To let a workflow be split across a folder (a slim entry exporting `defineWorkflow({…})`
 plus local `schemas.ts`/`prompts.ts` imported by relative path), we add **one esbuild bundle step
 in the CLI** that inlines the entry's local imports into a single self-contained source string
-*before* anything else touches it. The bundle then flows through the unchanged pipeline: meta
+_before_ anything else touches it. The bundle then flows through the unchanged pipeline: meta
 extraction → consent → registry snapshot → sandbox.
 
 The load-bearing insight: every runtime primitive (`agent`, `z`, `parallel`, …) is a sandbox
 **global** and the journal is keyed by a single global call-order counter, so it does not matter
-which *file* an `agent()` call textually lives in. Pure-helper and sub-orchestrator helpers cost
+which _file_ an `agent()` call textually lives in. Pure-helper and sub-orchestrator helpers cost
 the runtime the same; **almost all the work is in the bundle step**, not the runtime.
 
 ## Guidance
 
 - **Bundle at read-time, store the bundle.** `packages/cli/src/commands/run.ts` reads the entry,
-  calls `bundleWorkflow({ path, source })`, and threads the *bundle* as `source` into `loadMeta`,
+  calls `bundleWorkflow({ path, source })`, and threads the _bundle_ as `source` into `loadMeta`,
   consent, `clock.hash(source)`, and `registry.init(meta, source)`. Because the registry snapshot
   is the unit of replay, `save`/`resume`/`--detach` become self-contained **for free** — no extra
   code. Single-file workflows (no relative import) pass through unchanged (byte-identical).
@@ -77,7 +89,7 @@ the runtime the same; **almost all the work is in the bundle step**, not the run
 The sandbox is not a module loader, so "split across files" cannot be solved in the runtime — it
 needs a bundling layer in front. Doing it at read-time (not lazily) is what makes the registry
 snapshot self-contained, which is why resume/save/detach need zero new code. Getting the esbuild
-default-export regex and the *additive* meta fallback right is what keeps single-file workflows
+default-export regex and the _additive_ meta fallback right is what keeps single-file workflows
 and every existing test byte-identical while adding the new shape.
 
 ## When to Apply
@@ -95,14 +107,21 @@ and every existing test byte-identical while adding the new shape.
 ```ts
 // schemas.ts — schemas now live at a helper's top level (was forced inside run())
 import { z } from "defineworkflow";
-export const SCOPE_SCHEMA = z.object({ /* … */ });
+export const SCOPE_SCHEMA = z.object({
+  /* … */
+});
 
 // deep-research.workflow.ts — slim entry, reads like a table of contents
 import { agent, defineWorkflow, pipeline } from "defineworkflow";
-import { SCOPE_SCHEMA } from "./schemas.js";        // relative + .js extension
+import { SCOPE_SCHEMA } from "./schemas.js"; // relative + .js extension
 import { scopePrompt } from "./prompts.js";
-export default defineWorkflow({ name: "deep-research", harness: "claude", /* … */
-  async run() { const scope = await agent(scopePrompt(QUESTION), { schema: SCOPE_SCHEMA }); /* … */ } });
+export default defineWorkflow({
+  name: "deep-research",
+  harness: "claude" /* … */,
+  async run() {
+    const scope = await agent(scopePrompt(QUESTION), { schema: SCOPE_SCHEMA }); /* … */
+  },
+});
 ```
 
 Known limitation: a **nested** `workflow("name")` target must be single-file or a saved

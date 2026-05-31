@@ -51,7 +51,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 export function buildArtifacts(returnValue: unknown): ArtifactSet | null {
   if (returnValue === undefined) return null;
 
-  const files: Artifact[] = [{ name: "result.json", content: JSON.stringify(returnValue, null, 2) }];
+  const files: Artifact[] = [
+    { name: "result.json", content: JSON.stringify(returnValue, null, 2) },
+  ];
 
   if (typeof returnValue === "string") {
     files.push({ name: `output.${sniffExtension(returnValue)}`, content: returnValue });

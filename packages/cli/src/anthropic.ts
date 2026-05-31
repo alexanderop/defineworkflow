@@ -4,7 +4,11 @@ import type { RawApiAdapterDeps } from "@workflow/adapters";
 interface AnthropicLike {
   messages: {
     create(
-      body: { model: string; max_tokens: number; messages: Array<{ role: "user"; content: string }> },
+      body: {
+        model: string;
+        max_tokens: number;
+        messages: Array<{ role: "user"; content: string }>;
+      },
       opts: { signal: AbortSignal },
     ): Promise<{
       content: Array<{ type: string; text?: string }>;
@@ -29,11 +33,16 @@ function safeParseJson(text: string): unknown {
  * adapter. Returns undefined when no API key is set (so adapter selection can report a
  * clear error). The SDK is imported lazily so the CLI works without it installed.
  */
-export function createAnthropicComplete(apiKey: string | undefined, model?: string): RawApiAdapterDeps["complete"] | undefined {
+export function createAnthropicComplete(
+  apiKey: string | undefined,
+  model?: string,
+): RawApiAdapterDeps["complete"] | undefined {
   if (!apiKey) return undefined;
   return async (req) => {
     // oxlint-disable-next-line typescript/consistent-type-assertions -- optional dep loaded via dynamic import; narrowed to the structural shape we use
-    const mod = (await import("@anthropic-ai/sdk").catch(() => null)) as { default?: AnthropicCtor } | null;
+    const mod = (await import("@anthropic-ai/sdk").catch(() => null)) as {
+      default?: AnthropicCtor;
+    } | null;
     const Ctor = mod?.default;
     if (!Ctor) throw new Error("@anthropic-ai/sdk is not installed");
     const client = new Ctor({ apiKey });
@@ -41,14 +50,21 @@ export function createAnthropicComplete(apiKey: string | undefined, model?: stri
       ? `${req.prompt}\n\nReturn ONLY JSON matching this schema:\n${JSON.stringify(req.schema)}`
       : req.prompt;
     const message = await client.messages.create(
-      { model: model ?? DEFAULT_MODEL, max_tokens: 4096, messages: [{ role: "user", content: prompt }] },
+      {
+        model: model ?? DEFAULT_MODEL,
+        max_tokens: 4096,
+        messages: [{ role: "user", content: prompt }],
+      },
       { signal: req.signal },
     );
     const text = message.content
       .filter((b) => b.type === "text")
       .map((b) => b.text ?? "")
       .join("");
-    const usage = { inputTokens: message.usage.input_tokens, outputTokens: message.usage.output_tokens };
+    const usage = {
+      inputTokens: message.usage.input_tokens,
+      outputTokens: message.usage.output_tokens,
+    };
     const data = req.schema ? safeParseJson(text) : undefined;
     return { text, ...(data !== undefined ? { data } : {}), usage };
   };

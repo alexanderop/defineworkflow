@@ -37,7 +37,9 @@ describe("buildRunner", () => {
 
   it("builds raw-api when a complete fn is supplied", () => {
     const complete = async () => ({ text: "x", usage: { inputTokens: 0, outputTokens: 0 } });
-    expect(buildRunner("raw-api", {}, { processRunner, complete })._unsafeUnwrap().id).toBe("raw-api");
+    expect(buildRunner("raw-api", {}, { processRunner, complete })._unsafeUnwrap().id).toBe(
+      "raw-api",
+    );
   });
 
   it("errors (AdapterSpawn) for raw-api without a complete fn", () => {

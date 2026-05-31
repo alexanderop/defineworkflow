@@ -25,9 +25,16 @@ const localOnly: Plugin = {
   setup(pluginBuild) {
     pluginBuild.onResolve({ filter: /.*/ }, (args) => {
       if (args.kind === "entry-point") return null;
-      if (args.path === "defineworkflow" || args.path === "workflow") return { path: args.path, external: true };
+      if (args.path === "defineworkflow" || args.path === "workflow")
+        return { path: args.path, external: true };
       if (args.path.startsWith("./") || args.path.startsWith("../")) return null; // esbuild resolves from disk
-      return { errors: [{ text: `a workflow may only import local files or "defineworkflow"; "${args.path}" is not allowed` }] };
+      return {
+        errors: [
+          {
+            text: `a workflow may only import local files or "defineworkflow"; "${args.path}" is not allowed`,
+          },
+        ],
+      };
     });
   },
 };

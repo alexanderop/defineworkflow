@@ -98,7 +98,10 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
   if (args.mock) {
     runner = createMockRunner({ delayMs: deps.env.isTTY ? 120 : 0 });
   } else {
-    const runnerResult = buildRunner(adapter, deps.config, { processRunner: deps.adapters.processRunner, complete: deps.adapters.complete });
+    const runnerResult = buildRunner(adapter, deps.config, {
+      processRunner: deps.adapters.processRunner,
+      complete: deps.adapters.complete,
+    });
     if (runnerResult.isErr()) {
       deps.ui.print(`error: ${formatError(runnerResult.error)}\n`);
       return 1;
@@ -131,7 +134,8 @@ export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> 
     return 0;
   }
 
-  if (args.mock) deps.ui.print(`running '${meta.name}' in --mock mode — no real agents, no tokens spent\n`);
+  if (args.mock)
+    deps.ui.print(`running '${meta.name}' in --mock mode — no real agents, no tokens spent\n`);
   return runForeground(deps, {
     runId,
     source,

@@ -33,7 +33,16 @@ export function createClaudeAdapter(deps: ClaudeAdapterDeps): AgentRunner {
             // Streaming JSON gives intermediate tool/token/model events for live progress.
             // YOLO mode: a headless `-p` agent can't answer permission prompts, and
             // `acceptEdits` blocks WebSearch/WebFetch — so skip all permission checks.
-            const args = ["-p", prompt, "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions", "--add-dir", req.cwd];
+            const args = [
+              "-p",
+              prompt,
+              "--output-format",
+              "stream-json",
+              "--verbose",
+              "--dangerously-skip-permissions",
+              "--add-dir",
+              req.cwd,
+            ];
             if (req.schema) args.push("--json-schema", JSON.stringify(req.schema));
             if (req.model) args.push("--model", req.model);
 
@@ -48,13 +57,21 @@ export function createClaudeAdapter(deps: ClaudeAdapterDeps): AgentRunner {
               },
             });
             if (out.code !== 0) {
-              spawnError = { kind: "AdapterSpawn", adapter: "claude", cause: out.stderr || `exit ${out.code}` };
+              spawnError = {
+                kind: "AdapterSpawn",
+                adapter: "claude",
+                cause: out.stderr || `exit ${out.code}`,
+              };
               throw new Error("claude spawn failed");
             }
 
             const final = translator.result();
             if (final.isError) {
-              spawnError = { kind: "AdapterSpawn", adapter: "claude", cause: final.errorMessage ?? "claude reported is_error" };
+              spawnError = {
+                kind: "AdapterSpawn",
+                adapter: "claude",
+                cause: final.errorMessage ?? "claude reported is_error",
+              };
               throw new Error("claude reported is_error");
             }
 
@@ -66,13 +83,20 @@ export function createClaudeAdapter(deps: ClaudeAdapterDeps): AgentRunner {
             return {
               text: final.text,
               data,
-              usage: { inputTokens: final.usage.inputTokens, outputTokens: final.usage.outputTokens },
+              usage: {
+                inputTokens: final.usage.inputTokens,
+                outputTokens: final.usage.outputTokens,
+              },
             };
           },
         });
       } catch (e) {
         if (spawnError) return err(spawnError);
-        return err({ kind: "AdapterSpawn", adapter: "claude", cause: e instanceof Error ? e.message : String(e) });
+        return err({
+          kind: "AdapterSpawn",
+          adapter: "claude",
+          cause: e instanceof Error ? e.message : String(e),
+        });
       }
       if (spawnError) return err(spawnError);
       if (result.isErr()) return err(result.error);

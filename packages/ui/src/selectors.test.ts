@@ -25,9 +25,16 @@ const events: WorkflowEvent[] = [
   event("agent-queued", { label: "angle-0", phase: "Search", prompt: "find a\nfind b", at: 130 }),
   event("agent-started", { at: 135 }),
   event("agent-progress", { tokens: 20400, model: MODEL, at: 138 }),
-  event("agent-tool", { tool: { name: "WebFetch", input: { url: "https://alexop.dev/list-everything" } }, at: 140 }),
+  event("agent-tool", {
+    tool: { name: "WebFetch", input: { url: "https://alexop.dev/list-everything" } },
+    at: 140,
+  }),
   event("agent-output", { chunk: "result line 1", at: 150 }),
-  event("agent-finished", { usage: usage({ inputTokens: 1, outputTokens: 9 }), model: MODEL, at: 160 }),
+  event("agent-finished", {
+    usage: usage({ inputTokens: 1, outputTokens: 9 }),
+    model: MODEL,
+    at: 160,
+  }),
 ];
 const state = events.reduce(reduce, initialRunState());
 const agent = agentsInPhase(state, "Search")[0]!;
@@ -57,7 +64,9 @@ describe("selectors", () => {
   });
 
   it("humanizeTool previews the first arg, special-cases StructuredOutput and arg-less tools", () => {
-    expect(humanizeTool({ name: "WebFetch", input: { url: "https://alexop.dev/x" } })).toBe("WebFetch(https://alexop.dev/x)");
+    expect(humanizeTool({ name: "WebFetch", input: { url: "https://alexop.dev/x" } })).toBe(
+      "WebFetch(https://alexop.dev/x)",
+    );
     expect(humanizeTool({ name: "StructuredOutput", input: { n: 7 } })).toBe("StructuredOutput");
     expect(humanizeTool({ name: "Done" })).toBe("Done");
     const long = "a".repeat(80);
@@ -90,8 +99,19 @@ describe("selectors", () => {
 
   it("agentRow shows live tokens while running", () => {
     const running: AgentState = {
-      key: "k1", label: "live", phase: "Search", prompt: "", resultText: "",
-      status: "running", tokens: 0, inputTokens: 0, outputTokens: 0, cached: false, tools: [], startedAt: 135, liveTokens: 20400,
+      key: "k1",
+      label: "live",
+      phase: "Search",
+      prompt: "",
+      resultText: "",
+      status: "running",
+      tokens: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      cached: false,
+      tools: [],
+      startedAt: 135,
+      liveTokens: 20400,
     };
     expect(agentRow(running, 135 + 21000).tokens).toBe("20.4k");
     expect(agentRow(running, 135 + 21000).elapsed).toBe("21s");

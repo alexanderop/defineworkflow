@@ -20,7 +20,9 @@ export async function resumeCommand(
   }
   // Same-script guarantee: the snapshot must match the hash recorded at run time.
   if (deps.clock.hash(source) !== meta.scriptHash) {
-    deps.ui.print(`error: ${formatError({ kind: "JournalCorrupt", runId, detail: "script snapshot does not match recorded hash" })}\n`);
+    deps.ui.print(
+      `error: ${formatError({ kind: "JournalCorrupt", runId, detail: "script snapshot does not match recorded hash" })}\n`,
+    );
     return 1;
   }
   const seedResult = deps.registry.readJournal(runId);
@@ -28,7 +30,10 @@ export async function resumeCommand(
     deps.ui.print(`error: ${formatError(seedResult.error)}\n`);
     return 1;
   }
-  const runnerResult = buildRunner(meta.adapter, deps.config, { processRunner: deps.adapters.processRunner, complete: deps.adapters.complete });
+  const runnerResult = buildRunner(meta.adapter, deps.config, {
+    processRunner: deps.adapters.processRunner,
+    complete: deps.adapters.complete,
+  });
   if (runnerResult.isErr()) {
     deps.ui.print(`error: ${formatError(runnerResult.error)}\n`);
     return 1;

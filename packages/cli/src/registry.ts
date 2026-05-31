@@ -1,8 +1,23 @@
 import { z } from "zod";
 import { ok, err, type Result } from "neverthrow";
-import { createJournal, type Immutable, type JsonValue, type Journal, type JournalEntry, type RunId, type Tagged, type WorkflowError, type WorkflowEvent } from "@workflow/core";
+import {
+  createJournal,
+  type Immutable,
+  type JsonValue,
+  type Journal,
+  type JournalEntry,
+  type RunId,
+  type Tagged,
+  type WorkflowError,
+  type WorkflowEvent,
+} from "@workflow/core";
 import type { AdapterId } from "@workflow/adapters";
-import { serializeEvent, serializeJournalEntry, parseEventLine, parseJournalLine } from "./jsonl.js";
+import {
+  serializeEvent,
+  serializeJournalEntry,
+  parseEventLine,
+  parseJournalLine,
+} from "./jsonl.js";
 
 /** SHA-256 hex of a run's script snapshot — compared on resume to guarantee same-script replay. */
 export type ScriptHash = Tagged<string, "ScriptHash">;
@@ -15,7 +30,14 @@ export type ScriptHash = Tagged<string, "ScriptHash">;
 /** Recursive validator for arbitrary persisted JSON — proves `args` really is a `JsonValue` rather
  * than asserting it through `z.unknown()`, so `RunMeta.args: Immutable<JsonValue>` is earned. */
 const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
-  z.union([z.null(), z.boolean(), z.number(), z.string(), z.array(jsonValueSchema), z.record(z.string(), jsonValueSchema)]),
+  z.union([
+    z.null(),
+    z.boolean(),
+    z.number(),
+    z.string(),
+    z.array(jsonValueSchema),
+    z.record(z.string(), jsonValueSchema),
+  ]),
 );
 
 const runMetaSchema = z.object({

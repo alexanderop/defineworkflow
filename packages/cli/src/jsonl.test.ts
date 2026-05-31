@@ -28,7 +28,13 @@ describe("jsonl events", () => {
 
 describe("jsonl journal", () => {
   it("round-trips a journal entry", () => {
-    const entry: JournalEntry = { seq: 0, key: "0:P:a", text: "hi", data: { n: 1 }, outputTokens: 9 };
+    const entry: JournalEntry = {
+      seq: 0,
+      key: "0:P:a",
+      text: "hi",
+      data: { n: 1 },
+      outputTokens: 9,
+    };
     const parsed = parseJournalLine(JSON.stringify(entry));
     expect(parsed.isOk()).toBe(true);
     expect(parsed._unsafeUnwrap()).toEqual(entry);
@@ -51,7 +57,9 @@ describe("jsonl journal", () => {
   });
 
   it("rejects an entry whose field types are wrong", () => {
-    const bad = parseJournalLine(JSON.stringify({ seq: "1", key: "k", text: "t", data: null, outputTokens: 3 }));
+    const bad = parseJournalLine(
+      JSON.stringify({ seq: "1", key: "k", text: "t", data: null, outputTokens: 3 }),
+    );
     expect(bad.isErr()).toBe(true);
   });
 });

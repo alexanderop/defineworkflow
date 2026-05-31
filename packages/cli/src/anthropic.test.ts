@@ -56,7 +56,9 @@ describe("createAnthropicComplete", () => {
     };
     const complete = createAnthropicComplete("sk-test")!;
 
-    const result = await complete(req({ schema: { type: "object", properties: { n: { type: "number" } } } }));
+    const result = await complete(
+      req({ schema: { type: "object", properties: { n: { type: "number" } } } }),
+    );
 
     expect(result.data).toEqual({ n: 7 });
     // The prompt sent to the SDK carries the schema instruction.

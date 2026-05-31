@@ -6,7 +6,18 @@ category: developer-experience
 problem_type: "type_authoring_and_testing"
 module: "core"
 component: "runtime/sandbox/workflow"
-tags: ["typescript", "overloads", "pipeline", "zod", "expecttypeof", "declare-global", "node-url", "exactoptionalpropertytypes", "authoring-api"]
+tags:
+  [
+    "typescript",
+    "overloads",
+    "pipeline",
+    "zod",
+    "expecttypeof",
+    "declare-global",
+    "node-url",
+    "exactoptionalpropertytypes",
+    "authoring-api",
+  ]
 applies_when: "adding typed variadic-ish APIs to the Runtime, narrowing the agent schema surface, type-level tests, or shipping ambient host-global types to the examples (types:[]) package"
 ---
 
@@ -22,7 +33,7 @@ similar change is quick.
 
 ### 1. Typed `pipeline()` = fixed-arity overloads on the `Runtime` interface, loose impl signature
 
-`pipeline(items, ...stages)` is variadic with each stage's `prev` typed from the *prior* stage's
+`pipeline(items, ...stages)` is variadic with each stage's `prev` typed from the _prior_ stage's
 return — a true recursive-tuple type is fragile. Instead declare **fixed-arity overloads for 1–5
 stages** plus a final loose variadic fallback, all on the `Runtime` interface
 (`packages/core/src/runtime.ts`):
@@ -46,13 +57,13 @@ pipeline(items: readonly unknown[], ...stages: ReadonlyArray<(prev: unknown, ite
 Type-level test gotcha that cost real debugging time. A pipeline stage written as:
 
 ```ts
-async (prev) => (prev ? { ok: prev } : null)   // prev: boolean
+async (prev) => (prev ? { ok: prev } : null); // prev: boolean
 ```
 
 infers `{ ok: true } | null` — **not** `{ ok: boolean } | null` — because in the truthy branch `prev`
 narrows to the literal `true`. `expectTypeOf(out).toEqualTypeOf<Array<{ ok: boolean } | null>>()` then
 fails with a cryptic `Type '…' does not satisfy the constraint '("Expected: …, Actual: never" | …)[]'`.
-The overload is fine; the *test* is wrong. Fix: pin the stage's return with an explicit annotation so
+The overload is fine; the _test_ is wrong. Fix: pin the stage's return with an explicit annotation so
 the literal doesn't leak, and assert the boundary type directly:
 
 ```ts
@@ -69,7 +80,7 @@ hover error) before "fixing" the overload.
 
 ### 3. Shipping `URL` types to a `types: []` package without polluting it
 
-`packages/examples` compiles with `"types": []` (so the editor shows *exactly* the sandbox surface, no
+`packages/examples` compiles with `"types": []` (so the editor shows _exactly_ the sandbox surface, no
 `process`/`fs`/`document`). To type the injected `URL`/`URLSearchParams` globals, ship an ambient
 declaration from `defineworkflow` (`packages/workflow/src/index.ts`):
 
@@ -83,10 +94,11 @@ declare global {
 ```
 
 Two empirically-verified facts (test them; don't assume):
+
 - **No conflict in the `workflow` package's own typecheck** even though it has `@types/node`: two
-  ambient `var` declarations of the *same* type merge. (`const`/`interface` would clash — use `var`.)
+  ambient `var` declarations of the _same_ type merge. (`const`/`interface` would clash — use `var`.)
 - **`typeof import("node:url").URL` resolves under `types: []`** — `new URL().hostname/.pathname/
-  .searchParams.get()` all type — so the *preferred* approach works; the hand-written-interface
+.searchParams.get()` all type — so the _preferred_ approach works; the hand-written-interface
   fallback isn't needed. The tsup `.d.ts` rollup keeps the `import("node:url")` reference (it only
   inlines `@workflow/*`), and consumers resolve it fine.
 - Don't reach for `lib:["DOM"]`/`types:["node"]` — they'd expose globals the sandbox does NOT provide,
@@ -97,14 +109,15 @@ Two empirically-verified facts (test them; don't assume):
 
 `AgentOptions.schema: JsonSchema | ZodLike` → `ZodLike`, and the runtime now rejects a non-zod schema
 with `SchemaValidation` (a plain object is only reachable from type-erased sandbox JS). Consequences:
+
 - The CLI **loader injects `z`** into the sandbox, so test fixtures that build a schema inside a
   workflow-script string must author it with zod (`const Out = z.object({ … })`), not a plain
   `{ type: "object", … }`. Fixtures in `loader.test.ts`, `execute.test.ts`, `e2e.e2e.test.ts` and the
   two core `runtime.test.ts` schema tests all needed converting — a passing `pnpm build/typecheck`
-  won't catch the *runtime* failures; `pnpm test` does.
+  won't catch the _runtime_ failures; `pnpm test` does.
 - **`AgentRequest.schema` stays `JsonSchema`** — adapters consume JSON Schema unchanged, so the
   adapter tests (`claude/codex/copilot/generic/raw-api/json.test.ts`) that pass a plain JSON Schema as
-  the *request* schema are correct and must NOT be converted.
+  the _request_ schema are correct and must NOT be converted.
 - `JsonSchema`/`ZodLike` stay exported from `@workflow/core` (internal use); knip stays green.
 
 ## Why This Matters

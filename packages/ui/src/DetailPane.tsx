@@ -24,7 +24,11 @@ export function DetailPane({ agent, scroll, rows, focused, now, expanded }: Deta
   return (
     <Box flexDirection="column" flexGrow={1} paddingX={1}>
       {visible.map((line, i) => (
-        <Text key={scroll + i} wrap="truncate" {...(focused && i === 0 ? { color: "green" as const } : {})}>
+        <Text
+          key={scroll + i}
+          wrap="truncate"
+          {...(focused && i === 0 ? { color: "green" as const } : {})}
+        >
           {line === "" ? " " : line}
         </Text>
       ))}

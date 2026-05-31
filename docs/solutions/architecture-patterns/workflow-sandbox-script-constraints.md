@@ -19,7 +19,7 @@ applies_when: "authoring or loading workflow scripts (examples/*.ts, saved workf
 project/personal workflows) through `runInSandbox` in `packages/core/src/sandbox.ts`. The script
 text is transformed with esbuild and run with `new vm.Script(...).runInContext(context)`. This is
 **not** an ES module loader: there is no module resolution, and the only things a script can touch
-are the globals injected into the vm context. (Local `./`/`../` imports in a *multi-file* workflow
+are the globals injected into the vm context. (Local `./`/`../` imports in a _multi-file_ workflow
 are inlined by an esbuild bundle step in the CLI **before** the sandbox sees the source — see
 [[multi-file-workflows-esbuild-bundle]] — so the in-sandbox "no module loader" rule still holds.)
 
@@ -44,10 +44,10 @@ realm and are usable.)
 Hard rules for any script the sandbox will run:
 
 - **No `import` / `require` resolution.** There is no module context; the `import … from
-  "defineworkflow"` line is *stripped* and its names are bound to injected globals instead. Because
+"defineworkflow"` line is _stripped_ and its names are bound to injected globals instead. Because
   `z` is injected, you **author schemas with zod** (`agent(prompt, { schema: z.object({ … }) })`) —
   the runtime converts zod → JSON Schema at the boundary. Importing `z` (or anything else) from a
-  *foreign* specifier such as `"zod"` is rejected: `transformScript` strips only the `defineworkflow`
+  _foreign_ specifier such as `"zod"` is rejected: `transformScript` strips only the `defineworkflow`
   /`workflow` import, so a surviving `import … from "zod"` would be wrapped into the async IIFE body
   (an illegal static import) and esbuild fails with an opaque `Unexpected "{"`. `assertNoForeignImports`
   now catches this first and throws a `SandboxViolation` naming the module and pointing at
@@ -108,9 +108,17 @@ const runner = {
   },
 };
 const r = await runWorkflow({
-  source, args: { question: "q?" }, runner, runId: "s", cwd: "/tmp",
-  concurrency: 8, maxAgents: 1000, budgetTotal: null,
-  journal: createJournal(), emit: () => {}, now: () => 0,
+  source,
+  args: { question: "q?" },
+  runner,
+  runId: "s",
+  cwd: "/tmp",
+  concurrency: 8,
+  maxAgents: 1000,
+  budgetTotal: null,
+  journal: createJournal(),
+  emit: () => {},
+  now: () => 0,
 });
 console.log(r.isOk(), r.isOk() && r.value.returnValue); // true { question, confirmedCount, ... }
 ```

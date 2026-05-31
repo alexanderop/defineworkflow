@@ -5,7 +5,10 @@ import { createCopilotTranslator } from "./copilot-stream.js";
 
 const fixture = readFileSync(new URL("../fixtures/copilot-stream.ndjson", import.meta.url), "utf8");
 
-function drive(translator: ReturnType<typeof createCopilotTranslator>, text: string): AgentProgress[] {
+function drive(
+  translator: ReturnType<typeof createCopilotTranslator>,
+  text: string,
+): AgentProgress[] {
   const out: AgentProgress[] = [];
   for (const line of text.split("\n")) for (const p of translator.push(line)) out.push(p);
   return out;
@@ -17,7 +20,10 @@ describe("copilot stream translator", () => {
     const progress = drive(t, fixture);
 
     expect(progress.find((p) => p.model)?.model).toBe("claude-sonnet-4.6");
-    expect(progress.filter((p) => p.tool).map((p) => p.tool!.name)).toEqual(["str_replace_editor", "bash"]);
+    expect(progress.filter((p) => p.tool).map((p) => p.tool!.name)).toEqual([
+      "str_replace_editor",
+      "bash",
+    ]);
     // Per-message `outputTokens` accumulate into a cumulative live count (80, then 80+160).
     expect(progress.filter((p) => p.tokens !== undefined).map((p) => p.tokens)).toEqual([80, 240]);
 

@@ -5,7 +5,10 @@ import { createCodexTranslator } from "./codex-stream.js";
 
 const fixture = readFileSync(new URL("../fixtures/codex-stream.ndjson", import.meta.url), "utf8");
 
-function drive(translator: ReturnType<typeof createCodexTranslator>, text: string): AgentProgress[] {
+function drive(
+  translator: ReturnType<typeof createCodexTranslator>,
+  text: string,
+): AgentProgress[] {
   const out: AgentProgress[] = [];
   for (const line of text.split("\n")) for (const p of translator.push(line)) out.push(p);
   return out;

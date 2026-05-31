@@ -28,7 +28,8 @@ import { agent, defineWorkflow, log, parallel, phase } from "defineworkflow";
 
 export default defineWorkflow({
   name: "worktree",
-  description: "Demonstrate and verify isolation:\"worktree\" — two parallel agents each report their isolated cwd",
+  description:
+    'Demonstrate and verify isolation:"worktree" — two parallel agents each report their isolated cwd',
   harness: "claude",
   phases: [{ title: "Probe", detail: "two isolated agents report their cwd in parallel" }],
 
@@ -70,7 +71,11 @@ export default defineWorkflow({
     const cwdB = extractCwd(reportB);
     const distinct = cwdA !== null && cwdB !== null && cwdA !== cwdB;
 
-    log(distinct ? `two distinct worktrees: ${cwdA}  |  ${cwdB}` : "could not confirm two distinct worktrees from output");
+    log(
+      distinct
+        ? `two distinct worktrees: ${cwdA}  |  ${cwdB}`
+        : "could not confirm two distinct worktrees from output",
+    );
 
     return {
       cwdA,

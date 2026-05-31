@@ -81,8 +81,8 @@ captured fixtures, no zod for events. Its transferable patterns:
   backend (`faux.ts`) keeps unit tests off the network. We have
   `createFakeProcessRunner`.
 
-**Why we differ:** `pi` can skip codegen *because every backend ships first-party TS
-SDK types for its stream*. It turns out **ours do too** — as CLI-companion packages
+**Why we differ:** `pi` can skip codegen _because every backend ships first-party TS
+SDK types for its stream_. It turns out **ours do too** — as CLI-companion packages
 rather than HTTP-API SDKs (§4). So `pi` validates the backbone; our addition is to
 substitute the vendor types it gets for free with the CLI-companion types we now know
 exist, and to add the runtime validation `pi` omits (justified because our types are
@@ -96,11 +96,11 @@ Files referenced: `packages/ai/src/types.ts`,
 
 Verified by unpacking the published packages:
 
-| CLI | Type package | Ships | Carries `model`? | Size note |
-|-----|--------------|-------|------------------|-----------|
-| **codex** | `@openai/codex-sdk` | `ThreadEvent` union — comment: *"Top-level JSONL events emitted by codex exec"*; matches our capture 1:1 | **No** (only in input config) | 21 KB → devDep |
-| **claude** | `@anthropic-ai/claude-agent-sdk` | `SDKMessage` union (`SDKSystemMessage` `subtype:'init'`, `SDKAssistantMessage`, `SDKResultMessage`, `SDKRateLimitEvent`, …); matches `--output-format stream-json` | Yes (init) | 1.3 MB → devDep |
-| **copilot** | `@github/copilot` | `copilot-sdk/generated/session-events.d.ts`, **auto-generated from `schemas/session-events.schema.json`** (a real first-party JSON Schema); `SessionEvent` union w/ `ModelChangeEvent`, `AssistantMessageEvent`, `AssistantUsageEvent`, … | Yes | **104 MB** → vendor the schema file only, no dep |
+| CLI         | Type package                     | Ships                                                                                                                                                                                                                                     | Carries `model`?              | Size note                                        |
+| ----------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------ |
+| **codex**   | `@openai/codex-sdk`              | `ThreadEvent` union — comment: _"Top-level JSONL events emitted by codex exec"_; matches our capture 1:1                                                                                                                                  | **No** (only in input config) | 21 KB → devDep                                   |
+| **claude**  | `@anthropic-ai/claude-agent-sdk` | `SDKMessage` union (`SDKSystemMessage` `subtype:'init'`, `SDKAssistantMessage`, `SDKResultMessage`, `SDKRateLimitEvent`, …); matches `--output-format stream-json`                                                                        | Yes (init)                    | 1.3 MB → devDep                                  |
+| **copilot** | `@github/copilot`                | `copilot-sdk/generated/session-events.d.ts`, **auto-generated from `schemas/session-events.schema.json`** (a real first-party JSON Schema); `SessionEvent` union w/ `ModelChangeEvent`, `AssistantMessageEvent`, `AssistantUsageEvent`, … | Yes                           | **104 MB** → vendor the schema file only, no dep |
 
 This makes "infer zod from captured samples" (an earlier candidate approach)
 unnecessary — we don't infer types when the vendor publishes them.
@@ -155,7 +155,7 @@ nothing above the adapter changes.
 
 - A dev/CLI **capture** command runs each installed harness on a fixed canonical task
   and writes the **real** NDJSON to `fixtures/<harness>-stream.ndjson`. These replace
-  the hand-authored fixtures as the source of truth for *reality*.
+  the hand-authored fixtures as the source of truth for _reality_.
 - A **conformance test** drives every captured fixture line through the generated zod
   union and asserts it validates. This is the drift alarm: when a CLI bumps and
   changes shape, re-capturing makes the conformance test fail loudly → `pnpm update`
@@ -166,14 +166,14 @@ nothing above the adapter changes.
 
 ### 5.6 Architectural boundary to resolve
 
-CLAUDE.md states *"`@workflow/schema` is the only place that touches
-`z.toJSONSchema()` / `safeParse`."* Per-line event validation inside the adapters
+CLAUDE.md states _"`@workflow/schema` is the only place that touches
+`z.toJSONSchema()` / `safeParse`."_ Per-line event validation inside the adapters
 would cross that boundary. The plan must choose one:
 
 - **(a)** Place the generated event-zod + a thin `validateEvent` helper in
   `@workflow/schema`, and have adapters call it (keeps the rule intact).
-- **(b)** Carve a sanctioned, documented exception for *internal harness-event
-  parsing* in adapters (distinct from *user output schemas*, which remain in
+- **(b)** Carve a sanctioned, documented exception for _internal harness-event
+  parsing_ in adapters (distinct from _user output schemas_, which remain in
   `@workflow/schema`).
 
 Leaning (a) — it keeps the single-zod-boundary invariant and the codegen output in
@@ -222,14 +222,14 @@ one package. To be finalized in the plan.
 ## 8. Risks & mitigations
 
 - **SDK types vs. wire format mismatch.** The SDK type may describe a transport that
-  differs from the exact CLI flag we invoke. *Mitigation:* the conformance test runs
+  differs from the exact CLI flag we invoke. _Mitigation:_ the conformance test runs
   real captured CLI output against the generated zod — if they ever disagree, it
   fails. (codex already verified 1:1; claude/copilot to be verified during capture.)
-- **`ts-to-zod` output quality on large unions.** *Mitigation:* the consumed-events
+- **`ts-to-zod` output quality on large unions.** _Mitigation:_ the consumed-events
   allow-list (§5.3) keeps generated surface tiny and hand-reviewable.
 - **copilot schema staleness.** The vendored schema can lag the installed CLI.
-  *Mitigation:* refresh script + conformance test against real copilot captures.
-- **Generated-code review burden.** *Mitigation:* small allow-list; generated files
+  _Mitigation:_ refresh script + conformance test against real copilot captures.
+- **Generated-code review burden.** _Mitigation:_ small allow-list; generated files
   committed and diffed like `models.generated.ts` in `pi`.
 
 ## 9. Open questions (for the plan)

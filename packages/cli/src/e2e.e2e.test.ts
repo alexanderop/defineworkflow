@@ -63,12 +63,40 @@ d("real-CLI e2e per installed adapter (costs tokens; WORKFLOW_E2E=1)", () => {
       const root = fs.mkdtempSync(path.join(os.tmpdir(), "wf-e2e-"));
       const registry = createRegistry({ root, fs: nodeRegistryFs() });
       const runId = `${id}-e2e` as RunId;
-      const meta: RunMeta = { runId, name: "e2e", scriptPath: null, args: {}, adapter: id, status: "running", startedAt: 0, endedAt: null, pid: null, scriptHash: "h" as ScriptHash };
+      const meta: RunMeta = {
+        runId,
+        name: "e2e",
+        scriptPath: null,
+        args: {},
+        adapter: id,
+        status: "running",
+        startedAt: 0,
+        endedAt: null,
+        pid: null,
+        scriptHash: "h" as ScriptHash,
+      };
       registry.init(meta, "");
 
       let calls = 0;
-      const counting: AgentRunner = { ...base, run: (req, ctx) => { calls++; return base.run(req, ctx); } };
-      const rt = createRuntime({ runner: counting, semaphore: createSemaphore(2), journal: registry.persistentJournal(runId, []), maxAgents: 10, budgetTotal: null, args: {}, cwd: process.cwd(), runId, emit: () => {}, now: () => 0 });
+      const counting: AgentRunner = {
+        ...base,
+        run: (req, ctx) => {
+          calls++;
+          return base.run(req, ctx);
+        },
+      };
+      const rt = createRuntime({
+        runner: counting,
+        semaphore: createSemaphore(2),
+        journal: registry.persistentJournal(runId, []),
+        maxAgents: 10,
+        budgetTotal: null,
+        args: {},
+        cwd: process.cwd(),
+        runId,
+        emit: () => {},
+        now: () => 0,
+      });
       const out = await rt.agent(prompt, { label: "q", schema });
       expect((out as { answer: number }).answer).toBe(42);
       expect(calls).toBe(1);
@@ -80,14 +108,38 @@ d("real-CLI e2e per installed adapter (costs tokens; WORKFLOW_E2E=1)", () => {
 
       // resume: a journal-seeded run returns the cached result with NO new adapter spawn.
       let calls2 = 0;
-      const counting2: AgentRunner = { ...base, run: (req, ctx) => { calls2++; return base.run(req, ctx); } };
-      const rt2 = createRuntime({ runner: counting2, semaphore: createSemaphore(2), journal: registry.persistentJournal(runId, seed), maxAgents: 10, budgetTotal: null, args: {}, cwd: process.cwd(), runId, emit: () => {}, now: () => 0 });
+      const counting2: AgentRunner = {
+        ...base,
+        run: (req, ctx) => {
+          calls2++;
+          return base.run(req, ctx);
+        },
+      };
+      const rt2 = createRuntime({
+        runner: counting2,
+        semaphore: createSemaphore(2),
+        journal: registry.persistentJournal(runId, seed),
+        maxAgents: 10,
+        budgetTotal: null,
+        args: {},
+        cwd: process.cwd(),
+        runId,
+        emit: () => {},
+        now: () => 0,
+      });
       const out2 = await rt2.agent(prompt, { label: "q", schema });
       expect((out2 as { answer: number }).answer).toBe(42);
       expect(calls2).toBe(0);
 
       let printed = "";
-      adaptersCommand({ adapters: { detected: present }, ui: { print: (t: string) => { printed += t; } } } as unknown as Pick<AppDeps, "adapters" | "ui">);
+      adaptersCommand({
+        adapters: { detected: present },
+        ui: {
+          print: (t: string) => {
+            printed += t;
+          },
+        },
+      } as unknown as Pick<AppDeps, "adapters" | "ui">);
       expect(printed).toContain(id);
 
       fs.rmSync(root, { recursive: true, force: true });

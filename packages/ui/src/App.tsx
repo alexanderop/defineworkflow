@@ -39,7 +39,15 @@ function VerticalDivider({ rows }: { readonly rows: number }) {
   );
 }
 
-export function App({ events, adapter, description, detailRows = 12, onAction, animate = true, now: nowProp }: AppProps) {
+export function App({
+  events,
+  adapter,
+  description,
+  detailRows = 12,
+  onAction,
+  animate = true,
+  now: nowProp,
+}: AppProps) {
   const state: RunState = useMemo(() => events.reduce(reduce, initialRunState()), [events]);
 
   const [nav, setNav] = useState<NavState>(initialNav);
@@ -84,7 +92,10 @@ export function App({ events, adapter, description, detailRows = 12, onAction, a
   // A fixed `now` prop (tests) disables ticking entirely.
   useEffect(() => {
     if (!animate || nowProp !== undefined || !running) return;
-    const id = setInterval(() => setTick((t) => ({ frame: t.frame + 1, now: Date.now() })), TICK_MS);
+    const id = setInterval(
+      () => setTick((t) => ({ frame: t.frame + 1, now: Date.now() })),
+      TICK_MS,
+    );
     return () => clearInterval(id);
   }, [animate, nowProp, running]);
 
@@ -100,7 +111,10 @@ export function App({ events, adapter, description, detailRows = 12, onAction, a
   useInput((input, key) => {
     // While a question is pending, the QuestionPrompt owns the keyboard — swallow nav/control keys.
     if (pendingQuestion) return;
-    const intent = resolveKey(input, key, { focus: navRef.current.focus, agentKey: selectedAgentKeyRef.current });
+    const intent = resolveKey(input, key, {
+      focus: navRef.current.focus,
+      agentKey: selectedAgentKeyRef.current,
+    });
     if (!intent) return;
     if (intent.kind === "nav") setNav((p) => navReducer(p, intent.action, ctxRef.current));
     else onAction?.(intent.action);
@@ -109,7 +123,12 @@ export function App({ events, adapter, description, detailRows = 12, onAction, a
   if (pendingQuestion) {
     return (
       <Box flexDirection="column">
-        <Header state={state} elapsedMs={runElapsedMs(state, now)} description={description} adapter={adapter} />
+        <Header
+          state={state}
+          elapsedMs={runElapsedMs(state, now)}
+          description={description}
+          adapter={adapter}
+        />
         <QuestionPrompt question={pendingQuestion} onSubmit={handleAnswer} />
       </Box>
     );
@@ -117,7 +136,12 @@ export function App({ events, adapter, description, detailRows = 12, onAction, a
 
   return (
     <Box flexDirection="column">
-      <Header state={state} elapsedMs={runElapsedMs(state, now)} description={description} adapter={adapter} />
+      <Header
+        state={state}
+        elapsedMs={runElapsedMs(state, now)}
+        description={description}
+        adapter={adapter}
+      />
       <Box borderStyle="single" borderColor="gray" minHeight={detailRows + 3}>
         {nav.focus === "detail" ? (
           <>
@@ -144,7 +168,12 @@ export function App({ events, adapter, description, detailRows = 12, onAction, a
           </>
         ) : (
           <>
-            <PhasesColumn phases={phases} selectedIndex={nav.phaseIndex} focused={nav.focus === "phases"} frame={frame} />
+            <PhasesColumn
+              phases={phases}
+              selectedIndex={nav.phaseIndex}
+              focused={nav.focus === "phases"}
+              frame={frame}
+            />
             <VerticalDivider rows={paneRows} />
             <AgentsColumn
               agents={agents}

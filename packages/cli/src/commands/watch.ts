@@ -2,7 +2,10 @@ import type { AppDeps } from "../app.js";
 import { subscribeToRun } from "../tail.js";
 
 /** Attach the UI (or line-log) to a running/finished run by tailing its event log. */
-export function watchCommand(runId: string, deps: Pick<AppDeps, "registry" | "ui" | "proc" | "env">): number {
+export function watchCommand(
+  runId: string,
+  deps: Pick<AppDeps, "registry" | "ui" | "proc" | "env">,
+): number {
   const meta = deps.registry.readMeta(runId);
   if (!meta) {
     deps.ui.print(`error: no run ${runId}\n`);

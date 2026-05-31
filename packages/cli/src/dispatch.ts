@@ -23,7 +23,8 @@ Usage:
   workflow <name> [--args ...]   run a saved/bundled workflow by name
 `;
 
-const str = (v: string | boolean | undefined): string | undefined => (typeof v === "string" ? v : undefined);
+const str = (v: string | boolean | undefined): string | undefined =>
+  typeof v === "string" ? v : undefined;
 
 /** Parse argv and route to a command. Pure over the injected AppDeps so it is fully testable. */
 export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<number> {
@@ -104,7 +105,11 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
       return adaptersCommand(deps);
     default: {
       // Treat an unknown command as a saved/bundled workflow name.
-      const resolved = resolveSavedWorkflow(command, { homeDir: deps.env.homeDir, cwd: deps.env.cwd, readFile: deps.io.readText });
+      const resolved = resolveSavedWorkflow(command, {
+        homeDir: deps.env.homeDir,
+        cwd: deps.env.cwd,
+        readFile: deps.io.readText,
+      });
       if (!resolved) {
         deps.ui.print(`error: unknown command or workflow '${command}'\n`);
         return 1;

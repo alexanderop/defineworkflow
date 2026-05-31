@@ -10,7 +10,11 @@ const ENABLED = process.env.WORKFLOW_E2E === "1";
 const d = ENABLED ? describe : describe.skip;
 
 d("real-CLI adapter smoke (costs tokens)", () => {
-  const schema = { type: "object", properties: { answer: { type: "number" } }, required: ["answer"] };
+  const schema = {
+    type: "object",
+    properties: { answer: { type: "number" } },
+    required: ["answer"],
+  };
   const prompt = "Return JSON with key 'answer' set to the number 42. Output only the JSON.";
 
   it("detects installed harnesses", async () => {
@@ -22,7 +26,10 @@ d("real-CLI adapter smoke (costs tokens)", () => {
     const present = await detectAdapters();
     if (!present.includes("claude")) return;
     const adapter = createClaudeAdapter({ processRunner: createProcessRunner() });
-    const res = await adapter.run({ prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) }, { runId: "e2e" as RunId, seq: 0 });
+    const res = await adapter.run(
+      { prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) },
+      { runId: "e2e" as RunId, seq: 0 },
+    );
     expect(res.isOk()).toBe(true);
     expect((res._unsafeUnwrap().data as { answer: number }).answer).toBe(42);
   }, 130_000);
@@ -31,7 +38,10 @@ d("real-CLI adapter smoke (costs tokens)", () => {
     const present = await detectAdapters();
     if (!present.includes("codex")) return;
     const adapter = createCodexAdapter({ processRunner: createProcessRunner() });
-    const res = await adapter.run({ prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) }, { runId: "e2e" as RunId, seq: 0 });
+    const res = await adapter.run(
+      { prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) },
+      { runId: "e2e" as RunId, seq: 0 },
+    );
     expect(res.isOk()).toBe(true);
   }, 130_000);
 
@@ -39,7 +49,10 @@ d("real-CLI adapter smoke (costs tokens)", () => {
     const present = await detectAdapters();
     if (!present.includes("copilot")) return;
     const adapter = createCopilotAdapter({ processRunner: createProcessRunner() });
-    const res = await adapter.run({ prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) }, { runId: "e2e" as RunId, seq: 0 });
+    const res = await adapter.run(
+      { prompt, schema, cwd: process.cwd(), signal: AbortSignal.timeout(120_000) },
+      { runId: "e2e" as RunId, seq: 0 },
+    );
     expect(res.isOk()).toBe(true);
   }, 130_000);
 });

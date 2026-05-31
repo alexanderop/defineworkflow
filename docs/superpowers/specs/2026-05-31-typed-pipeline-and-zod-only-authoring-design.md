@@ -9,8 +9,8 @@ Porting the `deep-research` workflow into `packages/examples` surfaced three rou
 authoring API. They are not example problems — they have root causes in the engine:
 
 1. **`pipeline()` is untyped.** Its signature is `pipeline(items: readonly unknown[], ...stages:
-   ((prev: unknown, item: unknown, index: number) => Promise<unknown>)[]): Promise<Array<unknown |
-   null>>`. Every stage receives `unknown`, so each workflow casts `prev as SomeType` (with an
+((prev: unknown, item: unknown, index: number) => Promise<unknown>)[]): Promise<Array<unknown |
+null>>`. Every stage receives `unknown`, so each workflow casts `prev as SomeType` (with an
    `oxlint-disable consistent-type-assertions` comment) at the top of every stage and again on the
    final result. `parallel<T>` is already generic; `pipeline` is the only primitive that loses types.
 2. **`agent({ schema })` accepts both zod and plain JSON Schema.** A plain JSON Schema makes
@@ -27,7 +27,7 @@ papering over them in the example.
 ## Decisions (locked during brainstorming)
 
 - **Schema authoring is zod-only.** Users author with zod; the runtime converts zod → JSON Schema at
-  the boundary before any adapter/harness sees it. JSON Schema remains the *internal/harness* schema
+  the boundary before any adapter/harness sees it. JSON Schema remains the _internal/harness_ schema
   format.
 - **Blast radius: engine + both examples.** Make the engine changes and update every example
   (`deep-research`, `vue-newsletter`, `feature-pipeline`) so the repo is consistent — no stale casts
@@ -86,7 +86,7 @@ pipeline(
   - `agent<T>(prompt, opts: AgentOptions & { schema: z.ZodType<T> }): Promise<T>`
   - `agent(prompt, opts?: AgentOptions): Promise<unknown>` (no schema → raw text)
   - (plus the `profile`-leading variants)
-  There is no longer a call shape where a schema yields `unknown`.
+    There is no longer a call shape where a schema yields `unknown`.
 - **Runtime requires zod and converts it.** The normalization becomes "if zod → `toJsonSchema()`;
   otherwise fail fast with a clear `SchemaValidation` error" (a non-zod schema is only reachable from
   type-erased sandbox JS). The previous silent `toJsonSchemaObject(rawSchema)` acceptance of raw JSON
@@ -147,7 +147,7 @@ pipeline(
   executes without a "URL is not defined" `ReferenceError`.
 - **mock-runner**: the `minItems` test added this session (arrays satisfy `minItems`) stays.
 - **Gates:** `pnpm build → pnpm typecheck → pnpm lint → pnpm test → pnpm knip`, plus `--mock` runs of
-  `deep-research` and `vue-newsletter` to confirm they are cast-free *and* still execute end-to-end.
+  `deep-research` and `vue-newsletter` to confirm they are cast-free _and_ still execute end-to-end.
 
 ## Risks / notes
 

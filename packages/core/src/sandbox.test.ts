@@ -107,7 +107,11 @@ describe("sandbox", () => {
       args: null,
       budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
     });
-    expect(result.meta).toMatchObject({ name: "defined", harness: "claude", phases: [{ title: "Run" }] });
+    expect(result.meta).toMatchObject({
+      name: "defined",
+      harness: "claude",
+      phases: [{ title: "Run" }],
+    });
     expect(result.returnValue).toEqual({ out: "hit" });
   });
 
@@ -137,7 +141,11 @@ describe("sandbox", () => {
       args: null,
       budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
     });
-    expect(result.meta).toMatchObject({ name: "bundled", harness: "claude", phases: [{ title: "Run" }] });
+    expect(result.meta).toMatchObject({
+      name: "bundled",
+      harness: "claude",
+      phases: [{ title: "Run" }],
+    });
     expect(result.returnValue).toEqual({ out: "hit" });
   });
 
@@ -321,7 +329,8 @@ return x;`;
   });
 
   it("rejects template interpolation inside meta", () => {
-    const src = "export const meta = { name: `wf-${id}`, description: \"d\", harness: \"claude\" };\nreturn 1;";
+    const src =
+      'export const meta = { name: `wf-${id}`, description: "d", harness: "claude" };\nreturn 1;';
     expect(() => extractMeta(src)).toThrow(/SandboxViolation: template interpolation not allowed/);
   });
 
@@ -333,14 +342,18 @@ return x;`;
       `var entry_workflow_default = defineWorkflow({ name: "bundled", description: "d", harness: "claude" });`,
       `export { entry_workflow_default as default };`,
     ].join("\n");
-    expect(extractMeta(src)).toMatchObject({ name: "bundled", description: "d", harness: "claude" });
+    expect(extractMeta(src)).toMatchObject({
+      name: "bundled",
+      description: "d",
+      harness: "claude",
+    });
   });
 
   it("rejects meta that is not the first statement", () => {
     const src = `const x = 1;\nexport const meta = { name: "x", description: "d", harness: "claude" };\nreturn 1;`;
     expect(() => extractMeta(src)).toThrow(/SandboxViolation: .*first statement/);
   });
-  it("rejects a raw `import … from \"zod\"` and points at the defineworkflow re-export", () => {
+  it('rejects a raw `import … from "zod"` and points at the defineworkflow re-export', () => {
     const src = `
       import { agent, defineWorkflow } from "defineworkflow";
       import { z } from "zod";
@@ -350,7 +363,9 @@ return x;`;
         async run() { return await agent("hi", { schema: z.object({ n: z.number() }) }); },
       });
     `;
-    expect(() => extractMeta(src)).toThrow(/SandboxViolation: cannot import from "zod".*defineworkflow/s);
+    expect(() => extractMeta(src)).toThrow(
+      /SandboxViolation: cannot import from "zod".*defineworkflow/s,
+    );
   });
 
   it("names a non-zod foreign import in the SandboxViolation", () => {

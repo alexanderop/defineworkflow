@@ -16,7 +16,18 @@ describe("claude adapter", () => {
 
     const progress: AgentProgress[] = [];
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", label: "a", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        label: "a",
+        signal: new AbortController().signal,
+      },
       { runId: "r" as RunId, seq: 0, onProgress: (p) => progress.push(p) },
     );
     expect(res.isOk()).toBe(true);
@@ -25,7 +36,10 @@ describe("claude adapter", () => {
     expect(r.usage.outputTokens).toBe(106);
 
     // Live progress was driven from the stream.
-    expect(progress.filter((p) => p.tool).map((p) => p.tool!.name)).toEqual(["WebFetch", "WebSearch"]);
+    expect(progress.filter((p) => p.tool).map((p) => p.tool!.name)).toEqual([
+      "WebFetch",
+      "WebSearch",
+    ]);
     expect(progress.find((p) => p.model)?.model).toBe("claude-opus-4-8[1m]");
 
     const argv = fake.calls()[0]!.args;
@@ -40,11 +54,25 @@ describe("claude adapter", () => {
   });
 
   it("returns SchemaValidation when schema output is missing after retries", async () => {
-    const noStructured = JSON.stringify({ type: "result", is_error: false, usage: { input_tokens: 1, output_tokens: 1 } });
+    const noStructured = JSON.stringify({
+      type: "result",
+      is_error: false,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
     const fake = createFakeProcessRunner({ claude: { stdout: noStructured, code: 0 } });
     const adapter = createClaudeAdapter({ processRunner: fake });
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        signal: new AbortController().signal,
+      },
       { runId: "r" as RunId, seq: 0 },
     );
     expect(res.isErr()).toBe(true);
@@ -52,7 +80,15 @@ describe("claude adapter", () => {
   });
 
   it("retries when Claude returns prose instead of schema JSON, then accepts valid JSON", async () => {
-    const schema = { type: "object", properties: { source: { type: "string" }, items: { type: "array", items: { type: "object" } } }, required: ["source", "items"], additionalProperties: false };
+    const schema = {
+      type: "object",
+      properties: {
+        source: { type: "string" },
+        items: { type: "array", items: { type: "object" } },
+      },
+      required: ["source", "items"],
+      additionalProperties: false,
+    };
     let call = 0;
     const fake = createFakeProcessRunner({
       claude: (spec) => {
@@ -69,7 +105,9 @@ describe("claude adapter", () => {
             code: 0,
           };
         }
-        expect(spec.args.join("\n")).toMatch(/previous response did not match the required schema/i);
+        expect(spec.args.join("\n")).toMatch(
+          /previous response did not match the required schema/i,
+        );
         return {
           stdout: JSON.stringify({
             type: "result",
@@ -84,7 +122,13 @@ describe("claude adapter", () => {
     });
     const adapter = createClaudeAdapter({ processRunner: fake, maxRetries: 2 });
     const res = await adapter.run(
-      { prompt: "search HN", schema, cwd: "/tmp", label: "hn", signal: new AbortController().signal },
+      {
+        prompt: "search HN",
+        schema,
+        cwd: "/tmp",
+        label: "hn",
+        signal: new AbortController().signal,
+      },
       { runId: "r" as RunId, seq: 0 },
     );
     expect(res.isOk()).toBe(true);

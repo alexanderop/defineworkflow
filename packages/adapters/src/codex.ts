@@ -48,9 +48,19 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
       // YOLO mode: `--full-auto` sandboxes execution (no network), which blocks
       // web research. Bypass approvals and the sandbox so headless agents get full
       // access. `--json` streams events for live progress + final extraction.
-      const args = ["exec", "--json", "--skip-git-repo-check", "-C", req.cwd, "--dangerously-bypass-approvals-and-sandbox"];
+      const args = [
+        "exec",
+        "--json",
+        "--skip-git-repo-check",
+        "-C",
+        req.cwd,
+        "--dangerously-bypass-approvals-and-sandbox",
+      ];
       if (req.schema) {
-        const schemaPath = await fileStore.writeTemp("codex-schema.json", JSON.stringify(req.schema));
+        const schemaPath = await fileStore.writeTemp(
+          "codex-schema.json",
+          JSON.stringify(req.schema),
+        );
         created.push(schemaPath);
         args.push("--output-schema", schemaPath);
       }
@@ -69,7 +79,11 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
           },
         });
         if (out.code !== 0) {
-          return err({ kind: "AdapterSpawn", adapter: "codex", cause: out.stderr || `exit ${out.code}` });
+          return err({
+            kind: "AdapterSpawn",
+            adapter: "codex",
+            cause: out.stderr || `exit ${out.code}`,
+          });
         }
         const final = translator.result();
         const finalMessage = final.text.trim();
@@ -78,7 +92,11 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
           try {
             data = JSON.parse(finalMessage);
           } catch {
-            return err({ kind: "AdapterSpawn", adapter: "codex", cause: "final message was not valid JSON for the schema" });
+            return err({
+              kind: "AdapterSpawn",
+              adapter: "codex",
+              cause: "final message was not valid JSON for the schema",
+            });
           }
           // Validate at the adapter boundary like claude/copilot/generic — codex's native
           // `--output-schema` isn't trusted as the sole gate. Single-shot (no reprompt loop), so
@@ -86,7 +104,12 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
           // level up in the runtime.
           const issues = compileJsonSchemaValidator(req.schema)(data);
           if (issues) {
-            return err({ kind: "SchemaValidation", issues, attempts: 1, rawOutput: truncateRawOutput(finalMessage) });
+            return err({
+              kind: "SchemaValidation",
+              issues,
+              attempts: 1,
+              rawOutput: truncateRawOutput(finalMessage),
+            });
           }
         }
         // Real usage from turn.completed; fall back to a length estimate only when absent.
