@@ -18,7 +18,7 @@ export function labelFromPrompt(prompt: string, max = 48): string {
 }
 
 /** A zod schema, structurally — accepted by `agent({ schema })` and converted to JSON Schema at runtime. */
-export interface ZodLike {
+interface ZodLike {
   parse(value: unknown): unknown;
   safeParse(value: unknown): unknown;
 }

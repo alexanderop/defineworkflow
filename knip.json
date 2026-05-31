@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignore": [
+    "repos/**",
+    ".claude/**",
+    ".agents/**"
+  ],
+  "workspaces": {
+    "packages/examples": {
+      "entry": ["src/*.workflow.ts"]
+    },
+    "packages/workflow": {
+      "ignoreDependencies": [
+        "@anthropic-ai/sdk",
+        "acorn",
+        "ajv",
+        "esbuild",
+        "ink",
+        "neverthrow",
+        "react",
+        "@workflow/adapters",
+        "@workflow/schema",
+        "@workflow/ui"
+      ]
+    }
+  }
+}

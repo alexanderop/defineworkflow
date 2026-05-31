@@ -18,6 +18,9 @@ lint with **oxlint**, and git hooks run via **lefthook**.
 - **Build all packages** (topological): `pnpm build`
 - **Type-check**: `pnpm typecheck` — builds first (declarations feed dependent packages), then `tsc --noEmit` per package
 - **Lint**: `pnpm lint` (oxlint)
+- **Unused code/deps**: `pnpm knip` — flags unused files, dependencies, and exports (config in
+  `knip.json`; runs in CI after typecheck so each package's `dist/` exists). Read the knip
+  false-positives note under `docs/solutions/developer-experience/` before acting on a finding.
 - **Test (unit)**: `pnpm test` — vitest run, the `unit` project
 - **Watch tests**: `pnpm test:watch`
 - **Run a single test file**: `pnpm vitest run packages/core/src/runtime.test.ts`
