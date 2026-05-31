@@ -21,6 +21,11 @@ trustPolicyExclude:
   # chokidar@4.0.3 (transitive via tsup) dropped provenance vs. earlier releases.
   # Verified legitimate: published by Paul Miller (paulmillr), chokidar's maintainer.
   - "chokidar@4.0.3"
-  # vite@5.4.21 (transitive via vitest) moved from trusted-publisher to provenance
-  # tier. Verified legitimate: published by the core Vite team (Evan You, patak, antfu).
+  # vite@5.4.21 (transitive via vitepress — vitest 4 resolves to vite 7 instead) moved
+  # from trusted-publisher to provenance tier. Verified legitimate: published by the
+  # core Vite team (Evan You, patak, antfu).
   - "vite@5.4.21"
+  # ast-v8-to-istanbul@1.0.2 (transitive via @vitest/coverage-v8) moved from
+  # trusted-publisher to provenance tier. Verified legitimate: published by Ari
+  # Perkkiö (ariperkkio), Vitest core team, with SLSA provenance attestation.
+  - "ast-v8-to-istanbul@1.0.2"

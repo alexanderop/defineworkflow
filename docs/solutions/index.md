@@ -12,6 +12,7 @@ Knowledge store of past problems and learnings. Read the relevant file before wo
 ## Developer Experience
 - [Running knip in this monorepo: the four built-in false positives and how they're suppressed](developer-experience/knip-false-positives-in-this-monorepo.md)
 - [Typed pipeline() overloads, zod-only schemas, and shipping URL types to a types:[] package](developer-experience/typed-pipeline-overloads-zod-only-url-types.md)
+- [vitest 4 upgrade crashes pnpm test with vite/module-runner ERR_PACKAGE_PATH_NOT_EXPORTED](developer-experience/vitest-4-vite-module-runner-exports-error.md)
 - [Build before pnpm test, and don't use pnpm --filter to run vitest in this monorepo](developer-experience/vitest-monorepo-build-and-filter-quirks.md)
 
 ## Integration Issues

@@ -9,11 +9,11 @@
     "preview": "vitepress preview"
   },
   "dependencies": {
-    "@dagrejs/dagre": "^1.1.4",
+    "@dagrejs/dagre": "^3.0.0",
     "roughjs": "^4.6.6"
   },
   "devDependencies": {
-    "shiki": "^1.24.0",
+    "shiki": "^4.1.0",
     "vitepress": "^1.6.3",
     "vue": "^3.5.13"
   }

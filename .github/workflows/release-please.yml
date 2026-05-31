@@ -14,6 +14,18 @@ name: release-please
 # Note: releases created via GITHUB_TOKEN do NOT trigger other workflows, so we
 # call release.yml directly (workflow_call) instead of relying on a
 # `release: published` event.
+#
+# For the same reason, the *release PR* release-please opens must NOT be created
+# with the default GITHUB_TOKEN — PRs opened by it never fire `pull_request`
+# events, so required checks (test, CodeQL) would never run and the PR stays
+# BLOCKED forever. We mint a short-lived GitHub App installation token instead,
+# so the PR is opened as the app and its checks run normally.
+#
+# Requires repo/org secrets RELEASE_PLEASE_APP_ID and RELEASE_PLEASE_APP_KEY
+# from a GitHub App (installed on this repo) granted Contents: read/write and
+# Pull requests: read/write. If those secrets are absent the token step is
+# skipped and release-please falls back to GITHUB_TOKEN (PR opens but its
+# checks must be re-triggered manually by close/reopen).
 
 on:
   push:
@@ -42,9 +54,24 @@ jobs:
       release_created: ${{ steps.rp.outputs['packages/workflow--release_created'] }}
       tag_name: ${{ steps.rp.outputs['packages/workflow--tag_name'] }}
     steps:
-      - id: rp
-        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+      # Mint a GitHub App installation token so the release PR is opened as the
+      # app, not GITHUB_TOKEN — otherwise its required checks never trigger.
+      # Skipped (and we fall back to GITHUB_TOKEN) when the app secrets aren't set.
+      - id: app-token
+        if: vars.RELEASE_PLEASE_APP_ID != ''
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         with:
+          app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_KEY }}
+          # Scope the token to exactly what release-please needs (mirrors the
+          # job's GITHUB_TOKEN permissions); avoids blanket installation scopes.
+          permission-contents: write # release commits, tags, GitHub Releases
+          permission-pull-requests: write # create/update the release PR
+      - id: rp
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          # Falls back to the default GITHUB_TOKEN when the app token is unset.
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 

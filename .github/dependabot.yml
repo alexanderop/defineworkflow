@@ -1,7 +1,15 @@
 # Keeps dependencies patched so a known-vulnerable transitive dep doesn't sit
 # in the tree. Two ecosystems: the pnpm workspace (single root lockfile) and the
-# GitHub Actions we pin by SHA. Updates are grouped to keep PR noise low — a
-# security advisory still opens its own ungrouped PR immediately.
+# GitHub Actions we pin by SHA. Updates are grouped aggressively to keep PR noise
+# low — prod and dev each collapse into a single weekly PR covering every update
+# type (incl. majors). Security advisories still open their own ungrouped PR
+# immediately, regardless of grouping.
+#
+# `cooldown` makes Dependabot wait 1 day after a release before opening a PR for
+# it — the same idea as pnpm's `minimumReleaseAge`. It gives a just-published
+# version time to be yanked/patched before we adopt it, so we don't bump to a
+# version that gets pulled hours later. Cooldown does NOT defer security advisory
+# PRs — those still open immediately.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -9,21 +17,29 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 1
     groups:
-      # Routine minor/patch bumps land as one PR per week.
-      production-minor-patch:
+      # All production-dependency bumps (minor, patch, AND major) land as one
+      # weekly PR. Majors are bundled in too, so breaking changes arrive batched
+      # — review the combined PR carefully before merging.
+      production:
         applies-to: version-updates
-        update-types: [minor, patch]
-      dev-minor-patch:
+        dependency-type: production
+        update-types: [minor, patch, major]
+      # All dev-dependency bumps land as a second weekly PR.
+      development:
         applies-to: version-updates
         dependency-type: development
-        update-types: [minor, patch]
+        update-types: [minor, patch, major]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 1
     groups:
       actions:
         patterns: ["*"]
