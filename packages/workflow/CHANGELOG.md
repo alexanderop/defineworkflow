@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.5.0](https://github.com/alexanderop/defineworkflow/compare/v0.4.1...v0.5.0) (2026-05-31)
+
+
+### Features
+
+* **cli:** bundle local workflow imports with esbuild ([ff088ed](https://github.com/alexanderop/defineworkflow/commit/ff088eda539a5cfe92e9425465c85371e1d11918))
+* **cli:** bundle multi-file workflows in the run command ([bb5bff5](https://github.com/alexanderop/defineworkflow/commit/bb5bff589bc42b1664bda213cd19d82dcdab1cc6))
+* **cli:** bundleWorkflow passthrough for single-file workflows ([1b5565c](https://github.com/alexanderop/defineworkflow/commit/1b5565c2b478d713c837353569c176aa8e937928))
+* **core:** extractMeta reads meta from bundled defineWorkflow output ([2d937a7](https://github.com/alexanderop/defineworkflow/commit/2d937a7f2ea4805516e1df88c205f731128cd8b5))
+* **core:** transformScript handles esbuild bundled default export ([cbcbf9a](https://github.com/alexanderop/defineworkflow/commit/cbcbf9ad6986712fe29cb7c21eb1428d1b136b9d))
+* multi-file workflows + UI agent navigation ([0da4bf4](https://github.com/alexanderop/defineworkflow/commit/0da4bf45d85669788c20d11682fb0f0c82effaf6))
+* **ui:** up/down move agent selection in detail pane, j/k scroll ([531ceb5](https://github.com/alexanderop/defineworkflow/commit/531ceb5e156da915bab6b42a88639a90c6e54967))
+
+
+### Bug Fixes
+
+* **core:** match esbuild default export alongside sibling named exports ([c4eae14](https://github.com/alexanderop/defineworkflow/commit/c4eae14422759dd74df489bbb1c0b6b37c365f0a))
+* **release:** root release-please at repo root so all package commits trigger releases ([2320b75](https://github.com/alexanderop/defineworkflow/commit/2320b7544da480a7bf68b0424dc7d7506746f9fe))
+* **release:** root release-please at repo root so all package commits trigger releases ([3f20611](https://github.com/alexanderop/defineworkflow/commit/3f206112510846a77bded3883bc68b335906a6da))
+
 ## [0.4.1](https://github.com/alexanderop/defineworkflow/compare/v0.4.0...v0.4.1) (2026-05-31)
 
 
