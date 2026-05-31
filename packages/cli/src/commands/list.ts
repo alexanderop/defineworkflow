@@ -11,7 +11,9 @@ export function listCommand(deps: Pick<AppDeps, "registry" | "ui" | "clock">): n
   for (const meta of runs) {
     const tokens = deps.registry
       .readJournal(meta.runId)
-      .map((entries) => entries.reduce((sum, e) => sum + e.outputTokens, 0))
+      .map((entries) =>
+        entries.reduce((sum, e) => sum + (e.type === "result" ? e.outputTokens : 0), 0),
+      )
       .unwrapOr(0);
     const elapsed = (meta.endedAt ?? deps.clock.now()) - meta.startedAt;
     deps.ui.print(

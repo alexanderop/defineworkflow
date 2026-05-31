@@ -17,13 +17,15 @@ const stubFileStore = () => {
     },
     read: async (p: string) => files.get(p) ?? "",
     cleanup: async () => {},
+    files,
   };
 };
 
 describe("codex adapter", () => {
   it("streams exec --json, writes a schema file, parses the final message + real usage, drives progress", async () => {
     const fake = createFakeProcessRunner({ codex: { stdout: stream, code: 0 } });
-    const adapter = createCodexAdapter({ processRunner: fake, fileStore: stubFileStore() });
+    const store = stubFileStore();
+    const adapter = createCodexAdapter({ processRunner: fake, fileStore: store });
     expect(adapter.id).toBe("codex");
 
     const progress: AgentProgress[] = [];
@@ -58,6 +60,10 @@ describe("codex adapter", () => {
     // YOLO: bypass the sandbox so headless agents get network/web access.
     expect(argv).toContain("--dangerously-bypass-approvals-and-sandbox");
     expect(argv).not.toContain("--full-auto");
+    expect(JSON.parse(store.files.get("/tmp/codex-schema.json") ?? "{}")).toMatchObject({
+      additionalProperties: false,
+      properties: { n: {} },
+    });
   });
 
   it("returns AdapterSpawn on non-zero exit", async () => {

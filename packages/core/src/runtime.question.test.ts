@@ -13,10 +13,11 @@ function harness(
 ) {
   const events: WorkflowEvent[] = [];
   let clock = 0;
+  const journal = opts.journal ?? createJournal();
   const rt = createRuntime({
     runner: createScriptedRunner({}),
     semaphore: createSemaphore(8),
-    journal: opts.journal ?? createJournal(),
+    journal,
     maxAgents: 1000,
     budgetTotal: null,
     args: {},
@@ -26,7 +27,7 @@ function harness(
     now: () => clock++,
     ...(opts.askUser ? { askUser: opts.askUser } : {}),
   });
-  return { rt, events };
+  return { rt, events, journal };
 }
 
 describe("runtime.askUserQuestion", () => {
@@ -34,23 +35,6 @@ describe("runtime.askUserQuestion", () => {
     const { rt } = harness({ askUser: async (req) => `answer to ${req.key}` });
     const ans = await rt.askUserQuestion({ key: "deploy-target", question: "Where?" });
     expect(ans).toBe("answer to deploy-target");
-  });
-
-  it("does not re-ask when the answer is already journaled (resume)", async () => {
-    const journal = createJournal([
-      { seq: 0, key: "deploy-target", text: "production", data: "production", outputTokens: 0 },
-    ]);
-    let called = false;
-    const { rt } = harness({
-      journal,
-      askUser: async () => {
-        called = true;
-        return "staging";
-      },
-    });
-    const ans = await rt.askUserQuestion({ key: "deploy-target", question: "Where?" });
-    expect(ans).toBe("production");
-    expect(called).toBe(false);
   });
 
   it("emits question-asked then question-answered around the prompt", async () => {
@@ -109,19 +93,36 @@ describe("runtime.askUserQuestion", () => {
     expect(maxInFlight).toBe(1);
   });
 
-  it("emits question-answered with cached:true on resume", async () => {
-    const journal = createJournal([
-      { seq: 0, key: "deploy-target", text: "production", data: "production", outputTokens: 0 },
-    ]);
-    const { rt, events } = harness({ journal, askUser: async () => "staging" });
-    await rt.askUserQuestion({ key: "deploy-target", question: "Where?" });
-    const answered = events.find((e) => e.type === "question-answered");
-    expect(answered).toMatchObject({
-      type: "question-answered",
-      key: "deploy-target",
-      answer: "production",
-      cached: true,
+  it("replays a question answer when the question identity matches", async () => {
+    const first = harness({ askUser: async () => "production" });
+    await first.rt.askUserQuestion({ key: "deploy-target", question: "Where?" });
+
+    let called = false;
+    const resumed = harness({
+      journal: createJournal(first.journal.records()),
+      askUser: async () => {
+        called = true;
+        return "staging";
+      },
     });
+
+    const ans = await resumed.rt.askUserQuestion({ key: "deploy-target", question: "Where?" });
+
+    expect(ans).toBe("production");
+    expect(called).toBe(false);
+  });
+
+  it("re-asks when the question text changes", async () => {
+    const first = harness({ askUser: async () => "production" });
+    await first.rt.askUserQuestion({ key: "deploy-target", question: "Where?" });
+    const resumed = harness({
+      journal: createJournal(first.journal.records()),
+      askUser: async () => "staging",
+    });
+
+    const ans = await resumed.rt.askUserQuestion({ key: "deploy-target", question: "Where now?" });
+
+    expect(ans).toBe("staging");
   });
 
   it("releases the question lock when askUser rejects, so later questions still resolve", async () => {

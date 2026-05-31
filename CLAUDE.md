@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is **workflow-monorepo** — a deterministic multi-agent workflow engine. A workflow is a TS file
 that imports from the `defineworkflow` package and exports a `defineWorkflow({ …, async run() { … } })`
 default, orchestrating coding-agent invocations (`agent()`, `parallel()`, `pipeline()`) with durable,
-crash-safe execution: every agent result is journaled by sequence number, so a run can be replayed
+crash-safe execution: every agent result is journaled by content-addressed key, so a run can be replayed
 from a checkpoint without re-invoking the model. Scripts run in a VM sandbox, agents are dispatched
 through pluggable harness adapters (Claude/Codex/Copilot CLIs or the raw Anthropic API), and progress
 is streamed to a React+Ink terminal UI.
@@ -119,13 +119,13 @@ dependencies.
 `createRuntime(deps)` returns the `Runtime` exposed to workflow scripts:
 `agent()`, `parallel()`, `pipeline()`, `phase()`, `log()`, `workflow()`, `askUserQuestion()`, and
 `budget`. Each `agent()`
-call walks a fixed sequence: increment seq → emit `agent-queued` → check abort → **journal lookup by
-seq** (return cached result on hit — this is how resume works) → budget gate → agent-cap gate →
-acquire **semaphore** slot → convert zod schema to JSON Schema → invoke `runner.run()` → validate
-output → record to journal → emit events → release slot.
+call walks a fixed sequence: increment seq → emit `agent-queued` → check abort → convert zod schema
+to JSON Schema → compute a chained journal key → **journal lookup by key** (return cached result on
+hit — this is how resume works) → budget gate → agent-cap gate → acquire **semaphore** slot → invoke
+`runner.run()` → validate output → record to journal → emit events → release slot.
 
 `askUserQuestion(opts)` is deterministic human-in-the-loop: it **shares the agent seq counter** and
-walks a subset of that sequence — emit `question-asked` → abort check → **journal lookup by seq**
+walks a subset of that sequence — emit `question-asked` → abort check → **journal lookup by key**
 (cached answer short-circuits, so resume never re-asks) → skip the budget/cap gates (a question costs
 no tokens, isn't an agent) → acquire a dedicated **question lock** (only one prompt owns the keyboard;
 in-flight agents keep running, concurrent questions queue) → resolve via the injected `deps.askUser`

@@ -156,8 +156,8 @@ function runtimeOnly(): never {
  * Pass a {@link Profile} (from {@link profile}) as the first argument to apply reusable defaults
  * (`model`, `instructions`, `adapter`, …); per-call `opts` override the profile.
  *
- * Each call is journaled by sequence number, so a resumed run returns the cached result instead of
- * re-invoking the model. Authoring stub only — the CLI injects the live runtime at execution time.
+ * Each call is journaled by content-addressed key, so a resumed run returns the cached result instead
+ * of re-invoking the model. Authoring stub only — the CLI injects the live runtime at execution time.
  *
  * @param profile - Optional reusable defaults bundle (see {@link profile}).
  * @param prompt - The instruction sent to the agent.

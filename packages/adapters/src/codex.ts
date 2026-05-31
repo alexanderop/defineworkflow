@@ -37,6 +37,20 @@ export interface CodexAdapterDeps {
   readonly bin?: string;
 }
 
+function schemaForCodex(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(schemaForCodex);
+  if (!value || typeof value !== "object") return value;
+
+  const out: Record<string, unknown> = {};
+  let isObjectSchema = false;
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "type" && child === "object") isObjectSchema = true;
+    out[key] = schemaForCodex(child);
+  }
+  if (isObjectSchema) out["additionalProperties"] = false;
+  return out;
+}
+
 export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
   const bin = deps.bin ?? "codex";
   const fileStore = deps.fileStore ?? createDefaultFileStore();
@@ -59,7 +73,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
       if (req.schema) {
         const schemaPath = await fileStore.writeTemp(
           "codex-schema.json",
-          JSON.stringify(req.schema),
+          JSON.stringify(schemaForCodex(req.schema)),
         );
         created.push(schemaPath);
         args.push("--output-schema", schemaPath);

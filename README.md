@@ -5,8 +5,8 @@
 Author a workflow as a single TypeScript file — or a small folder of files —
 orchestrate coding-agent invocations with `agent()` / `parallel()` /
 `pipeline()`, and get **durable, replayable execution** for free: every agent
-result is journaled by sequence number, so a crashed or paused run resumes from
-its last checkpoint without re-invoking the model.
+result is journaled by content-addressed key, so a crashed or paused run resumes
+from its last checkpoint without re-invoking the model.
 
 ```ts
 import { agent, defineWorkflow, log, phase } from "defineworkflow";
@@ -45,8 +45,8 @@ re-running it shouldn't re-spend tokens on work that already succeeded.
 probabilistic:
 
 - **Durable & crash-safe** — each `agent()` result is appended to a per-run
-  journal. Resume replays the journal by sequence number and only invokes the
-  model for steps that never completed.
+  journal. Resume replays the longest unchanged prefix by content hash and only
+  invokes the model for steps that never completed or diverged.
 - **Structured fan-out** — `parallel()` and `pipeline()` express concurrent and
   staged agent work, bounded by a semaphore.
 - **Harness-neutral** — the same workflow runs against the Claude, Codex, or

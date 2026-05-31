@@ -9,3 +9,6 @@ export type RunId = Tagged<string, "RunId">;
  * `phase`/`label` strings it's built from, so they can't be passed where the full key is wanted.
  */
 export type AgentKey = Tagged<string, "AgentKey">;
+
+/** Content-addressed identity for a replayable workflow call in the durable journal. */
+export type JournalKey = Tagged<string, "JournalKey">;

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ok, err, type Result } from "neverthrow";
-import type { WorkflowError, WorkflowEvent, JournalEntry } from "@workflow/core";
+import type { WorkflowError, WorkflowEvent, JournalRecord } from "@workflow/core";
 
 const corrupt = (detail: string): WorkflowError => ({ kind: "JournalCorrupt", runId: "", detail });
 
@@ -20,26 +20,38 @@ const isEventLike = (v: unknown): v is WorkflowEvent =>
   isRecord(v) && typeof v["type"] === "string";
 
 /**
- * Full-shape validation of a journal line — every field the durable-resume machinery replays, not
- * the old 2-field (`seq`/`key`) duck check that let a line missing `text`/`outputTokens` through as
- * a structurally-lying `JournalEntry`. `data` is genuinely arbitrary JSON, hence `z.unknown()`; it's
- * `undefined` for text-only agent results, which `JSON.stringify` drops from the serialized line, so
- * it must be `.optional()` — zod v4 treats a bare `z.unknown()` key as non-optional (missing fails).
+ * Full-shape validation of a journal line — every field the durable-resume machinery replays.
+ * `data` is genuinely arbitrary JSON, hence `z.unknown()`. It is absent for text-only agent
+ * results, so it must be `.optional()`.
  */
-const journalEntrySchema = z.object({
+const journalStartedSchema = z.object({
+  type: z.literal("started"),
   seq: z.number(),
-  key: z.string(),
+  journalKey: z.string().startsWith("v2:"),
+  agentKey: z.string(),
+});
+
+const journalResultSchema = z.object({
+  type: z.literal("result"),
+  seq: z.number(),
+  journalKey: z.string().startsWith("v2:"),
+  agentKey: z.string(),
   text: z.string(),
   data: z.unknown().optional(),
   outputTokens: z.number(),
 });
 
+const journalRecordSchema = z.discriminatedUnion("type", [
+  journalStartedSchema,
+  journalResultSchema,
+]);
+
 export function serializeEvent(event: WorkflowEvent): string {
   return JSON.stringify(event) + "\n";
 }
 
-export function serializeJournalEntry(entry: JournalEntry): string {
-  return JSON.stringify(entry) + "\n";
+export function serializeJournalRecord(record: JournalRecord): string {
+  return JSON.stringify(record) + "\n";
 }
 
 export function parseEventLine(line: string): Result<WorkflowEvent, WorkflowError> {
@@ -48,12 +60,12 @@ export function parseEventLine(line: string): Result<WorkflowEvent, WorkflowErro
   );
 }
 
-export function parseJournalLine(line: string): Result<JournalEntry, WorkflowError> {
+export function parseJournalLine(line: string): Result<JournalRecord, WorkflowError> {
   return parseJson(line).andThen((value) => {
-    const result = journalEntrySchema.safeParse(value);
+    const result = journalRecordSchema.safeParse(value);
     if (!result.success)
-      return err(corrupt("not a journal entry (expected seq/key/text/data/outputTokens)"));
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- validated shape; z.unknown() leaves `data` optional in zod's inferred type, narrowed to JournalEntry at this trusted disk boundary
-    return ok(result.data as JournalEntry);
+      return err(corrupt("not a v2 journal record (expected started/result shape)"));
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- validated shape; branded strings are re-minted at this trusted disk boundary
+    return ok(result.data as JournalRecord);
   });
 }

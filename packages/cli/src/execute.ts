@@ -8,7 +8,7 @@ import {
 import type {
   AgentRunner,
   Immutable,
-  JournalEntry,
+  JournalRecord,
   JsonValue,
   QuestionRequest,
   RunId,
@@ -40,7 +40,7 @@ export interface ExecuteParams {
   readonly args: Immutable<JsonValue>;
   readonly runner: AgentRunner;
   readonly adapter: string;
-  readonly seed: readonly JournalEntry[];
+  readonly seed: readonly JournalRecord[];
   /** Pre-supplied answers for askUserQuestion(); used directly headless, and as a fast-path in the foreground. */
   readonly answers?: AnswerMap;
   /** When set, per-call `agent({ adapter })` overrides also resolve to `runner` (the mock), so a --mock run spawns no real adapter. */

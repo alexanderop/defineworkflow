@@ -6,13 +6,13 @@ import {
   type JsonSchema,
   type ZodLike,
 } from "@workflow/schema";
-import type { AgentKey, RunId } from "./brand.js";
+import type { AgentKey, JournalKey, RunId } from "./brand.js";
 import type { Immutable, JsonValue } from "./type-ext.js";
 import { createBudget, type Budget } from "./budget.js";
 import { WorkflowThrow, type WorkflowError } from "./errors.js";
 import { truncateRawOutput } from "./raw-output.js";
 import type { Semaphore } from "./semaphore.js";
-import type { Journal } from "./journal.js";
+import { computeJournalKey, type Journal } from "./journal.js";
 import type { AgentRequest, AgentRunner, WorkflowMeta } from "./types.js";
 import type { AgentProgress, WorkflowEvent } from "./events.js";
 import type { ControlRegistry } from "./control.js";
@@ -51,7 +51,7 @@ export interface QuestionRequest {
 }
 
 export interface AskUserQuestionOptions {
-  /** Stable key for `--answers` and journaling; falls back to a seq/phase/label-derived key. */
+  /** Stable key for `--answers` and question identity; falls back to a seq/phase/label-derived key. */
   readonly key?: string;
   /** The question text, rendered as markdown in the interactive UI. */
   readonly question: string;
@@ -168,6 +168,8 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
   let currentPhase = "default";
   let seq = 0;
   let spawned = 0;
+  let previousJournalKey: JournalKey | null = null;
+  let diverged = false;
   // Tail of the question lock chain — each askUserQuestion() awaits the prior question before
   // prompting, so only one prompt is ever open even when raised inside parallel()/pipeline().
   let questionTail: Promise<void> = Promise.resolve();
@@ -245,41 +247,6 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       throw new WorkflowThrow(e);
     }
 
-    // Resume: journal hit returns cached result without spawning.
-    const cached = deps.journal.lookup(mySeq);
-    if (cached) {
-      budget.record(cached.outputTokens);
-      deps.emit({ type: "agent-output", key, chunk: cached.text, at: deps.now() });
-      deps.emit({
-        type: "agent-finished",
-        key,
-        usage: { inputTokens: 0, outputTokens: cached.outputTokens },
-        cached: true,
-        at: deps.now(),
-      });
-      return cached.data ?? cached.text;
-    }
-
-    // Budget gate (parity: further agent() calls throw once spent reaches total).
-    // Best-effort gate: under concurrency spend may overshoot total by up to (concurrency × per-agent tokens). Spec defines budget as a gate, not a hard reservation.
-    if (deps.budgetTotal !== null && budget.remaining() <= 0) {
-      const e: WorkflowError = {
-        kind: "BudgetExhausted",
-        spent: budget.spent(),
-        total: deps.budgetTotal,
-      };
-      deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
-      throw new WorkflowThrow(e);
-    }
-
-    // Agent cap — claim the slot synchronously so concurrent launches can't overshoot.
-    if (spawned >= deps.maxAgents) {
-      const e: WorkflowError = { kind: "AgentCapExceeded", cap: deps.maxAgents };
-      deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
-      throw new WorkflowThrow(e);
-    }
-    spawned++;
-
     // `opts.schema` must be a zod schema (the authoring surface is zod-only). Normalize it to
     // the JSON Schema the harnesses + AJV consume, and compile it here so a malformed schema
     // surfaces as a clean SchemaValidation error. A non-zod value is only reachable from
@@ -304,6 +271,58 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       }
     }
 
+    const journalKey = computeJournalKey({
+      kind: "agent",
+      prompt: requestPrompt,
+      previousKey: previousJournalKey,
+      opts: {
+        schema: jsonSchema,
+        model: opts.model,
+        isolation: opts.isolation,
+        agentType: opts.agentType,
+        adapter: opts.adapter,
+        instructions: opts.instructions,
+      },
+    });
+    previousJournalKey = journalKey;
+
+    // Resume: journal hit returns cached result without spawning. The first miss switches the
+    // run to live mode, preserving strict longest-prefix replay even when a later key matches.
+    const cached = diverged ? undefined : deps.journal.lookup(journalKey);
+    if (cached) {
+      budget.record(cached.outputTokens);
+      deps.emit({ type: "agent-output", key, chunk: cached.text, at: deps.now() });
+      deps.emit({
+        type: "agent-finished",
+        key,
+        usage: { inputTokens: 0, outputTokens: cached.outputTokens },
+        cached: true,
+        at: deps.now(),
+      });
+      return cached.data ?? cached.text;
+    }
+    diverged = true;
+
+    // Budget gate (parity: further agent() calls throw once spent reaches total).
+    // Best-effort gate: under concurrency spend may overshoot total by up to (concurrency × per-agent tokens). Spec defines budget as a gate, not a hard reservation.
+    if (deps.budgetTotal !== null && budget.remaining() <= 0) {
+      const e: WorkflowError = {
+        kind: "BudgetExhausted",
+        spent: budget.spent(),
+        total: deps.budgetTotal,
+      };
+      deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
+      throw new WorkflowThrow(e);
+    }
+
+    // Agent cap — claim the slot synchronously so concurrent launches can't overshoot.
+    if (spawned >= deps.maxAgents) {
+      const e: WorkflowError = { kind: "AgentCapExceeded", cap: deps.maxAgents };
+      deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
+      throw new WorkflowThrow(e);
+    }
+    spawned++;
+
     // Pause gate: hold here while paused, then re-check stop (a pause may have spanned a stop).
     if (deps.gate) await deps.gate();
     if (deps.signal?.aborted) {
@@ -322,6 +341,12 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
           : undefined;
       const cwd = isolated?.cwd ?? deps.cwd;
       try {
+        deps.journal.recordStarted({
+          type: "started",
+          seq: mySeq,
+          journalKey,
+          agentKey: key,
+        });
         // Restart loop: a restart request aborts the current run and re-runs with the same
         // key/seq. Restart is only meaningful while the agent is in flight (registered here).
         for (;;) {
@@ -381,11 +406,13 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
             }
 
             budget.record(res.usage.outputTokens);
-            deps.journal.record({
+            deps.journal.recordResult({
+              type: "result",
               seq: mySeq,
-              key,
+              journalKey,
+              agentKey: key,
               text: res.text,
-              data: res.data,
+              ...(res.data !== undefined ? { data: res.data } : {}),
               outputTokens: res.usage.outputTokens,
             });
             deps.emit({ type: "agent-output", key, chunk: res.text, at: deps.now() });
@@ -445,6 +472,19 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     const phase = opts.phase ?? currentPhase;
     const label = opts.label ?? (labelFromPrompt(opts.question) || `question-${mySeq}`);
     const key = opts.key ?? `${mySeq}:${phase}:${label}`;
+    const journalKey = computeJournalKey({
+      kind: "question",
+      prompt: opts.question,
+      previousKey: previousJournalKey,
+      opts: {
+        key,
+        question: opts.question,
+        choices: opts.choices,
+        allowOther: opts.allowOther,
+        default: opts.default,
+      },
+    });
+    previousJournalKey = journalKey;
 
     // Serialize prompts: only one question competes for the keyboard at a time. Agents already
     // in flight keep running; concurrent questions queue here in seq (call) order.
@@ -467,13 +507,14 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       // Resume: a journaled answer returns without re-asking. Questions ride the same seq
       // counter and journal as agent(), but skip the budget/agent-cap gates — a question
       // costs no tokens and is not an agent.
-      const cached = deps.journal.lookup(mySeq);
+      const cached = diverged ? undefined : deps.journal.lookup(journalKey);
       if (cached) {
         const cachedAnswer = cached.data ?? cached.text;
         const answer = typeof cachedAnswer === "string" ? cachedAnswer : String(cachedAnswer);
         deps.emit({ type: "question-answered", key, answer, cached: true, at: deps.now() });
         return answer;
       }
+      diverged = true;
 
       if (!deps.askUser) {
         throw new WorkflowThrow({
@@ -490,7 +531,16 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
         ...(opts.default !== undefined ? { default: opts.default } : {}),
       };
       const answer = await deps.askUser(request);
-      deps.journal.record({ seq: mySeq, key, text: answer, data: answer, outputTokens: 0 });
+      deps.journal.recordStarted({ type: "started", seq: mySeq, journalKey, agentKey: key });
+      deps.journal.recordResult({
+        type: "result",
+        seq: mySeq,
+        journalKey,
+        agentKey: key,
+        text: answer,
+        data: answer,
+        outputTokens: 0,
+      });
       deps.emit({ type: "question-answered", key, answer, cached: false, at: deps.now() });
       return answer;
     } finally {

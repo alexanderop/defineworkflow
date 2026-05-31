@@ -14,7 +14,7 @@ the budget and agent-cap gates fail fast as values, and the semaphore slot is al
 A few invariants fall straight out of this sequence:
 
 - **Journal-before-spawn** is the whole resume story. By the time control reaches the adapter, we've
-  already proven this seq has no cached result. See [Journal & resume](/guide/journal-resume).
+  already proven this journal key has no cached result. See [Journal & resume](/guide/journal-resume).
 - **Gates throw values, not exceptions.** Budget and agent-cap produce a tagged `WorkflowError`
   wrapped in `WorkflowThrow`, so your script body can `try/catch` it like any error while library code
   keeps threading `Result`.
@@ -32,10 +32,10 @@ A few invariants fall straight out of this sequence:
     { id: 's1', label: 'seq++' },
     { id: 's2', label: 'emit queued' },
     { id: 's3', label: 'check abort' },
-    { id: 's4', label: 'journal lookup', sub: 'resume hit?', accent: 'cyan' },
-    { id: 's5', label: 'budget gate', accent: 'amber' },
-    { id: 's6', label: 'agent-cap gate', accent: 'amber' },
-    { id: 's7', label: 'zod→JSON Schema' },
+    { id: 's4', label: 'zod→JSON Schema' },
+    { id: 's5', label: 'journal lookup', sub: 'resume hit?', accent: 'cyan' },
+    { id: 's6', label: 'budget gate', accent: 'amber' },
+    { id: 's7', label: 'agent-cap gate', accent: 'amber' },
     { id: 's8', label: 'pause gate', accent: 'amber' },
     { id: 's9', label: 'acquire slot', accent: 'green' },
     { id: 's10', label: 'run adapter', accent: 'violet' },

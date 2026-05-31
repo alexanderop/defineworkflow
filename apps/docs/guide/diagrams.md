@@ -58,7 +58,7 @@ Describe a graph; dagre places the nodes.
 | `caption`   | `string`                               | `''`    | italic caption under the figure                   |
 | `fontSize`  | `number`                               | `14`    | label size in px                                  |
 
-A node with a `sub` renders a dimmer second line (e.g. `label: 'journal', sub: 'seq → result'`).
+A node with a `sub` renders a dimmer second line (e.g. `label: 'journal', sub: 'key → result'`).
 Set `shape: 'ellipse'` for a rounded node.
 
 ## Primitives
@@ -75,7 +75,7 @@ the DOM themselves, so order them back-to-front (arrows first, boxes on top).
   <RoughBox :x="20" :y="52" :width="92" :height="36" label="agent()" accent="amber" />
   <RoughBox :x="20" :y="8" :width="92" :height="36" label="agent()" accent="amber" />
   <RoughBox :x="20" :y="96" :width="92" :height="36" label="agent()" accent="amber" />
-  <RoughBox :x="214" :y="50" :width="120" :height="40" label="journal" sub="seq → result" />
+  <RoughBox :x="214" :y="50" :width="120" :height="40" label="journal" sub="key → result" />
 </RoughCanvas>
 
 ```md
@@ -86,7 +86,7 @@ the DOM themselves, so order them back-to-front (arrows first, boxes on top).
   <RoughBox :x="20" :y="8"  :width="92" :height="36" label="agent()" accent="amber" />
   <RoughBox :x="20" :y="52" :width="92" :height="36" label="agent()" accent="amber" />
   <RoughBox :x="20" :y="96" :width="92" :height="36" label="agent()" accent="amber" />
-  <RoughBox :x="214" :y="50" :width="120" :height="40" label="journal" sub="seq → result" />
+  <RoughBox :x="214" :y="50" :width="120" :height="40" label="journal" sub="key → result" />
 </RoughCanvas>
 ```
 
