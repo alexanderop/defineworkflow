@@ -101,4 +101,24 @@ describe("runtime.askUserQuestion", () => {
     const answered = events.find((e) => e.type === "question-answered");
     expect(answered).toMatchObject({ type: "question-answered", key: "deploy-target", answer: "production", cached: true });
   });
+
+  it("releases the question lock when askUser rejects, so later questions still resolve", async () => {
+    let calls = 0;
+    const { rt } = harness({
+      askUser: async (req) => {
+        calls++;
+        if (req.key === "first") throw new Error("boom");
+        return `answer to ${req.key}`;
+      },
+    });
+
+    // The first prompt rejects from the handler.
+    await expect(rt.askUserQuestion({ key: "first", question: "?" })).rejects.toThrow(/boom/);
+
+    // Without a `finally { releaseLock() }`, questionTail would stay unresolved and this
+    // second await would deadlock forever.
+    const second = await rt.askUserQuestion({ key: "second", question: "?" });
+    expect(second).toBe("answer to second");
+    expect(calls).toBe(2);
+  });
 });

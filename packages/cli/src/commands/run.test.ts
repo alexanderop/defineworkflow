@@ -2,9 +2,12 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { workflowSource } from "@workflow/test-support";
 import { runCommand } from "./run.js";
 import { fakeDeps, memFs } from "../test-support.js";
 import { createRegistry } from "../registry.js";
+
+const CONSENT_SRC = workflowSource({ name: "needs-consent", harness: "raw-api" });
 
 describe("runCommand multi-file", () => {
   it("bundles local imports and snapshots the self-contained source (--mock)", async () => {
@@ -36,5 +39,40 @@ describe("runCommand multi-file", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("runCommand consent gate", () => {
+  it("aborts (exit 1) and never starts a run when the user declines at the prompt", async () => {
+    const { deps, out } = fakeDeps({
+      _files: { "/wf.ts": CONSENT_SRC },
+      env: { isTTY: true }, // forces decideConsent() -> "prompt"
+      consent: { io: { question: async () => "n", write: () => {} } },
+    });
+
+    const code = await runCommand({ script: "/wf.ts", detach: false, yes: false }, deps);
+
+    expect(code).toBe(1);
+    expect(out()).toContain("aborted");
+    expect(deps.registry.listRuns()).toHaveLength(0);
+  });
+
+  it("persists consent and starts the run when the user answers 'always'", async () => {
+    const persisted: Array<{ project: string; name: string }> = [];
+    const { deps } = fakeDeps({
+      _files: { "/wf.ts": CONSENT_SRC },
+      env: { isTTY: true },
+      consent: {
+        io: { question: async () => "a", write: () => {} },
+        persist: (project, name) => void persisted.push({ project, name }),
+      },
+      ui: { start: () => ({ unmount: () => {} }) },
+    });
+
+    const code = await runCommand({ script: "/wf.ts", detach: false, yes: false }, deps);
+
+    expect(code).toBe(0);
+    expect(persisted).toEqual([{ project: "/proj", name: "needs-consent" }]);
+    expect(deps.registry.listRuns()).toHaveLength(1);
   });
 });

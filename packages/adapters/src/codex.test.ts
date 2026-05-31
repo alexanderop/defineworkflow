@@ -73,4 +73,69 @@ describe("codex adapter", () => {
     expect(res.isErr()).toBe(true);
     expect(res._unsafeUnwrapErr().kind).toBe("SchemaValidation");
   });
+
+  it("returns trimmed prose with no `data` when called without a schema", async () => {
+    const prose = [
+      `{"type":"turn.started"}`,
+      `{"type":"item.completed","item":{"type":"agent_message","text":"  hello world  "}}`,
+      `{"type":"turn.completed","usage":{"input_tokens":3,"output_tokens":11}}`,
+    ].join("\n");
+    const adapter = createCodexAdapter({
+      processRunner: createFakeProcessRunner({ codex: { stdout: prose, code: 0 } }),
+      fileStore: stubFileStore(),
+    });
+
+    const res = await adapter.run(
+      { prompt: "say hi", cwd: "/tmp", signal: new AbortController().signal },
+      { runId: "r" as RunId, seq: 0 },
+    );
+
+    const r = res._unsafeUnwrap();
+    expect(r.text).toBe("hello world");
+    expect(r.data).toBeUndefined();
+  });
+
+  it("returns AdapterSpawn (not SchemaValidation) when the final message is not valid JSON but a schema was requested", async () => {
+    const prose = [
+      `{"type":"turn.started"}`,
+      `{"type":"item.completed","item":{"type":"agent_message","text":"sorry, I cannot comply"}}`,
+      `{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}`,
+    ].join("\n");
+    const adapter = createCodexAdapter({
+      processRunner: createFakeProcessRunner({ codex: { stdout: prose, code: 0 } }),
+      fileStore: stubFileStore(),
+    });
+
+    const res = await adapter.run(
+      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
+      { runId: "r" as RunId, seq: 0 },
+    );
+
+    const e = res._unsafeUnwrapErr();
+    expect(e.kind).toBe("AdapterSpawn");
+    expect(e.kind === "AdapterSpawn" && e.cause).toMatch(/not valid JSON for the schema/);
+  });
+
+  it("estimates output tokens (approximate) when codex reports no usage", async () => {
+    // No turn.completed usage -> adapter must fall back to a length estimate so budget gets a number.
+    const message = "1234567890"; // 10 chars -> ceil(10/4) = 3
+    const noUsage = [
+      `{"type":"turn.started"}`,
+      `{"type":"item.completed","item":{"type":"agent_message","text":"${message}"}}`,
+      `{"type":"turn.completed"}`,
+    ].join("\n");
+    const adapter = createCodexAdapter({
+      processRunner: createFakeProcessRunner({ codex: { stdout: noUsage, code: 0 } }),
+      fileStore: stubFileStore(),
+    });
+
+    const res = await adapter.run(
+      { prompt: "x", cwd: "/tmp", signal: new AbortController().signal },
+      { runId: "r" as RunId, seq: 0 },
+    );
+
+    const r = res._unsafeUnwrap();
+    expect(r.usage.approximate).toBe(true);
+    expect(r.usage.outputTokens).toBe(Math.ceil(message.length / 4));
+  });
 });
