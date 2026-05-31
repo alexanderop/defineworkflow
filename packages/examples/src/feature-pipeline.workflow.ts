@@ -32,28 +32,9 @@
 
 import { agent, args, defineWorkflow, log, phase, pipeline, profile, z } from "defineworkflow";
 
-// Type-only shapes (erased by the compiler) used to cast the `unknown` results that
-// flow between pipeline stages. These mirror the zod schemas declared inside run().
-interface Subtask {
-  id: string;
-  title: string;
-  description: string;
-  acceptance: string[];
-}
-interface TddResult {
-  dir: string;
-  files: string[];
-  testCommand: string;
-  redConfirmed: boolean;
-  greenConfirmed: boolean;
-  notes: string;
-}
-interface Review {
-  verdict: "approve" | "request-changes";
-  testsPass: boolean;
-  findings: Array<{ severity: "blocker" | "major" | "minor" | "nit"; note: string }>;
-  summary: string;
-}
+// Type-only shape (erased by the compiler). The pipeline now infers each stage's `prev`
+// and the `subtask` item, so no casts are needed; this only types the inline "approved
+// clean" object via `satisfies Refactor`. It mirrors the RefactorSchema declared in run().
 interface Refactor {
   changelog: string[];
   testsStillPass: boolean;
@@ -180,10 +161,8 @@ export default defineWorkflow({
         subtasks,
 
         // Stage 1 — TDD: real red → green inside the subtask's own /tmp directory.
-        (_prev, subtask) => {
-          // pipeline() stages receive `unknown`; each schema above guarantees this stage's shape.
-          // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the unknown pipeline item
-          const s = subtask as Subtask;
+        // pipeline() now infers `subtask` as the `subtasks` element type (typed by SubtasksSchema).
+        (_prev, s) => {
           const dir = `${workspace}/${s.id}`;
           return agent(
             `${sandboxRule}\n${stackRule}\n\n` +
@@ -201,8 +180,7 @@ export default defineWorkflow({
 
         // Stage 2 — Review: a fresh agent reads the files and RE-RUNS the tests.
         (prev) => {
-          // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the unknown prev-stage result
-          const { subtask, dir, tdd } = prev as { subtask: Subtask; dir: string; tdd: TddResult };
+          const { subtask, dir, tdd } = prev;
           // Apply the `reviewer` profile: its `instructions` persona is prepended to this
           // prompt automatically, so the prompt itself only carries the per-subtask task.
           return agent(
@@ -219,13 +197,7 @@ export default defineWorkflow({
 
         // Stage 3 — Refactor: edit the files in place; skip the agent if approved clean.
         (prev) => {
-          // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the unknown prev-stage result
-          const { subtask, dir, tdd, review } = prev as {
-            subtask: Subtask;
-            dir: string;
-            tdd: TddResult;
-            review: Review;
-          };
+          const { subtask, dir, tdd, review } = prev;
           const actionable = review.findings.filter((f) => f.severity !== "nit");
           if (review.verdict === "approve" && actionable.length === 0) {
             log(`${subtask.id}: approved clean, skipping refactor`);
@@ -250,9 +222,7 @@ export default defineWorkflow({
       );
 
       // A stage that throws drops its subtask to null — filter those out.
-      const done = built.filter(
-        (b): b is { subtask: Subtask; dir: string; review: Review; refactor: Refactor } => b !== null,
-      );
+      const done = built.filter((b): b is NonNullable<typeof b> => b !== null);
       log(`built ${done.length}/${subtasks.length} subtasks`);
 
       // ── 6. Integrate ──────────────────────────────────────────────────────────────
