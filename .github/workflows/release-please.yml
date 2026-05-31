@@ -30,7 +30,7 @@ jobs:
   release-please:
     name: Maintain release PR
     runs-on: ubuntu-latest
-    if: github.repository == 'alexanderop/clanker-workflow'
+    if: github.repository == 'alexanderop/defineworkflow'
     permissions:
       contents: write # create release commits, tags, and GitHub Releases
       pull-requests: write # create/update the release PR

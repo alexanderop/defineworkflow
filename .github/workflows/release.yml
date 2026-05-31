@@ -18,7 +18,7 @@ name: release
 #     it (Settings → Environments → npm-publish).
 #
 # One-time setup on npmjs.com (Package → Settings → Trusted Publisher):
-#   organization/repository: alexanderop/clanker-workflow
+#   organization/repository: alexanderop/defineworkflow
 #   workflow filename:       release.yml
 #   environment:             npm-publish
 
@@ -48,7 +48,7 @@ jobs:
   publish:
     name: Publish defineworkflow to npm
     runs-on: ubuntu-latest
-    if: github.repository == 'alexanderop/clanker-workflow'
+    if: github.repository == 'alexanderop/defineworkflow'
     environment: npm-publish
     permissions:
       contents: read # checkout
