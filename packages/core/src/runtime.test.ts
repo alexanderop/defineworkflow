@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { RunId } from "./brand.js";
 import { z } from "zod";
-import { createRuntime } from "./runtime.js";
+import { createRuntime, type AgentOptions } from "./runtime.js";
 import { createScriptedRunner } from "./scripted-runner.js";
 import { createJournal } from "./journal.js";
 import { createSemaphore } from "./semaphore.js";
@@ -35,19 +35,47 @@ describe("runtime.agent", () => {
     expect(out).toBe("hello");
   });
 
-  it("returns validated data when a JSON Schema is given", async () => {
-    const { rt } = harness({ "a": { data: { n: 7 } } });
-    const out = await rt.agent("give n", {
-      label: "a",
-      schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"] },
-    });
-    expect(out).toEqual({ n: 7 });
-  });
-
   it("accepts a zod schema, converting it before validating the agent's data", async () => {
     const { rt } = harness({ "a": { data: { n: 7 } } });
     const out = await rt.agent("give n", { label: "a", schema: z.object({ n: z.number() }) });
     expect(out).toEqual({ n: 7 });
+  });
+
+  it("converts a zod schema to JSON Schema in the emitted AgentRequest", async () => {
+    let captured: AgentRequest | undefined;
+    const runner: AgentRunner = {
+      id: "spy",
+      capabilities: { nativeSchema: true, reportsTokens: true, toolEvents: false },
+      run: async (req: AgentRequest, _ctx: RunCtx) => {
+        captured = req;
+        return ok<AgentResult>({ text: '{"n":1}', data: { n: 1 }, usage: { inputTokens: 0, outputTokens: 0 }, toolCalls: [] });
+      },
+    };
+    const rt = createRuntime({
+      runner,
+      semaphore: createSemaphore(1),
+      journal: createJournal(),
+      maxAgents: 10,
+      budgetTotal: null,
+      args: {},
+      cwd: "/tmp",
+      runId: "r1" as RunId,
+      emit: () => {},
+      now: () => 0,
+    });
+    const out = await rt.agent("p", { label: "a", schema: z.object({ n: z.number() }) });
+    expect(out).toEqual({ n: 1 });
+    expect(captured?.schema).toBeDefined();
+    expect(captured?.schema?.["type"]).toBe("object");
+    expect((captured?.schema?.["properties"] as Record<string, unknown> | undefined)?.["n"]).toBeDefined();
+  });
+
+  it("fails with SchemaValidation when a non-zod schema object reaches agent()", async () => {
+    const { rt } = harness({ "a": { data: { n: 7 } } });
+    // A plain JSON Schema object is only reachable from type-erased sandbox JS — simulate that
+    // ingress past the (now zod-only) AgentOptions type.
+    const opts = { label: "a", schema: { type: "object", properties: { n: { type: "number" } } } } as unknown as AgentOptions;
+    await expect(rt.agent("give n", opts)).rejects.toMatchObject({ workflowError: { kind: "SchemaValidation" } });
   });
 
   it("rejects data that violates a zod schema with a SchemaValidation error", async () => {
@@ -60,10 +88,7 @@ describe("runtime.agent", () => {
   it("surfaces the model's raw output when re-validation fails", async () => {
     const { rt } = harness({ "a": { text: "I think n is five", data: { n: "five" } } });
     await expect(
-      rt.agent("give n", {
-        label: "a",
-        schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"] },
-      }),
+      rt.agent("give n", { label: "a", schema: z.object({ n: z.number() }) }),
     ).rejects.toMatchObject({
       workflowError: { kind: "SchemaValidation", rawOutput: "I think n is five" },
     });
