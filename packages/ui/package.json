@@ -7,7 +7,9 @@
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean --external react --external ink",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "react-doctor": "npx --yes react-doctor@latest --no-dead-code --fail-on warning",
+    "react-doctor:staged": "npx --yes react-doctor@latest --staged --no-dead-code --fail-on warning"
   },
   "dependencies": {
     "@workflow/core": "workspace:*",
