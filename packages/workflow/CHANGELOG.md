@@ -1,0 +1,16 @@
+# Changelog
+
+## [0.2.0](https://github.com/alexanderop/defineworkflow/compare/v0.1.0...v0.2.0) (2026-05-31)
+
+
+### Features
+
+* add end-of-run report with per-agent token accounting ([ccf462e](https://github.com/alexanderop/defineworkflow/commit/ccf462e843f35e25abfcb9e85982c9077dce6f9c))
+* add reusable agent profiles ([42e6d25](https://github.com/alexanderop/defineworkflow/commit/42e6d252da905d18613a66da87949f68376c0c25))
+* **core:** askUserQuestion human-in-the-loop primitive ([26fe51e](https://github.com/alexanderop/defineworkflow/commit/26fe51e6d4ace3e0e7ebbced5202e78cd1956d9c))
+* end-of-run report, agent profiles, defineworkflow rebrand, copilot stream fix ([4cd4f34](https://github.com/alexanderop/defineworkflow/commit/4cd4f34dc2e0f7eba4031ccb3cd8e7bbccab546c))
+
+
+### Bug Fixes
+
+* **workflow:** restore @workflow/* workspace devDeps for build ordering ([947a897](https://github.com/alexanderop/defineworkflow/commit/947a897c0c40ba175bc6727e4081ba18bc8aa182))
