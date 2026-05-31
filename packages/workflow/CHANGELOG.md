@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/alexanderop/defineworkflow/compare/v0.2.0...v0.3.0) (2026-05-31)
+
+
+### Features
+
+* **core:** adopt type-fest for structural immutability & branded types ([db7c93d](https://github.com/alexanderop/defineworkflow/commit/db7c93d97303f437bcca6578aa1268f4b2ed5390))
+
+
+### Bug Fixes
+
+* **review:** type WorkflowContext.args via Runtime["args"] for surface consistency ([20300ca](https://github.com/alexanderop/defineworkflow/commit/20300ca402a2f728a23bbacdc06e6ae7a20da634))
+
 ## [0.2.0](https://github.com/alexanderop/defineworkflow/compare/v0.1.0...v0.2.0) (2026-05-31)
 
 
