@@ -41,13 +41,22 @@ describe("navReducer", () => {
     expect(last.agentIndex).toBe(4); // clamped at agentCount - 1
   });
 
-  it("down/up scroll the detail pane (not select) while focused on detail", () => {
-    const onDetail = { focus: "detail" as const, phaseIndex: 0, agentIndex: 2, scroll: 0, expanded: false };
+  it("down/up move the agent selection while focused on detail (and reset the detail view)", () => {
+    const onDetail = { focus: "detail" as const, phaseIndex: 0, agentIndex: 2, scroll: 3, expanded: true };
     const down = navReducer(onDetail, { type: "down" }, ctx);
-    expect(down).toMatchObject({ scroll: 1, agentIndex: 2 }); // scrolls, leaves selection alone
-    const max = [...Array(10)].reduce((s) => navReducer(s, { type: "down" }, ctx), onDetail);
+    expect(down).toMatchObject({ agentIndex: 3, scroll: 0, expanded: false }); // selects next agent, resets scroll/expand
+    const up = navReducer(onDetail, { type: "up" }, ctx);
+    expect(up).toMatchObject({ agentIndex: 1, scroll: 0, expanded: false });
+    const last = [...Array(10)].reduce((s) => navReducer(s, { type: "down" }, ctx), onDetail);
+    expect(last.agentIndex).toBe(4); // clamped at agentCount - 1
+  });
+
+  it("j/k still scroll the detail pane while focused on detail", () => {
+    const onDetail = { focus: "detail" as const, phaseIndex: 0, agentIndex: 2, scroll: 0, expanded: false };
+    expect(navReducer(onDetail, { type: "scrollDown" }, ctx).scroll).toBe(1);
+    const max = [...Array(10)].reduce((s) => navReducer(s, { type: "scrollDown" }, ctx), onDetail);
     expect(max.scroll).toBe(4); // clamped at maxScroll
-    expect(navReducer(onDetail, { type: "up" }, ctx).scroll).toBe(0); // clamped at 0
+    expect(navReducer({ ...onDetail, scroll: 2 }, { type: "scrollUp" }, ctx).scroll).toBe(1);
   });
 
   it("scrollDown/scrollUp move and clamp the detail scroll within maxScroll", () => {

@@ -112,4 +112,53 @@ describe("App", () => {
     await tick();
     expect(actions).toEqual([{ type: "stop", target: { scope: "agent", key: "k0" } }]);
   });
+
+  it("up/down move the agent selection within a multi-agent phase when focused on agents", async () => {
+    const multi: WorkflowEvent[] = [
+      { type: "run-started", runId: "r1" as RunId, name: "wf", at: 0 },
+      { type: "phase-started", phase: "Scope", at: 1 },
+      { type: "phase-started", phase: "Search", at: 2 },
+      { type: "agent-queued", key: "k0", label: "angle-0", phase: "Search", prompt: "p0", at: 3 },
+      { type: "agent-queued", key: "k1", label: "angle-1", phase: "Search", prompt: "p1", at: 4 },
+      { type: "agent-queued", key: "k2", label: "angle-2", phase: "Search", prompt: "p2", at: 5 },
+    ];
+    const { lastFrame, stdin } = render(<App events={multi} animate={false} />);
+    await tick();
+    stdin.write(KEY.down); // Search
+    await tick();
+    stdin.write(KEY.right); // focus agents
+    await tick();
+    stdin.write(KEY.down); // should select angle-1
+    await tick();
+    expect(lastFrame() ?? "").toMatch(/›\s*\S*\s*angle-1/);
+    stdin.write(KEY.down); // angle-2
+    await tick();
+    expect(lastFrame() ?? "").toMatch(/›\s*\S*\s*angle-2/);
+    stdin.write(KEY.up); // back to angle-1
+    await tick();
+    expect(lastFrame() ?? "").toMatch(/›\s*\S*\s*angle-1/);
+  });
+
+  it("up/down switch the selected agent while the detail pane is open", async () => {
+    const multi: WorkflowEvent[] = [
+      { type: "run-started", runId: "r1" as RunId, name: "wf", at: 0 },
+      { type: "phase-started", phase: "Search", at: 1 },
+      { type: "agent-queued", key: "k0", label: "angle-0", phase: "Search", prompt: "p0", at: 2 },
+      { type: "agent-queued", key: "k1", label: "angle-1", phase: "Search", prompt: "p1", at: 3 },
+    ];
+    const { lastFrame, stdin } = render(<App events={multi} animate={false} />);
+    await tick();
+    stdin.write(KEY.right); // focus agents
+    await tick();
+    stdin.write(KEY.right); // focus detail (layout swaps to [Agents | Detail])
+    await tick();
+    const detail = lastFrame() ?? "";
+    expect(detail).not.toContain("Phases"); // confirm we're in the detail view
+    expect(detail).toContain("angle-0"); // detail header shows the selected agent
+    stdin.write(KEY.down); // should switch selection to angle-1 without leaving detail
+    await tick();
+    const after = lastFrame() ?? "";
+    expect(after).not.toContain("Phases"); // still in the detail view
+    expect(after).toMatch(/›\s*\S*\s*angle-1/); // agents column selection moved
+  });
 });

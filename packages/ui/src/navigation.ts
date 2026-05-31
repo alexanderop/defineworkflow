@@ -32,15 +32,15 @@ export const initialNav: NavState = { focus: "phases", phaseIndex: 0, agentIndex
 const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n));
 
 // Move by `delta` within the focused column, clamping to its bounds. In the
-// phases/agents columns this moves the selection cursor (and changing the
-// phase/agent resets detail scroll + prompt expansion). In the detail pane there
-// is no cursor, so ↑/↓ scroll the content instead — mirroring j/k.
+// phases column this moves the phase cursor. In the agents column — and in the
+// detail pane, where the agents list stays visible on the left — ↑/↓ move the
+// agent selection so you can flip between agents without leaving the detail view;
+// j/k scroll the detail body instead (see scrollUp/scrollDown). Changing the
+// phase/agent resets detail scroll + prompt expansion.
 function move(state: NavState, ctx: NavCtx, delta: number): NavState {
   if (state.focus === "phases")
     return { ...state, phaseIndex: clamp(state.phaseIndex + delta, 0, Math.max(0, ctx.phaseCount - 1)), agentIndex: 0, scroll: 0, expanded: false };
-  if (state.focus === "agents")
-    return { ...state, agentIndex: clamp(state.agentIndex + delta, 0, Math.max(0, ctx.agentCount - 1)), scroll: 0, expanded: false };
-  return { ...state, scroll: clamp(state.scroll + delta, 0, ctx.maxScroll) };
+  return { ...state, agentIndex: clamp(state.agentIndex + delta, 0, Math.max(0, ctx.agentCount - 1)), scroll: 0, expanded: false };
 }
 
 export function navReducer(state: NavState, action: NavAction, ctx: NavCtx): NavState {
