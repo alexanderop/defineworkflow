@@ -26,6 +26,15 @@ export {
   type AgentReportStatus,
   type SelectRunReportOptions,
 } from "./report.js";
+export {
+  USD_TO_EUR,
+  MODEL_PRICES,
+  findPrice,
+  costUsd,
+  costEur,
+  runCostEur,
+  type ModelPrice,
+} from "./pricing.js";
 export { createBudget, type Budget } from "./budget.js";
 export { profile, isProfile, type Profile, type ProfileConfig } from "./profile.js";
 export { createSemaphore, type Semaphore } from "./semaphore.js";
