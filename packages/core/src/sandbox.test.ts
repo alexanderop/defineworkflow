@@ -111,6 +111,36 @@ describe("sandbox", () => {
     expect(result.returnValue).toEqual({ out: "hit" });
   });
 
+  it("runs a bundled workflow (esbuild default-export shape)", async () => {
+    const src = [
+      `import { agent, defineWorkflow } from "defineworkflow";`,
+      `import { z } from "defineworkflow";`,
+      `var ResearchSchema = z.object({ summary: z.string() });`,
+      `var entry_workflow_default = defineWorkflow({`,
+      `  name: "bundled", description: "d", harness: "claude", phases: [{ title: "Run" }],`,
+      `  async run() { const out = await agent("hi", { schema: ResearchSchema }); return { out }; }`,
+      `});`,
+      `export {`,
+      `  entry_workflow_default as default`,
+      `};`,
+    ].join("\n");
+    const result = await runInSandbox(src, {
+      defineWorkflow: (workflow: unknown) => workflow,
+      z: { object: (x: unknown) => x, string: () => ({}) },
+      agent: async () => "hit",
+      parallel: async () => [],
+      pipeline: async () => [],
+      workflow: async () => null,
+      phase: () => {},
+      log: () => {},
+      askUserQuestion: async () => "",
+      args: null,
+      budget: { total: null, spent: () => 0, remaining: () => Infinity, record: () => {} },
+    });
+    expect(result.meta).toMatchObject({ name: "bundled", harness: "claude", phases: [{ title: "Run" }] });
+    expect(result.returnValue).toEqual({ out: "hit" });
+  });
+
   it("provides URL and URLSearchParams to workflow scripts", async () => {
     const src = `
       import { defineWorkflow } from "defineworkflow";
@@ -252,6 +282,17 @@ return x;`;
   it("rejects template interpolation inside meta", () => {
     const src = "export const meta = { name: `wf-${id}`, description: \"d\", harness: \"claude\" };\nreturn 1;";
     expect(() => extractMeta(src)).toThrow(/SandboxViolation: template interpolation not allowed/);
+  });
+
+  it("reads meta from esbuild bundled output (defineWorkflow not first)", () => {
+    const src = [
+      `import { agent, defineWorkflow } from "defineworkflow";`,
+      `import { z } from "defineworkflow";`,
+      `var S = z.object({ a: z.string() });`,
+      `var entry_workflow_default = defineWorkflow({ name: "bundled", description: "d", harness: "claude" });`,
+      `export { entry_workflow_default as default };`,
+    ].join("\n");
+    expect(extractMeta(src)).toMatchObject({ name: "bundled", description: "d", harness: "claude" });
   });
 
   it("rejects meta that is not the first statement", () => {
