@@ -9,6 +9,7 @@ import type { RunMeta, ScriptHash } from "../registry.js";
 import { runForeground } from "../execute.js";
 import { formatError } from "../format-error.js";
 import { parseAnswers } from "../ask-user.js";
+import { bundleWorkflow } from "../bundle.js";
 
 export interface RunArgs {
   readonly script: string;
@@ -22,11 +23,17 @@ export interface RunArgs {
 }
 
 export async function runCommand(args: RunArgs, deps: AppDeps): Promise<number> {
-  const source = deps.io.readText(args.script);
-  if (source === undefined) {
+  const raw = deps.io.readText(args.script);
+  if (raw === undefined) {
     deps.ui.print(`error: cannot read script ${args.script}\n`);
     return 1;
   }
+  const bundled = await bundleWorkflow({ path: args.script, source: raw });
+  if (bundled.isErr()) {
+    deps.ui.print(`error: ${bundled.error}\n`);
+    return 1;
+  }
+  const source = bundled.value;
 
   let parsedArgs: JsonValue = null;
   if (args.argsJson !== undefined) {
