@@ -19,7 +19,7 @@ const stubFileStore = () => {
 describe("codex adapter", () => {
   it("streams exec --json, writes a schema file, parses the final message + real usage, drives progress", async () => {
     const fake = createFakeProcessRunner({ codex: { stdout: stream, code: 0 } });
-    const adapter = createCodexAdapter({ processRunner: fake, fileStore: stubFileStore() });
+    const adapter = createCodexAdapter({ processRunner: fake, fileStore: stubFileStore(), configModel: () => undefined });
     expect(adapter.id).toBe("codex");
 
     const progress: AgentProgress[] = [];
@@ -43,6 +43,39 @@ describe("codex adapter", () => {
     // YOLO: bypass the sandbox so headless agents get network/web access.
     expect(argv).toContain("--dangerously-bypass-approvals-and-sandbox");
     expect(argv).not.toContain("--full-auto");
+  });
+
+  it("emits req.model as the display model when the stream carries none", async () => {
+    const fake = createFakeProcessRunner({ codex: { stdout: stream, code: 0 } });
+    const adapter = createCodexAdapter({ processRunner: fake, fileStore: stubFileStore(), configModel: () => undefined });
+    const progress: AgentProgress[] = [];
+    await adapter.run(
+      { prompt: "x", model: "gpt-5.5", cwd: "/tmp", signal: new AbortController().signal },
+      { runId: "r" as RunId, seq: 0, onProgress: (p) => progress.push(p) },
+    );
+    expect(progress.find((p) => p.model)?.model).toBe("gpt-5.5");
+  });
+
+  it("falls back to the codex config model when req.model is absent", async () => {
+    const fake = createFakeProcessRunner({ codex: { stdout: stream, code: 0 } });
+    const adapter = createCodexAdapter({ processRunner: fake, fileStore: stubFileStore(), configModel: () => "gpt-5-from-config" });
+    const progress: AgentProgress[] = [];
+    await adapter.run(
+      { prompt: "x", cwd: "/tmp", signal: new AbortController().signal },
+      { runId: "r" as RunId, seq: 0, onProgress: (p) => progress.push(p) },
+    );
+    expect(progress.find((p) => p.model)?.model).toBe("gpt-5-from-config");
+  });
+
+  it("emits no model when neither req.model nor config resolves one", async () => {
+    const fake = createFakeProcessRunner({ codex: { stdout: stream, code: 0 } });
+    const adapter = createCodexAdapter({ processRunner: fake, fileStore: stubFileStore(), configModel: () => undefined });
+    const progress: AgentProgress[] = [];
+    await adapter.run(
+      { prompt: "x", cwd: "/tmp", signal: new AbortController().signal },
+      { runId: "r" as RunId, seq: 0, onProgress: (p) => progress.push(p) },
+    );
+    expect(progress.find((p) => p.model)).toBeUndefined();
   });
 
   it("returns AdapterSpawn on non-zero exit", async () => {

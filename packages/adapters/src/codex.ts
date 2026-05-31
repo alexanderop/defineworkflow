@@ -7,6 +7,7 @@ import { truncateRawOutput } from "@workflow/core";
 import type { AgentRunner, AgentRequest, AgentResult, RunCtx, WorkflowError } from "@workflow/core";
 import type { ProcessRunner } from "./process-runner.js";
 import { createCodexTranslator } from "./codex-stream.js";
+import { readCodexModel } from "./codex-config.js";
 import { compileJsonSchemaValidator } from "./json.js";
 import { CAPABILITIES } from "./detect.js";
 
@@ -35,11 +36,14 @@ export interface CodexAdapterDeps {
   readonly processRunner: ProcessRunner;
   readonly fileStore?: FileStore;
   readonly bin?: string;
+  /** Best-effort display-only model lookup; defaults to reading `~/.codex/config.toml`. */
+  readonly configModel?: (profile?: string) => string | undefined;
 }
 
 export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
   const bin = deps.bin ?? "codex";
   const fileStore = deps.fileStore ?? createDefaultFileStore();
+  const configModel = deps.configModel ?? readCodexModel;
   return {
     id: "codex",
     capabilities: CAPABILITIES.codex,
@@ -59,6 +63,11 @@ export function createCodexAdapter(deps: CodexAdapterDeps): AgentRunner {
 
       try {
         const translator = createCodexTranslator();
+        // codex `exec --json` never emits its model, so surface a display-only model
+        // for the UI: the request's model, else the configured default. Never changes
+        // which model codex actually runs; a future codex that streams a model overrides.
+        const displayModel = req.model ?? configModel();
+        if (displayModel !== undefined) ctx.onProgress?.({ model: displayModel });
         const out = await deps.processRunner.run({
           command: bin,
           args,
