@@ -12,17 +12,22 @@ function drive(translator: ReturnType<typeof createCodexTranslator>, text: strin
 }
 
 describe("codex stream translator", () => {
-  it("extracts model, tool calls, final text and real usage from the fixture", () => {
+  it("extracts tool calls, final text and real usage from the fixture (no model — codex never emits it)", () => {
     const t = createCodexTranslator();
     const progress = drive(t, fixture);
 
-    expect(progress.find((p) => p.model)?.model).toBe("gpt-5-codex");
+    expect(progress.find((p) => p.model)).toBeUndefined();
     expect(progress.filter((p) => p.tool).map((p) => p.tool!.name)).toEqual(["Shell", "Mcp"]);
     expect(progress.filter((p) => p.tokens !== undefined).map((p) => p.tokens)).toEqual([256]);
 
     const final = t.result();
     expect(final.text).toBe('{"n": 7}');
     expect(final.usage).toEqual({ inputTokens: 2048, outputTokens: 256 });
+  });
+
+  it("reads a model from thread.started if a future codex ever emits one (forward-compat)", () => {
+    const t = createCodexTranslator();
+    expect(t.push('{"type":"thread.started","model":"gpt-6","thread_id":"t1"}')).toEqual([{ model: "gpt-6" }]);
   });
 
   it("accumulates usage across multiple turn.completed events", () => {

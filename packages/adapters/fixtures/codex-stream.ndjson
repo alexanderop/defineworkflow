@@ -1,4 +1,4 @@
-{"type":"thread.started","model":"gpt-5-codex","thread_id":"t1"}
+{"type":"thread.started","thread_id":"t1"}
 {"type":"turn.started"}
 {"type":"item.completed","item":{"type":"command_execution","command":"ls -la"}}
 {"type":"item.completed","item":{"type":"mcp_tool_call","server":"fetch","tool":"get","arguments":{"url":"x"}}}
