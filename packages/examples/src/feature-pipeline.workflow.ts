@@ -120,8 +120,9 @@ export default defineWorkflow({
       testsStillPass: z.boolean().describe("true if the tests still pass after refactoring"),
     });
 
-    // `args` is `unknown` (parsed from the CLI `--args` JSON); narrow it to this run's expected shape.
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the unknown CLI args payload
+    // `args` is `Immutable<JsonValue>` (parsed from the CLI `--args` JSON); narrow it to this run's
+    // expected shape. Narrowing via `as` still works; only *mutating* `args` is now a compile error.
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the deeply-immutable CLI args payload
     const a = (args ?? {}) as { feature?: string; workdir?: string };
     const feature = a.feature ?? "a token-bucket rate limiter for a public REST API";
     // Absolute, throwaway workspace. Constant by default (the sandbox forbids

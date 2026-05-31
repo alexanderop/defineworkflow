@@ -77,6 +77,32 @@ describe("createMockRunner", () => {
     expect(validate(schema, value.data).isOk()).toBe(true);
   });
 
+  it("emits enough array elements to satisfy minItems", async () => {
+    const schema = {
+      type: "object",
+      properties: {
+        angles: {
+          type: "array",
+          minItems: 3,
+          maxItems: 6,
+          items: {
+            type: "object",
+            properties: { label: { type: "string" } },
+            required: ["label"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["angles"],
+      additionalProperties: false,
+    };
+    const runner = createMockRunner();
+    const value = (await runner.run(req({ schema }), ctx))._unsafeUnwrap();
+    const data = value.data as { angles: Array<{ label: string }> };
+    expect(data.angles.length).toBe(3);
+    expect(validate(schema, value.data).isOk()).toBe(true);
+  });
+
   it("advertises a mock id and native schema capability", () => {
     const runner = createMockRunner();
     expect(runner.id).toBe("mock");

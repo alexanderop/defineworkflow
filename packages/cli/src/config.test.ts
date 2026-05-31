@@ -58,6 +58,17 @@ describe("loadConfig", () => {
     const cfg = loadConfig(deps({ [personal]: "{not json" }));
     expect(cfg.concurrency).toBeUndefined();
   });
+
+  it("ignores a config file whose fields don't match the schema", () => {
+    // `concurrency` should be a number; a non-conforming file is dropped, not silently coerced.
+    const cfg = loadConfig(deps({ [personal]: JSON.stringify({ concurrency: "lots" }) }));
+    expect(cfg.concurrency).toBeUndefined();
+  });
+
+  it("ignores a top-level JSON value that isn't an object", () => {
+    const cfg = loadConfig(deps({ [personal]: "42" }));
+    expect(cfg.concurrency).toBeUndefined();
+  });
 });
 
 describe("caps", () => {

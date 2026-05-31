@@ -1,7 +1,10 @@
 import { access, constants } from "node:fs/promises";
 import { delimiter, join } from "node:path";
+import type { HarnessId } from "@workflow/core";
 
-export type AdapterId = "claude" | "codex" | "copilot" | "raw-api";
+/** Alias of the canonical `HarnessId` (declared once in `@workflow/core`) so the two unions can't
+ * drift; keeping the `AdapterId` name leaves the CLI call sites and `CAPABILITIES` keys untouched. */
+export type AdapterId = HarnessId;
 
 export interface Capabilities {
   readonly nativeSchema: boolean;

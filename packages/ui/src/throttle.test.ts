@@ -5,7 +5,7 @@ function fakeDeps() {
   let clock = 0;
   const timers: Array<{ id: number; fn: () => void; at: number }> = [];
   let nextId = 1;
-  const deps: ThrottleDeps = {
+  const deps: ThrottleDeps<number> = {
     now: () => clock,
     setTimer: (fn, ms) => {
       const id = nextId++;
