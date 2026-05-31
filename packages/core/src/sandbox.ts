@@ -40,6 +40,7 @@ function childNode(node: AstNode, key: string): AstNode | undefined {
  */
 export function transformScript(source: string): string {
   const authoringSource = stripWorkflowImports(source);
+  assertNoForeignImports(authoringSource);
   if (!/export\s+const\s+meta\s*=/.test(authoringSource) && !/export\s+default\s+defineWorkflow\s*\(/.test(authoringSource)) {
     throw new Error("SandboxViolation: workflow script must export `const meta` or `export default defineWorkflow({ … })`");
   }
@@ -70,6 +71,26 @@ function stripWorkflowImports(source: string): string {
     /^\s*import\s+(?:type\s+)?(?:(?!^\s*import\s)[\s\S])*?\s+from\s+["'](?:defineworkflow|workflow)["'];?\s*$/gm,
     "",
   );
+}
+
+/**
+ * After {@link stripWorkflowImports} drops the authoring import, any surviving
+ * `import … from "<mod>"` would be wrapped into the async IIFE body — where a static
+ * `import` statement is a syntax error — and esbuild fails with an opaque
+ * `Unexpected "{"` that points at the import braces, not the real cause. Catch it here
+ * with a SandboxViolation that names the offending module and points at the
+ * `defineworkflow` re-export: the sandbox injects the runtime (`agent`, `z`, …) and
+ * resolves no modules, so `import { z } from "zod"` must become `import { z } from "defineworkflow"`.
+ */
+function assertNoForeignImports(source: string): void {
+  const match = /^\s*import\s+(?:type\s+)?(?:(?!^\s*import\s)[\s\S])*?\s+from\s+["']([^"']+)["'];?\s*$/m.exec(source);
+  const mod = match?.[1];
+  if (mod === undefined) return;
+  const hint =
+    mod === "zod"
+      ? 'import `z` from "defineworkflow" instead — e.g. `import { z } from "defineworkflow"`'
+      : 'the workflow sandbox injects the runtime and resolves no modules; import what you need from "defineworkflow"';
+  throw violation(`cannot import from "${mod}" inside a workflow: ${hint}`);
 }
 
 function makeBannedDate(): typeof Date {
