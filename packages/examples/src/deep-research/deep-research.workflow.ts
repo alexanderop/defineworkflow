@@ -1,8 +1,11 @@
-// A deep-research harness as one workflow: decompose a question into search
-// angles, fan out web searches, fetch + extract falsifiable claims, then put
-// every claim through 3-vote adversarial verification before synthesizing a
-// cited report. Ported from a bughunter-style architecture — WebSearch/WebFetch
-// instead of git/grep.
+// A deep-research harness as a multi-file workflow: decompose a question into search
+// angles, fan out web searches, fetch + extract falsifiable claims, then put every claim
+// through 3-vote adversarial verification before synthesizing a cited report. Ported from
+// a bughunter-style architecture — WebSearch/WebFetch instead of git/grep.
+//
+// This is the slim ENTRY file. The schemas, type shapes, prompt builders, and URL/rank
+// helpers live in sibling files (./schemas, ./types, ./prompts, ./lib), imported with
+// relative paths and bundled in by the CLI before the sandbox runs.
 //
 // The shape is: Scope → pipeline(Search → URL-dedup → Fetch+Extract) → Verify → Synthesize.
 // The middle uses pipeline() so each search angle flows search → dedup → fetch
@@ -10,48 +13,19 @@
 // full claim pool must be assembled before ranking and voting.
 //
 // Run it (real agents on the Claude Code harness, uses tokens + web search):
-//   workflow run packages/examples/src/deep-research.workflow.ts \
+//   workflow run packages/examples/src/deep-research/deep-research.workflow.ts \
 //     --args '"How durable are LLM-based coding agents in production?"' --yes
-//   workflow run packages/examples/src/deep-research.workflow.ts \
+//   workflow run packages/examples/src/deep-research/deep-research.workflow.ts \
 //     --args '{"question":"Is RISC-V ready for laptops in 2026?"}' --yes
 //
 // Iterate on the control flow with NO agents/tokens spent:
-//   workflow run packages/examples/src/deep-research.workflow.ts --mock
-//
-// NOTE: the engine requires `defineWorkflow(...)` to be the FIRST runtime statement
-// in the file. Only type-only declarations (the `interface`s below, erased at
-// compile time) may precede it — so the zod schemas are declared inside run().
+//   workflow run packages/examples/src/deep-research/deep-research.workflow.ts --mock
 
 import { agent, args, defineWorkflow, log, parallel, phase, pipeline, z } from "defineworkflow";
-
-// Type-only shapes (erased by the compiler) used to type the accumulator state and the
-// FetchedSource literals. The pipeline now infers each stage's prev/item from the zod
-// schemas, so these are no longer needed to cast `unknown` stage results.
-interface SearchHit {
-  url: string;
-  title: string;
-  snippet?: string | undefined;
-  relevance: "high" | "medium" | "low";
-}
-interface AngleResults {
-  angle: string;
-  results: SearchHit[];
-}
-interface Claim {
-  claim: string;
-  quote: string;
-  importance: "central" | "supporting" | "tangential";
-  sourceUrl: string;
-  sourceQuality: string;
-}
-interface FetchedSource {
-  url: string;
-  title: string;
-  angle: string;
-  sourceQuality: "primary" | "secondary" | "blog" | "forum" | "unreliable";
-  publishDate: string;
-  claims: Claim[];
-}
+import { SCOPE_SCHEMA, SEARCH_SCHEMA, EXTRACT_SCHEMA, VERDICT_SCHEMA, REPORT_SCHEMA } from "./schemas.js";
+import type { SearchHit, AngleResults, FetchedSource } from "./types.js";
+import { hostOf, normURL, relRank, impRank, qualRank, confRank } from "./lib.js";
+import { scopePrompt, searchPrompt, fetchPrompt, verifyPrompt, synthesizePrompt } from "./prompts.js";
 
 export default defineWorkflow({
   name: "deep-research",
@@ -77,67 +51,6 @@ export default defineWorkflow({
     const MAX_FETCH = 15;
     const MAX_VERIFY_CLAIMS = 25;
 
-    // ── Schemas (zod → inferred types, validated at runtime by the engine) ────────
-    const SCOPE_SCHEMA = z.object({
-      question: z.string(),
-      summary: z.string().describe("1-2 sentence decomposition strategy"),
-      angles: z
-        .array(
-          z.object({
-            label: z.string(),
-            query: z.string().describe("the web search query for this angle"),
-            rationale: z.string().optional(),
-          }),
-        )
-        .min(3)
-        .max(6),
-    });
-    const SEARCH_SCHEMA = z.object({
-      results: z
-        .array(
-          z.object({
-            url: z.string(),
-            title: z.string(),
-            snippet: z.string().optional(),
-            relevance: z.enum(["high", "medium", "low"]),
-          }),
-        )
-        .max(6),
-    });
-    const EXTRACT_SCHEMA = z.object({
-      sourceQuality: z.enum(["primary", "secondary", "blog", "forum", "unreliable"]),
-      publishDate: z.string().optional(),
-      claims: z
-        .array(
-          z.object({
-            claim: z.string().describe("a concrete, checkable statement"),
-            quote: z.string().describe("a direct quote from the source supporting the claim"),
-            importance: z.enum(["central", "supporting", "tangential"]),
-          }),
-        )
-        .max(5),
-    });
-    const VERDICT_SCHEMA = z.object({
-      refuted: z.boolean(),
-      evidence: z.string().describe("specific evidence for the verdict"),
-      confidence: z.enum(["high", "medium", "low"]),
-      counterSource: z.string().optional(),
-    });
-    const REPORT_SCHEMA = z.object({
-      summary: z.string().describe("3-5 sentence executive summary answering the question"),
-      findings: z.array(
-        z.object({
-          claim: z.string(),
-          confidence: z.enum(["high", "medium", "low"]),
-          sources: z.array(z.string()),
-          evidence: z.string(),
-          vote: z.string().optional(),
-        }),
-      ),
-      caveats: z.string().describe("what's uncertain, weak sources, time-sensitivity"),
-      openQuestions: z.array(z.string()).optional(),
-    });
-
     // `args` is the research question, passed as a bare JSON string or {question}.
     // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the deeply-immutable CLI args payload
     const rawArgs = (args ?? "") as string | { question?: string };
@@ -152,90 +65,17 @@ export default defineWorkflow({
     // ── Phase 0: Scope — decompose the question into search angles ────────────────
     phase("Scope");
     log(`Q: ${QUESTION.slice(0, 80)}${QUESTION.length > 80 ? "…" : ""}`);
-    const scope = await agent(
-      `Decompose this research question into complementary search angles.\n\n` +
-        `## Question\n${QUESTION}\n\n` +
-        `## Task\n` +
-        `Generate 5 distinct web search queries that together cover the question from different angles. ` +
-        `Pick angles that suit the question's domain. Examples:\n` +
-        `- broad/primary · academic/technical · recent news · contrarian/skeptical · practitioner/implementation\n` +
-        `- For medical: anatomy · common causes · serious differentials · authoritative refs · red flags\n` +
-        `- For tech: state-of-art · benchmarks · limitations · industry adoption · cost/tradeoffs\n\n` +
-        `Make queries specific enough to surface high-signal results. Avoid redundancy.\n` +
-        `Return: the question (verbatim or lightly normalized), a 1-2 sentence decomposition strategy, and the angles.`,
-      { label: "scope", phase: "Scope", schema: SCOPE_SCHEMA },
-    );
+    const scope = await agent(scopePrompt(QUESTION), { label: "scope", phase: "Scope", schema: SCOPE_SCHEMA });
     if (!scope) {
       return { error: "Scope agent returned no result — cannot decompose the research question." };
     }
     log(`Decomposed into ${scope.angles.length} angles: ${scope.angles.map((a) => a.label).join(", ")}`);
 
     // ── Dedup state — accumulates across searchers as they complete ───────────────
-    // The sandbox injects `URL`, so parse with `new URL()` (falls back to the raw string on a
-    // malformed URL rather than throwing).
-    const hostOf = (u: string): string | undefined => {
-      try {
-        return new URL(u).hostname.replace(/^www\./, "");
-      } catch {
-        return undefined;
-      }
-    };
-    const normURL = (u: string): string => {
-      try {
-        const parsed = new URL(u);
-        const host = parsed.hostname.replace(/^www\./, "");
-        const path = parsed.pathname.replace(/\/$/, "");
-        return (host + path).toLowerCase();
-      } catch {
-        return u.toLowerCase();
-      }
-    };
-    const relRank: Record<"high" | "medium" | "low", number> = { high: 0, medium: 1, low: 2 };
     const seen = new Map<string, { angle: string; title: string }>();
     const dupes: Array<SearchHit & { angle: string }> = [];
     const budgetDropped: Array<SearchHit & { angle: string }> = [];
     let fetchSlots = MAX_FETCH;
-
-    // ── Prompts ───────────────────────────────────────────────────────────────────
-    const SEARCH_PROMPT = (angle: { label: string; query: string; rationale?: string | undefined }): string =>
-      `## Web Searcher: ${angle.label}\n\n` +
-      `Research question: "${QUESTION}"\n\n` +
-      `Your angle: **${angle.label}** — ${angle.rationale ?? ""}\n` +
-      `Search query: \`${angle.query}\`\n\n` +
-      `## Task\nUse WebSearch with the query above (or a refined version). Return the top 4-6 most relevant results.\n` +
-      `Rank by relevance to the ORIGINAL question, not just the search query. Skip obvious SEO spam/content farms.\n` +
-      `Include a short snippet capturing why each result is relevant.`;
-
-    const FETCH_PROMPT = (source: SearchHit, angle: string): string =>
-      `## Source Extractor\n\n` +
-      `Research question: "${QUESTION}"\n\n` +
-      `Fetch and extract key claims from this source:\n` +
-      `**URL:** ${source.url}\n**Title:** ${source.title}\n**Found via:** ${angle} search\n\n` +
-      `## Task\n1. Use WebFetch to retrieve the page content.\n` +
-      `2. Assess source quality: primary research/institution? secondary reporting? blog/opinion? forum? unreliable?\n` +
-      `3. Extract 2-5 FALSIFIABLE claims that bear on the research question. Each claim must:\n` +
-      `   - be a concrete, checkable statement (not vague generalities)\n` +
-      `   - include a direct quote from the source as support\n` +
-      `   - be rated central/supporting/tangential to the research question\n` +
-      `4. Note publish date if available.\n\n` +
-      `If the fetch fails or the page is irrelevant/paywalled, return claims: [] and sourceQuality: "unreliable".`;
-
-    const VERIFY_PROMPT = (claim: Claim, v: number): string =>
-      `## Adversarial Claim Verifier (voter ${v + 1}/${VOTES_PER_CLAIM})\n\n` +
-      `Be SKEPTICAL. Try to REFUTE this claim. ≥${REFUTATIONS_REQUIRED}/${VOTES_PER_CLAIM} refutations kill it.\n\n` +
-      `## Research question\n${QUESTION}\n\n` +
-      `## Claim under review\n"${claim.claim}"\n\n` +
-      `**Source:** ${claim.sourceUrl} (${claim.sourceQuality})\n` +
-      `**Supporting quote:** "${claim.quote}"\n\n` +
-      `## Checklist\n` +
-      `1. Is the claim actually supported by the quote, or is it an overreach/misread?\n` +
-      `2. WebSearch for contradicting evidence — does any credible source dispute or heavily qualify this?\n` +
-      `3. Is the source quality sufficient for the claim's strength? (extraordinary claims need primary sources)\n` +
-      `4. Is the claim outdated? (check dates — old claims about fast-moving fields are suspect)\n` +
-      `5. Is this a marketing claim / press release / cherry-picked benchmark / forum speculation?\n\n` +
-      `**refuted=true** if: unsupported by quote / contradicted / low-quality source for strong claim / outdated / marketing fluff.\n` +
-      `**refuted=false** ONLY if: claim is well-supported, current, and source quality matches claim strength.\n` +
-      `Default to refuted=true if uncertain. Evidence MUST be specific.`;
 
     // ── Pipeline: search → dedup → fetch+extract (no barrier) ─────────────────────
     const searchResults = await pipeline(
@@ -244,7 +84,7 @@ export default defineWorkflow({
       // Stage 1 — Search: one WebSearch agent per angle. `angle` is the pipeline item, typed
       // from scope.angles (the SCOPE_SCHEMA inference) — no cast.
       async (angle) => {
-        const r = await agent(SEARCH_PROMPT(angle), {
+        const r = await agent(searchPrompt(angle, QUESTION), {
           label: `search:${angle.label}`,
           phase: "Search",
           schema: SEARCH_SCHEMA,
@@ -282,7 +122,7 @@ export default defineWorkflow({
           novel.map((source) => async (): Promise<FetchedSource | null> => {
             const host = hostOf(source.url) ?? "unknown";
             try {
-              const ext = await agent(FETCH_PROMPT(source, searchResult.angle), {
+              const ext = await agent(fetchPrompt(source, searchResult.angle, QUESTION), {
                 label: `fetch:${host}`,
                 phase: "Fetch",
                 schema: EXTRACT_SCHEMA,
@@ -323,12 +163,6 @@ export default defineWorkflow({
     const perAngle = searchResults;
     const allSources = perAngle.flat().filter((s): s is FetchedSource => s !== null);
     const allClaims = allSources.flatMap((s) => s.claims);
-    const impRank: Record<"central" | "supporting" | "tangential", number> = {
-      central: 0,
-      supporting: 1,
-      tangential: 2,
-    };
-    const qualRank: Record<string, number> = { primary: 0, secondary: 1, blog: 2, forum: 3, unreliable: 4 };
 
     const rankedClaims = allClaims
       .toSorted(
@@ -360,7 +194,7 @@ export default defineWorkflow({
         rankedClaims.map((claim) => async () => {
           const verdicts = await parallel(
             Array.from({ length: VOTES_PER_CLAIM }, (_unused, v) => () =>
-              agent(VERIFY_PROMPT(claim, v), {
+              agent(verifyPrompt(claim, v, QUESTION, VOTES_PER_CLAIM, REFUTATIONS_REQUIRED), {
                 label: `v${v}:${claim.claim.slice(0, 40)}`,
                 phase: "Verify",
                 schema: VERDICT_SCHEMA,
@@ -414,7 +248,6 @@ export default defineWorkflow({
 
     // ── Synthesize ──────────────────────────────────────────────────────────────
     phase("Synthesize");
-    const confRank: Record<"high" | "medium" | "low", number> = { high: 0, medium: 1, low: 2 };
     const block = confirmed
       .map((c, i) => {
         const best =
@@ -438,17 +271,7 @@ export default defineWorkflow({
         : "";
 
     const report = await agent(
-      `## Synthesis: research report\n\n` +
-        `**Question:** ${QUESTION}\n\n` +
-        `${confirmed.length} claims survived ${VOTES_PER_CLAIM}-vote adversarial verification. Merge semantic duplicates and synthesize.\n\n` +
-        `## Confirmed claims\n${block}\n${killedBlock}\n\n` +
-        `## Instructions\n` +
-        `1. Identify claims that say the same thing — merge them, combine their sources.\n` +
-        `2. Group related claims into coherent findings. Each finding should directly address the research question.\n` +
-        `3. Assign confidence per finding: high (multiple primary sources, unanimous votes), medium (secondary sources or split votes), low (single source or blog-quality).\n` +
-        `4. Write a 3-5 sentence executive summary answering the research question.\n` +
-        `5. Note caveats: what's uncertain, what sources were weak, what time-sensitivity applies.\n` +
-        `6. List 2-4 open questions that emerged but weren't answered.`,
+      synthesizePrompt(QUESTION, block, killedBlock, VOTES_PER_CLAIM, confirmed.length),
       { label: "synthesize", phase: "Synthesize", schema: REPORT_SCHEMA },
     );
 
