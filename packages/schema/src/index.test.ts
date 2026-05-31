@@ -24,7 +24,10 @@ describe("validate", () => {
   });
 
   it("validates a draft 2020-12 schema (the shape authors copy from tooling)", () => {
-    const r = validate({ $schema: "https://json-schema.org/draft/2020-12/schema", ...schema }, { title: "ok" });
+    const r = validate(
+      { $schema: "https://json-schema.org/draft/2020-12/schema", ...schema },
+      { title: "ok" },
+    );
     expect(r.isOk()).toBe(true);
   });
 

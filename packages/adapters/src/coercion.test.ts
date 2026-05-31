@@ -13,7 +13,11 @@ describe("runWithSchemaRetry", () => {
     const r = await runWithSchemaRetry({
       validate: undefined,
       maxRetries: 2,
-      attempt: async () => ({ text: "plain", data: undefined, usage: { inputTokens: 1, outputTokens: 2 } }),
+      attempt: async () => ({
+        text: "plain",
+        data: undefined,
+        usage: { inputTokens: 1, outputTokens: 2 },
+      }),
     });
     expect(r.isOk()).toBe(true);
     expect(r._unsafeUnwrap().text).toBe("plain");
@@ -23,7 +27,11 @@ describe("runWithSchemaRetry", () => {
     const r = await runWithSchemaRetry({
       validate: numberValidator,
       maxRetries: 2,
-      attempt: async () => ({ text: "{}", data: { n: 5 }, usage: { inputTokens: 0, outputTokens: 0 } }),
+      attempt: async () => ({
+        text: "{}",
+        data: { n: 5 },
+        usage: { inputTokens: 0, outputTokens: 0 },
+      }),
     });
     expect(r._unsafeUnwrap().data).toEqual({ n: 5 });
   });
@@ -52,7 +60,11 @@ describe("runWithSchemaRetry", () => {
     const r = await runWithSchemaRetry({
       validate: numberValidator,
       maxRetries: 2,
-      attempt: async () => ({ text: "bad", data: { n: "x" }, usage: { inputTokens: 0, outputTokens: 0 } }),
+      attempt: async () => ({
+        text: "bad",
+        data: { n: "x" },
+        usage: { inputTokens: 0, outputTokens: 0 },
+      }),
     });
     expect(r.isErr()).toBe(true);
     const e = r._unsafeUnwrapErr();
@@ -79,10 +91,14 @@ describe("runWithSchemaRetry", () => {
     const r = await runWithSchemaRetry({
       validate: numberValidator,
       maxRetries: 1,
-      attempt: async () => ({ text: long, data: undefined, usage: { inputTokens: 0, outputTokens: 0 } }),
+      attempt: async () => ({
+        text: long,
+        data: undefined,
+        usage: { inputTokens: 0, outputTokens: 0 },
+      }),
     });
     const e = r._unsafeUnwrapErr();
-    const raw = e.kind === "SchemaValidation" ? e.rawOutput ?? "" : "";
+    const raw = e.kind === "SchemaValidation" ? (e.rawOutput ?? "") : "";
     expect(raw.length).toBeLessThan(long.length);
     expect(raw).toContain("truncated");
   });

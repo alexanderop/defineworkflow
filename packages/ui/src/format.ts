@@ -29,7 +29,11 @@ export function formatDuration(ms: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-const MODEL_TIERS: Readonly<Record<string, string>> = { opus: "Opus", sonnet: "Sonnet", haiku: "Haiku" };
+const MODEL_TIERS: Readonly<Record<string, string>> = {
+  opus: "Opus",
+  sonnet: "Sonnet",
+  haiku: "Haiku",
+};
 
 /**
  * Friendly model name: `claude-opus-4-8[1m]` → `Opus 4.8 (1M context)`.

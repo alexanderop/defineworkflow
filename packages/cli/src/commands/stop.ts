@@ -1,7 +1,10 @@
 import type { AppDeps } from "../app.js";
 
 /** Stop a backgrounded run: SIGTERM the child pid and mark it stopped. */
-export function stopCommand(runId: string, deps: Pick<AppDeps, "registry" | "ui" | "proc" | "clock">): number {
+export function stopCommand(
+  runId: string,
+  deps: Pick<AppDeps, "registry" | "ui" | "proc" | "clock">,
+): number {
   const meta = deps.registry.readMeta(runId);
   if (!meta) {
     deps.ui.print(`error: no run ${runId}\n`);

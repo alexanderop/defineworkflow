@@ -60,7 +60,10 @@ function createControllableRunner(): ControllableRunner {
     resolve: (label, text) => {
       const stack = pending.get(label);
       const d = stack?.[stack.length - 1];
-      if (d) d.resolve(ok({ text, data: undefined, usage: { inputTokens: 0, outputTokens: 0 }, toolCalls: [] }));
+      if (d)
+        d.resolve(
+          ok({ text, data: undefined, usage: { inputTokens: 0, outputTokens: 0 }, toolCalls: [] }),
+        );
     },
   };
 }
@@ -95,7 +98,10 @@ describe("AgentControl: per-agent stop", () => {
     // Let both reach in-flight (agent-started emitted).
     await Promise.resolve();
     await Promise.resolve();
-    expect(events.filter((e) => e.type === "agent-started").map((e) => e.key)).toEqual([keyA, keyB]);
+    expect(events.filter((e) => e.type === "agent-started").map((e) => e.key)).toEqual([
+      keyA,
+      keyB,
+    ]);
 
     // Stop just agent A.
     control.stopAgent(keyA);

@@ -72,7 +72,13 @@ export function createCodexTranslator(): StreamTranslator {
           inputTokens: usage.inputTokens + (numberField(ev.usage, "input_tokens") ?? 0),
           outputTokens: usage.outputTokens + (numberField(ev.usage, "output_tokens") ?? 0),
         };
-        return usage.outputTokens > 0 ? [model !== undefined ? { tokens: usage.outputTokens, model } : { tokens: usage.outputTokens }] : [];
+        return usage.outputTokens > 0
+          ? [
+              model !== undefined
+                ? { tokens: usage.outputTokens, model }
+                : { tokens: usage.outputTokens },
+            ]
+          : [];
       }
 
       return [];

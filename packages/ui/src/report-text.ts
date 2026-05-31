@@ -37,23 +37,48 @@ function shortModel(model: string | undefined): string {
 type Align = "l" | "r";
 
 /** Fixed-width text table with a rule under the header; columns padded per alignment. */
-function table(headers: readonly string[], aligns: readonly Align[], rows: readonly (readonly string[])[]): string[] {
+function table(
+  headers: readonly string[],
+  aligns: readonly Align[],
+  rows: readonly (readonly string[])[],
+): string[] {
   const widths = headers.map((h, i) => Math.max(h.length, ...rows.map((r) => (r[i] ?? "").length)));
   const pad = (cell: string, i: number): string =>
     aligns[i] === "r" ? cell.padStart(widths[i]!) : cell.padEnd(widths[i]!);
   const line = (cells: readonly string[]): string => " " + cells.map(pad).join("  ").trimEnd();
-  const rule = " " + "─".repeat(Math.max(0, widths.reduce((a, b) => a + b, 0) + (widths.length - 1) * 2));
+  const rule =
+    " " + "─".repeat(Math.max(0, widths.reduce((a, b) => a + b, 0) + (widths.length - 1) * 2));
   return [line(headers), rule, ...rows.map(line)];
 }
 
 function phaseRow(p: PhaseReport): readonly string[] {
-  return [p.title, String(p.agents), tokCell(p.inputTokens), tokCell(p.outputTokens), countCell(p.toolCalls), timeCell(p.wallMs)];
+  return [
+    p.title,
+    String(p.agents),
+    tokCell(p.inputTokens),
+    tokCell(p.outputTokens),
+    countCell(p.toolCalls),
+    timeCell(p.wallMs),
+  ];
 }
 
 function agentRow(a: AgentReport): readonly string[] {
-  const label = a.status === "cached" ? `${a.label} (cached)` : a.status === "failed" ? `${a.label} (failed)` : a.label;
+  const label =
+    a.status === "cached"
+      ? `${a.label} (cached)`
+      : a.status === "failed"
+        ? `${a.label} (failed)`
+        : a.label;
   if (a.status === "cached") return [label, a.phase, DASH, DASH, DASH, DASH, DASH];
-  return [label, a.phase, shortModel(a.model), tokCell(a.inputTokens), tokCell(a.outputTokens), countCell(a.toolCalls), timeCell(a.wallMs)];
+  return [
+    label,
+    a.phase,
+    shortModel(a.model),
+    tokCell(a.inputTokens),
+    tokCell(a.outputTokens),
+    countCell(a.toolCalls),
+    timeCell(a.wallMs),
+  ];
 }
 
 /**
@@ -72,24 +97,41 @@ export function renderReportText(report: RunReport, opts: RenderReportOptions = 
   lines.push("");
 
   const { inputTokens, outputTokens } = report.totals;
-  lines.push(`Tokens   in ${approx}${tok(inputTokens)} · out ${approx}${tok(outputTokens)} · total ${approx}${tok(inputTokens + outputTokens)}`);
-  lines.push(`Agents   ${report.totals.agents}  (${report.totals.cached} cached, ${report.totals.failed} failed)`);
+  lines.push(
+    `Tokens   in ${approx}${tok(inputTokens)} · out ${approx}${tok(outputTokens)} · total ${approx}${tok(inputTokens + outputTokens)}`,
+  );
+  lines.push(
+    `Agents   ${report.totals.agents}  (${report.totals.cached} cached, ${report.totals.failed} failed)`,
+  );
   lines.push(`Tools    ${report.totals.toolCalls} calls`);
-  if (report.budget) lines.push(`Budget   spent ${tok(report.budget.spent)} / ${tok(report.budget.total)}  (${report.budget.pct}%)`);
+  if (report.budget)
+    lines.push(
+      `Budget   spent ${tok(report.budget.spent)} / ${tok(report.budget.total)}  (${report.budget.pct}%)`,
+    );
 
   if (report.phases.length > 0) {
     lines.push("");
     lines.push(
-      ...table(["Phase", "agents", "in", "out", "tools", "time"], ["l", "r", "r", "r", "r", "r"], report.phases.map(phaseRow)),
+      ...table(
+        ["Phase", "agents", "in", "out", "tools", "time"],
+        ["l", "r", "r", "r", "r", "r"],
+        report.phases.map(phaseRow),
+      ),
     );
   }
 
   if (report.agents.length > 0) {
-    const ranked = report.agents.slice().sort((x, y) => y.inputTokens + y.outputTokens - (x.inputTokens + x.outputTokens));
+    const ranked = report.agents
+      .slice()
+      .sort((x, y) => y.inputTokens + y.outputTokens - (x.inputTokens + x.outputTokens));
     const shown = ranked.slice(0, maxAgents);
     lines.push("");
     lines.push(
-      ...table(["Agent", "phase", "model", "in", "out", "tools", "time"], ["l", "l", "l", "r", "r", "r", "r"], shown.map(agentRow)),
+      ...table(
+        ["Agent", "phase", "model", "in", "out", "tools", "time"],
+        ["l", "l", "l", "r", "r", "r", "r"],
+        shown.map(agentRow),
+      ),
     );
     const hidden = ranked.length - shown.length;
     if (hidden > 0) lines.push(` +${hidden} more`);

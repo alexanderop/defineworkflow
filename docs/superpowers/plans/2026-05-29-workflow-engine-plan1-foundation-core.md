@@ -53,6 +53,7 @@ workflow/
 ### Task 1: pnpm workspace + root config
 
 **Files:**
+
 - Create: `package.json`
 - Create: `pnpm-workspace.yaml`
 - Create: `tsconfig.base.json`
@@ -157,6 +158,7 @@ git commit -m "chore: pnpm workspace + turborepo scaffold"
 ### Task 2: oxlint config
 
 **Files:**
+
 - Create: `.oxlintrc.json`
 
 - [ ] **Step 1: Create `.oxlintrc.json`** (correctness + FP/immutability-leaning rules)
@@ -190,6 +192,7 @@ git commit -m "chore: add oxlint config"
 ### Task 3: Vitest projects config
 
 **Files:**
+
 - Create: `vitest.config.ts`
 
 - [ ] **Step 1: Create `vitest.config.ts`** — default run excludes e2e via a named project
@@ -240,6 +243,7 @@ git commit -m "chore: vitest projects config (unit + e2e split)"
 ### Task 4: schema package skeleton
 
 **Files:**
+
 - Create: `packages/schema/package.json`
 - Create: `packages/schema/tsconfig.json`
 - Create: `packages/schema/src/index.ts`
@@ -293,6 +297,7 @@ git commit -m "chore: scaffold @workflow/schema package"
 ### Task 5: `toJsonSchema` — Zod → JSON Schema
 
 **Files:**
+
 - Modify: `packages/schema/src/index.ts`
 - Test: `packages/schema/src/index.test.ts`
 
@@ -356,6 +361,7 @@ git commit -m "feat(schema): zod to JSON Schema conversion"
 ### Task 6: `validate` — runtime validation returning Result
 
 **Files:**
+
 - Modify: `packages/schema/src/index.ts`
 - Test: `packages/schema/src/index.test.ts`
 
@@ -421,6 +427,7 @@ git commit -m "feat(schema): runtime validate returning Result"
 ### Task 7: core package skeleton
 
 **Files:**
+
 - Create: `packages/core/package.json`
 - Create: `packages/core/tsconfig.json`
 - Create: `packages/core/src/index.ts`
@@ -476,6 +483,7 @@ git commit -m "chore: scaffold @workflow/core package"
 ### Task 8: errors + Result re-exports
 
 **Files:**
+
 - Create: `packages/core/src/errors.ts`
 - Test: `packages/core/src/errors.test.ts`
 
@@ -510,7 +518,11 @@ export { ok, err, Result, ResultAsync, okAsync, errAsync } from "neverthrow";
 
 export type WorkflowError =
   | { readonly kind: "AdapterSpawn"; readonly adapter: string; readonly cause: string }
-  | { readonly kind: "SchemaValidation"; readonly issues: readonly string[]; readonly attempts: number }
+  | {
+      readonly kind: "SchemaValidation";
+      readonly issues: readonly string[];
+      readonly attempts: number;
+    }
   | { readonly kind: "SandboxViolation"; readonly api: string }
   | { readonly kind: "JournalCorrupt"; readonly runId: string; readonly detail: string }
   | { readonly kind: "BudgetExhausted"; readonly spent: number; readonly total: number }
@@ -540,6 +552,7 @@ git commit -m "feat(core): WorkflowError union + Result re-exports"
 ### Task 9: budget
 
 **Files:**
+
 - Create: `packages/core/src/budget.ts`
 - Test: `packages/core/src/budget.test.ts`
 
@@ -616,6 +629,7 @@ git commit -m "feat(core): token budget tracking"
 ### Task 10: concurrency semaphore
 
 **Files:**
+
 - Create: `packages/core/src/semaphore.ts`
 - Test: `packages/core/src/semaphore.test.ts`
 
@@ -698,6 +712,7 @@ git commit -m "feat(core): bounded concurrency semaphore"
 ### Task 11: event types + pure reducer
 
 **Files:**
+
 - Create: `packages/core/src/events.ts`
 - Test: `packages/core/src/events.test.ts`
 
@@ -714,7 +729,13 @@ describe("event reducer", () => {
       { type: "phase-started", phase: "Search", at: 1 },
       { type: "agent-queued", key: "0", label: "a", phase: "Search", at: 2 },
       { type: "agent-started", key: "0", at: 3 },
-      { type: "agent-finished", key: "0", usage: { inputTokens: 5, outputTokens: 10 }, cached: false, at: 4 },
+      {
+        type: "agent-finished",
+        key: "0",
+        usage: { inputTokens: 5, outputTokens: 10 },
+        cached: false,
+        at: 4,
+      },
     ];
     const state = events.reduce(reduce, initialRunState());
     const phase = state.phases.get("Search")!;
@@ -753,13 +774,40 @@ export interface AgentUsage {
 }
 
 export type WorkflowEvent =
-  | { readonly type: "run-started"; readonly runId: string; readonly name: string; readonly at: number }
+  | {
+      readonly type: "run-started";
+      readonly runId: string;
+      readonly name: string;
+      readonly at: number;
+    }
   | { readonly type: "phase-started"; readonly phase: string; readonly at: number }
-  | { readonly type: "agent-queued"; readonly key: string; readonly label: string; readonly phase: string; readonly at: number }
+  | {
+      readonly type: "agent-queued";
+      readonly key: string;
+      readonly label: string;
+      readonly phase: string;
+      readonly at: number;
+    }
   | { readonly type: "agent-started"; readonly key: string; readonly at: number }
-  | { readonly type: "agent-tool"; readonly key: string; readonly tool: ToolEvent; readonly at: number }
-  | { readonly type: "agent-finished"; readonly key: string; readonly usage: AgentUsage; readonly cached: boolean; readonly at: number }
-  | { readonly type: "agent-failed"; readonly key: string; readonly error: WorkflowError; readonly at: number }
+  | {
+      readonly type: "agent-tool";
+      readonly key: string;
+      readonly tool: ToolEvent;
+      readonly at: number;
+    }
+  | {
+      readonly type: "agent-finished";
+      readonly key: string;
+      readonly usage: AgentUsage;
+      readonly cached: boolean;
+      readonly at: number;
+    }
+  | {
+      readonly type: "agent-failed";
+      readonly key: string;
+      readonly error: WorkflowError;
+      readonly at: number;
+    }
   | { readonly type: "log"; readonly message: string; readonly at: number }
   | { readonly type: "run-finished"; readonly runId: string; readonly at: number };
 
@@ -881,7 +929,10 @@ export function reduce(state: RunState, event: WorkflowEvent): RunState {
       return {
         ...state,
         agents,
-        phases: upsertPhase(state.phases, a.phase, (p) => ({ ...p, running: Math.max(0, p.running - 1) })),
+        phases: upsertPhase(state.phases, a.phase, (p) => ({
+          ...p,
+          running: Math.max(0, p.running - 1),
+        })),
       };
     }
     case "log":
@@ -907,6 +958,7 @@ git commit -m "feat(core): workflow event types + pure run-state reducer"
 ### Task 12: AgentRunner types + ScriptedRunner test helper
 
 **Files:**
+
 - Create: `packages/core/src/types.ts`
 - Create: `packages/core/src/scripted-runner.ts`
 - Test: `packages/core/src/scripted-runner.test.ts`
@@ -938,7 +990,10 @@ describe("ScriptedRunner", () => {
     const runner = createScriptedRunner({}, { delayMs: 10 });
     const ctrl = new AbortController();
     const reqs = Array.from({ length: 3 }, (_, i) =>
-      runner.run({ prompt: "p", cwd: "/tmp", signal: ctrl.signal, label: `x${i}` }, { runId: "r", seq: i }),
+      runner.run(
+        { prompt: "p", cwd: "/tmp", signal: ctrl.signal, label: `x${i}` },
+        { runId: "r", seq: i },
+      ),
     );
     await new Promise((r) => setTimeout(r, 2));
     expect(runner.inFlight()).toBe(3);
@@ -1076,6 +1131,7 @@ git commit -m "feat(core): AgentRunner contract + ScriptedRunner test helper"
 ### Task 13: journal (in-memory store)
 
 **Files:**
+
 - Create: `packages/core/src/journal.ts`
 - Test: `packages/core/src/journal.test.ts`
 
@@ -1155,6 +1211,7 @@ git commit -m "feat(core): in-memory journal with seq keying + JSONL round-trip"
 ### Task 14: sandbox (transform + vm + banned globals)
 
 **Files:**
+
 - Create: `packages/core/src/sandbox.ts`
 - Test: `packages/core/src/sandbox.test.ts`
 
@@ -1200,7 +1257,11 @@ import vm from "node:vm";
 import { transformSync } from "esbuild";
 
 export interface SandboxResult {
-  readonly meta: { readonly name: string; readonly description: string; readonly phases?: readonly unknown[] };
+  readonly meta: {
+    readonly name: string;
+    readonly description: string;
+    readonly phases?: readonly unknown[];
+  };
   readonly returnValue: unknown;
 }
 
@@ -1218,10 +1279,7 @@ export function transformScript(source: string): string {
   // close the captureMeta(...) call: the original `= {…}` becomes `= __captureMeta({…})`.
   // We wrap by appending after the meta object literal is assigned; simplest robust form
   // is to assign then capture on the next line instead of inline-wrapping:
-  const safe = source.replace(
-    /export\s+const\s+meta\s*=\s*/,
-    "const meta = ",
-  );
+  const safe = source.replace(/export\s+const\s+meta\s*=\s*/, "const meta = ");
   const body = `${safe}\n;globalThis.__captureMeta(meta);`;
   const wrapped = `(async () => {\n${body}\n})()`;
   const js = transformSync(wrapped, { loader: "ts", format: "esm" }).code;
@@ -1253,9 +1311,12 @@ export async function runInSandbox(
   const js = transformScript(source);
   let metaCaptured: SandboxResult["meta"] | undefined;
 
-  const bannedMath = { ...Math, random: () => {
-    throw new Error("SandboxViolation: Math.random() is not allowed in a workflow");
-  } };
+  const bannedMath = {
+    ...Math,
+    random: () => {
+      throw new Error("SandboxViolation: Math.random() is not allowed in a workflow");
+    },
+  };
 
   const context = vm.createContext({
     ...globals,
@@ -1306,6 +1367,7 @@ git commit -m "feat(core): node:vm sandbox with meta capture + banned non-determ
 ### Task 15: runtime — wire `agent`, `phase`, `log`, `budget`
 
 **Files:**
+
 - Create: `packages/core/src/runtime.ts`
 - Test: `packages/core/src/runtime.test.ts`
 
@@ -1340,26 +1402,26 @@ function harness(responses = {}, opts = {}) {
 
 describe("runtime.agent", () => {
   it("returns the text when no schema is given and exposes args", async () => {
-    const { rt } = harness({ "agent": { text: "hello" } });
+    const { rt } = harness({ agent: { text: "hello" } });
     expect(rt.args).toEqual({ topic: "vue" });
     const out = await rt.agent("say hi", { label: "agent" });
     expect(out).toBe("hello");
   });
 
   it("returns validated typed data when a schema is given", async () => {
-    const { rt } = harness({ "a": { data: { n: 7 } } });
+    const { rt } = harness({ a: { data: { n: 7 } } });
     const out = await rt.agent("give n", { label: "a", schema: z.object({ n: z.number() }) });
     expect(out).toEqual({ n: 7 });
   });
 
   it("records spend against the budget", async () => {
-    const { rt } = harness({ "a": { text: "x", outputTokens: 25 } });
+    const { rt } = harness({ a: { text: "x", outputTokens: 25 } });
     await rt.agent("p", { label: "a" });
     expect(rt.budget.spent()).toBe(25);
   });
 
   it("emits queued/started/finished events for an agent", async () => {
-    const { rt, events } = harness({ "a": { text: "x" } });
+    const { rt, events } = harness({ a: { text: "x" } });
     rt.phase("Search");
     await rt.agent("p", { label: "a" });
     const types = events.map((e) => e.type);
@@ -1367,7 +1429,9 @@ describe("runtime.agent", () => {
   });
 
   it("throws when the runner fails, so parallel can null it", async () => {
-    const { rt } = harness({ "a": { fail: { kind: "AdapterSpawn", adapter: "scripted", cause: "boom" } } });
+    const { rt } = harness({
+      a: { fail: { kind: "AdapterSpawn", adapter: "scripted", cause: "boom" } },
+    });
     await expect(rt.agent("p", { label: "a" })).rejects.toThrow();
   });
 });
@@ -1418,7 +1482,10 @@ export interface Runtime {
   readonly budget: Budget;
   agent(prompt: string, opts?: AgentOptions): Promise<unknown>;
   parallel<T>(thunks: ReadonlyArray<() => Promise<T>>): Promise<Array<T | null>>;
-  pipeline(items: readonly unknown[], ...stages: ReadonlyArray<(prev: unknown, item: unknown, index: number) => Promise<unknown>>): Promise<Array<unknown | null>>;
+  pipeline(
+    items: readonly unknown[],
+    ...stages: ReadonlyArray<(prev: unknown, item: unknown, index: number) => Promise<unknown>>
+  ): Promise<Array<unknown | null>>;
   phase(title: string): void;
   log(message: string): void;
 }
@@ -1441,13 +1508,23 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     const cached = deps.journal.lookup(mySeq);
     if (cached) {
       budget.record(cached.outputTokens);
-      deps.emit({ type: "agent-finished", key, usage: { inputTokens: 0, outputTokens: cached.outputTokens }, cached: true, at: deps.now() });
+      deps.emit({
+        type: "agent-finished",
+        key,
+        usage: { inputTokens: 0, outputTokens: cached.outputTokens },
+        cached: true,
+        at: deps.now(),
+      });
       return cached.data ?? cached.text;
     }
 
     // Budget gate (parity: further agent() calls throw once spent reaches total).
     if (deps.budgetTotal !== null && budget.remaining() <= 0) {
-      const e: WorkflowError = { kind: "BudgetExhausted", spent: budget.spent(), total: deps.budgetTotal };
+      const e: WorkflowError = {
+        kind: "BudgetExhausted",
+        spent: budget.spent(),
+        total: deps.budgetTotal,
+      };
       deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
       throw new WorkflowThrow(e);
     }
@@ -1463,7 +1540,13 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     if (opts.schema) {
       const converted = toJsonSchema(opts.schema);
       if (converted.isErr()) {
-        const e: WorkflowError = { kind: "SchemaValidation", issues: [converted.error.kind === "Conversion" ? converted.error.cause : "conversion failed"], attempts: 0 };
+        const e: WorkflowError = {
+          kind: "SchemaValidation",
+          issues: [
+            converted.error.kind === "Conversion" ? converted.error.cause : "conversion failed",
+          ],
+          attempts: 0,
+        };
         deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
         throw new WorkflowThrow(e);
       }
@@ -1476,7 +1559,15 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     try {
       const controller = new AbortController();
       const result = await deps.runner.run(
-        { prompt, schema: jsonSchema, model: opts.model, agentType: opts.agentType, label, cwd: deps.cwd, signal: controller.signal },
+        {
+          prompt,
+          schema: jsonSchema,
+          model: opts.model,
+          agentType: opts.agentType,
+          label,
+          cwd: deps.cwd,
+          signal: controller.signal,
+        },
         { runId: deps.runId, seq: mySeq },
       );
 
@@ -1486,13 +1577,21 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       }
 
       const res = result.value;
-      for (const tool of res.toolCalls) deps.emit({ type: "agent-tool", key, tool, at: deps.now() });
+      for (const tool of res.toolCalls)
+        deps.emit({ type: "agent-tool", key, tool, at: deps.now() });
 
       let value: unknown = res.text;
       if (opts.schema) {
         const validated = validate(opts.schema, res.data);
         if (validated.isErr()) {
-          const e: WorkflowError = { kind: "SchemaValidation", issues: validated.error.kind === "Validation" ? validated.error.issues : ["validation failed"], attempts: 1 };
+          const e: WorkflowError = {
+            kind: "SchemaValidation",
+            issues:
+              validated.error.kind === "Validation"
+                ? validated.error.issues
+                : ["validation failed"],
+            attempts: 1,
+          };
           deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
           throw new WorkflowThrow(e);
         }
@@ -1500,7 +1599,13 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       }
 
       budget.record(res.usage.outputTokens);
-      deps.journal.record({ seq: mySeq, key, text: res.text, data: res.data, outputTokens: res.usage.outputTokens });
+      deps.journal.record({
+        seq: mySeq,
+        key,
+        text: res.text,
+        data: res.data,
+        outputTokens: res.usage.outputTokens,
+      });
       deps.emit({ type: "agent-finished", key, usage: res.usage, cached: false, at: deps.now() });
       return value;
     } finally {
@@ -1555,6 +1660,7 @@ git commit -m "feat(core): runtime primitives (agent/phase/log/budget) over runn
 ### Task 16: `parallel` barrier + failure→null
 
 **Files:**
+
 - Test: `packages/core/src/runtime.parallel.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -1593,7 +1699,10 @@ describe("parallel", () => {
   });
 
   it("maps a failing thunk to null instead of rejecting the whole call", async () => {
-    const r = rt({ a: { text: "A" }, b: { fail: { kind: "AdapterSpawn", adapter: "x", cause: "boom" } } });
+    const r = rt({
+      a: { text: "A" },
+      b: { fail: { kind: "AdapterSpawn", adapter: "x", cause: "boom" } },
+    });
     const out = await r.parallel([
       () => r.agent("p", { label: "a" }),
       () => r.agent("p", { label: "b" }),
@@ -1618,6 +1727,7 @@ git commit -m "test(core): pin parallel barrier + failure-to-null contract"
 ### Task 17: `pipeline` has no barrier between stages
 
 **Files:**
+
 - Test: `packages/core/src/runtime.pipeline.test.ts`
 
 - [ ] **Step 1: Write the failing test** (proves item A reaches stage 2 before item B finishes stage 1)
@@ -1674,13 +1784,10 @@ describe("pipeline", () => {
       emit: () => {},
       now: () => 0,
     });
-    const out = await r.pipeline(
-      [1, 2],
-      async (_p, item) => {
-        if (item === 1) throw new Error("nope");
-        return item;
-      },
-    );
+    const out = await r.pipeline([1, 2], async (_p, item) => {
+      if (item === 1) throw new Error("nope");
+      return item;
+    });
     expect(out).toEqual([null, 2]);
   });
 });
@@ -1701,6 +1808,7 @@ git commit -m "test(core): pin pipeline no-barrier + item-failure isolation"
 ### Task 18: resume from journal (cached results, then live)
 
 **Files:**
+
 - Test: `packages/core/src/runtime.resume.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -1757,6 +1865,7 @@ git commit -m "test(core): pin journal-based resume (cached then live)"
 ### Task 19: concurrency cap is enforced end-to-end
 
 **Files:**
+
 - Test: `packages/core/src/runtime.concurrency.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -1812,6 +1921,7 @@ git commit -m "test(core): verify global concurrency cap across parallel agents"
 ### Task 20: agent cap + budget exhaustion throw
 
 **Files:**
+
 - Test: `packages/core/src/runtime.limits.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -1868,6 +1978,7 @@ git commit -m "test(core): enforce agent cap + budget exhaustion"
 ### Task 21: nested `workflow()` sharing the same semaphore + budget
 
 **Files:**
+
 - Modify: `packages/core/src/runtime.ts`
 - Test: `packages/core/src/runtime.nested.test.ts`
 
@@ -1951,7 +2062,11 @@ Add these exported types near `AgentOptions`:
 
 ```ts
 export interface LoadedWorkflow {
-  readonly meta: { readonly name: string; readonly description: string; readonly phases?: readonly unknown[] };
+  readonly meta: {
+    readonly name: string;
+    readonly description: string;
+    readonly phases?: readonly unknown[];
+  };
   run(runtime: Runtime, args?: unknown): Promise<unknown>;
 }
 ```
@@ -1966,36 +2081,48 @@ Implement `workflow` inside `createRuntime` (before the `return`), reusing the s
 `budget`, `deps.semaphore`, and `deps.journal` for the child by sharing deps:
 
 ```ts
-  const workflow = async (name: string, childArgs?: unknown): Promise<unknown> => {
-    if (deps.nestingDisabled) {
-      throw new WorkflowThrow({ kind: "AdapterSpawn", adapter: "workflow", cause: "workflow() nesting is one level only" });
-    }
-    if (!deps.resolveWorkflow) {
-      throw new WorkflowThrow({ kind: "AdapterSpawn", adapter: "workflow", cause: "no workflow resolver configured" });
-    }
-    const loaded = await deps.resolveWorkflow(name, childArgs);
-    // Child shares semaphore + journal + budget by sharing the SAME runtime's
-    // spend accounting: we build a child runtime that delegates agent() to this one.
-    const childRuntime: Runtime = {
-      args: childArgs,
-      budget,
-      agent,
-      parallel,
-      pipeline,
-      phase,
-      log,
-      workflow: async () => {
-        throw new WorkflowThrow({ kind: "AdapterSpawn", adapter: "workflow", cause: "workflow() nesting is one level only" });
-      },
-    };
-    return loaded.run(childRuntime, childArgs);
+const workflow = async (name: string, childArgs?: unknown): Promise<unknown> => {
+  if (deps.nestingDisabled) {
+    throw new WorkflowThrow({
+      kind: "AdapterSpawn",
+      adapter: "workflow",
+      cause: "workflow() nesting is one level only",
+    });
+  }
+  if (!deps.resolveWorkflow) {
+    throw new WorkflowThrow({
+      kind: "AdapterSpawn",
+      adapter: "workflow",
+      cause: "no workflow resolver configured",
+    });
+  }
+  const loaded = await deps.resolveWorkflow(name, childArgs);
+  // Child shares semaphore + journal + budget by sharing the SAME runtime's
+  // spend accounting: we build a child runtime that delegates agent() to this one.
+  const childRuntime: Runtime = {
+    args: childArgs,
+    budget,
+    agent,
+    parallel,
+    pipeline,
+    phase,
+    log,
+    workflow: async () => {
+      throw new WorkflowThrow({
+        kind: "AdapterSpawn",
+        adapter: "workflow",
+        cause: "workflow() nesting is one level only",
+      });
+    },
   };
+  return loaded.run(childRuntime, childArgs);
+};
 ```
 
 Then add `workflow` to the returned object:
 
 ```ts
-  return { args: deps.args, budget, agent, parallel, pipeline, phase, log, workflow };
+return { args: deps.args, budget, agent, parallel, pipeline, phase, log, workflow };
 ```
 
 > Note: the error uses the existing `AdapterSpawn` kind with a descriptive `cause`
@@ -2017,6 +2144,7 @@ git commit -m "feat(core): nested workflow() sharing budget/semaphore with one-l
 ### Task 22: public API surface (`index.ts`) + full build/lint/typecheck gate
 
 **Files:**
+
 - Modify: `packages/core/src/index.ts`
 - Test: `packages/core/src/index.test.ts`
 
@@ -2061,7 +2189,11 @@ export {
   type AgentOptions,
   type LoadedWorkflow,
 } from "./runtime.js";
-export { createScriptedRunner, type ScriptedRunner, type ScriptedResponse } from "./scripted-runner.js";
+export {
+  createScriptedRunner,
+  type ScriptedRunner,
+  type ScriptedResponse,
+} from "./scripted-runner.js";
 ```
 
 - [ ] **Step 4: Run the full gate**
@@ -2093,6 +2225,7 @@ git commit -m "feat(core): public API surface + green build/lint/typecheck"
 ## Self-Review (completed against the spec)
 
 **Spec coverage (Plan 1 portion):**
+
 - Monorepo / pnpm / turbo / tsup / strict TS → Tasks 1, 4, 7.
 - oxlint + FP/immutability rules → Task 2 (enforced at Task 22 gate).
 - Vitest projects, e2e excluded by default → Task 3.
@@ -2110,6 +2243,7 @@ git commit -m "feat(core): public API surface + green build/lint/typecheck"
 - public API + green gate → Task 22.
 
 **Deferred to later plans (correctly out of Plan 1 scope):**
+
 - Real harness adapters (codex/copilot/claude/raw-api), structured-output coercion + validate/**retry loop**, worktree isolation → **Plan 2**.
 - fs-backed run directory (`journal.jsonl`/`events.jsonl`/`script.snapshot`), `script.snapshot` mismatch → `JournalCorrupt` → **Plan 2/4** (Task 13 keeps the in-memory journal + JSONL shape ready for it).
 - Ink columns UI, keybindings → **Plan 3**.

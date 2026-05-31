@@ -8,7 +8,9 @@ import type { WorkflowEvent } from "./events.js";
 import type { Journal } from "./journal.js";
 import type { QuestionRequest } from "./runtime.js";
 
-function harness(opts: { askUser?: (req: QuestionRequest) => Promise<string>; journal?: Journal } = {}) {
+function harness(
+  opts: { askUser?: (req: QuestionRequest) => Promise<string>; journal?: Journal } = {},
+) {
   const events: WorkflowEvent[] = [];
   let clock = 0;
   const rt = createRuntime({
@@ -35,7 +37,9 @@ describe("runtime.askUserQuestion", () => {
   });
 
   it("does not re-ask when the answer is already journaled (resume)", async () => {
-    const journal = createJournal([{ seq: 0, key: "deploy-target", text: "production", data: "production", outputTokens: 0 }]);
+    const journal = createJournal([
+      { seq: 0, key: "deploy-target", text: "production", data: "production", outputTokens: 0 },
+    ]);
     let called = false;
     const { rt } = harness({
       journal,
@@ -51,8 +55,14 @@ describe("runtime.askUserQuestion", () => {
 
   it("emits question-asked then question-answered around the prompt", async () => {
     const { rt, events } = harness({ askUser: async () => "production" });
-    await rt.askUserQuestion({ key: "deploy-target", question: "Where?", choices: ["staging", "production"] });
-    const qEvents = events.filter((e) => e.type === "question-asked" || e.type === "question-answered");
+    await rt.askUserQuestion({
+      key: "deploy-target",
+      question: "Where?",
+      choices: ["staging", "production"],
+    });
+    const qEvents = events.filter(
+      (e) => e.type === "question-asked" || e.type === "question-answered",
+    );
     expect(qEvents.map((e) => e.type)).toEqual(["question-asked", "question-answered"]);
     expect(qEvents[0]).toMatchObject({
       type: "question-asked",
@@ -60,7 +70,12 @@ describe("runtime.askUserQuestion", () => {
       question: "Where?",
       choices: ["staging", "production"],
     });
-    expect(qEvents[1]).toMatchObject({ type: "question-answered", key: "deploy-target", answer: "production", cached: false });
+    expect(qEvents[1]).toMatchObject({
+      type: "question-answered",
+      key: "deploy-target",
+      answer: "production",
+      cached: false,
+    });
   });
 
   it("serializes concurrent questions — only one prompt in flight at a time", async () => {
@@ -95,11 +110,18 @@ describe("runtime.askUserQuestion", () => {
   });
 
   it("emits question-answered with cached:true on resume", async () => {
-    const journal = createJournal([{ seq: 0, key: "deploy-target", text: "production", data: "production", outputTokens: 0 }]);
+    const journal = createJournal([
+      { seq: 0, key: "deploy-target", text: "production", data: "production", outputTokens: 0 },
+    ]);
     const { rt, events } = harness({ journal, askUser: async () => "staging" });
     await rt.askUserQuestion({ key: "deploy-target", question: "Where?" });
     const answered = events.find((e) => e.type === "question-answered");
-    expect(answered).toMatchObject({ type: "question-answered", key: "deploy-target", answer: "production", cached: true });
+    expect(answered).toMatchObject({
+      type: "question-answered",
+      key: "deploy-target",
+      answer: "production",
+      cached: true,
+    });
   });
 
   it("releases the question lock when askUser rejects, so later questions still resolve", async () => {

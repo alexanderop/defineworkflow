@@ -34,7 +34,17 @@ export function createCopilotAdapter(deps: CopilotAdapterDeps): AgentRunner {
               : "";
             const prompt = `${req.prompt}${schemaInstr}${hint ? `\n\n${hint}` : ""}`;
             // `--output-format json` streams session/tool/token events for live progress.
-            const args = ["-p", prompt, "--output-format", "json", "--allow-all-tools", "--no-ask-user", "--silent", "-C", req.cwd];
+            const args = [
+              "-p",
+              prompt,
+              "--output-format",
+              "json",
+              "--allow-all-tools",
+              "--no-ask-user",
+              "--silent",
+              "-C",
+              req.cwd,
+            ];
             if (req.model) args.push("--model", req.model);
             // A fresh translator per attempt (retries re-run the agent from scratch).
             const translator = createCopilotTranslator();
@@ -48,7 +58,11 @@ export function createCopilotAdapter(deps: CopilotAdapterDeps): AgentRunner {
               },
             });
             if (out.code !== 0) {
-              spawnError = { kind: "AdapterSpawn", adapter: "copilot", cause: out.stderr || `exit ${out.code}` };
+              spawnError = {
+                kind: "AdapterSpawn",
+                adapter: "copilot",
+                cause: out.stderr || `exit ${out.code}`,
+              };
               throw new Error("copilot spawn failed");
             }
             const final = translator.result();
@@ -56,12 +70,23 @@ export function createCopilotAdapter(deps: CopilotAdapterDeps): AgentRunner {
             // valid answer that ended at turn_end is still extracted (old plain-text path).
             const text = final.text !== "" ? final.text : out.stdout;
             const data = req.schema ? extractJson(text) : undefined;
-            return { text, data, usage: { inputTokens: final.usage.inputTokens, outputTokens: final.usage.outputTokens } };
+            return {
+              text,
+              data,
+              usage: {
+                inputTokens: final.usage.inputTokens,
+                outputTokens: final.usage.outputTokens,
+              },
+            };
           },
         });
       } catch (e) {
         if (spawnError) return err(spawnError);
-        return err({ kind: "AdapterSpawn", adapter: "copilot", cause: e instanceof Error ? e.message : String(e) });
+        return err({
+          kind: "AdapterSpawn",
+          adapter: "copilot",
+          cause: e instanceof Error ? e.message : String(e),
+        });
       }
       if (result.isErr()) return err(result.error);
       const r = result.value;

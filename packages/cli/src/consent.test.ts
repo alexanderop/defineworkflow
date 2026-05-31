@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { decideConsent, promptConsent, type ConsentIO } from "./consent.js";
 
-const meta = { name: "demo", description: "d", harness: "claude" as const, phases: [{ title: "A" }, { title: "B" }] };
+const meta = {
+  name: "demo",
+  description: "d",
+  harness: "claude" as const,
+  phases: [{ title: "A" }, { title: "B" }],
+};
 
 describe("decideConsent", () => {
   const base = { config: {}, project: "/proj", name: "demo" };
@@ -17,7 +22,14 @@ describe("decideConsent", () => {
 
   it("allows when a recorded consent exists for this project+name", () => {
     expect(
-      decideConsent({ config: { consents: { "/proj": { demo: true } } }, project: "/proj", name: "demo", yes: false, isTTY: true, ci: false }),
+      decideConsent({
+        config: { consents: { "/proj": { demo: true } } },
+        project: "/proj",
+        name: "demo",
+        yes: false,
+        isTTY: true,
+        ci: false,
+      }),
     ).toBe("allow");
   });
 

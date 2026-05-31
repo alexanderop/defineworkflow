@@ -12,7 +12,10 @@ export async function runDetachedCommand(
   const source = deps.registry.readScript(runId);
   if (source === undefined) return 1;
 
-  const runnerResult = buildRunner(meta.adapter, deps.config, { processRunner: deps.adapters.processRunner, complete: deps.adapters.complete });
+  const runnerResult = buildRunner(meta.adapter, deps.config, {
+    processRunner: deps.adapters.processRunner,
+    complete: deps.adapters.complete,
+  });
   if (runnerResult.isErr()) {
     deps.registry.updateMeta(runId, { status: "failed", endedAt: deps.clock.now() });
     return 1;
@@ -25,7 +28,15 @@ export async function runDetachedCommand(
   return runHeadless(
     deps,
     // Use the persisted branded RunId, not the raw argv string.
-    { runId: meta.runId, source, args: meta.args, runner: runnerResult.value, adapter: meta.adapter, seed: [], ...(meta.answers ? { answers: meta.answers } : {}) },
+    {
+      runId: meta.runId,
+      source,
+      args: meta.args,
+      runner: runnerResult.value,
+      adapter: meta.adapter,
+      seed: [],
+      ...(meta.answers ? { answers: meta.answers } : {}),
+    },
     controller,
   );
 }

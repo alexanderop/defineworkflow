@@ -1,4 +1,11 @@
-import type { RunState, AgentState, PhaseState, ToolEvent, AgentStatus, WorkflowEvent } from "@workflow/core";
+import type {
+  RunState,
+  AgentState,
+  PhaseState,
+  ToolEvent,
+  AgentStatus,
+  WorkflowEvent,
+} from "@workflow/core";
 import { formatError } from "@workflow/core";
 import { formatTokens, formatDuration, formatModel } from "./format.js";
 
@@ -98,13 +105,23 @@ const STATUS_WORD: Readonly<Record<AgentStatus, string>> = {
 };
 
 /** Flat, scrollable detail lines: Status, Metrics, Prompt, Activity, Outcome. */
-export function detailSections(agent: AgentState, now: number, expanded: boolean): readonly string[] {
+export function detailSections(
+  agent: AgentState,
+  now: number,
+  expanded: boolean,
+): readonly string[] {
   const row = agentRow(agent, now);
   const lines: string[] = [];
 
-  const statusLine = row.model ? `${STATUS_WORD[agent.status]} · ${row.model}` : STATUS_WORD[agent.status];
+  const statusLine = row.model
+    ? `${STATUS_WORD[agent.status]} · ${row.model}`
+    : STATUS_WORD[agent.status];
   lines.push(statusLine);
-  const metrics = [row.tokens ? `${row.tokens} tok` : "", `${row.toolCount} tool call${row.toolCount === 1 ? "" : "s"}`, row.elapsed]
+  const metrics = [
+    row.tokens ? `${row.tokens} tok` : "",
+    `${row.toolCount} tool call${row.toolCount === 1 ? "" : "s"}`,
+    row.elapsed,
+  ]
     .filter((s) => s !== "")
     .join(" · ");
   lines.push(metrics);
@@ -117,12 +134,18 @@ export function detailSections(agent: AgentState, now: number, expanded: boolean
   }
 
   const promptLines = agent.prompt.split("\n");
-  lines.push(`Prompt · ${promptLines.length} line${promptLines.length === 1 ? "" : "s"} · ⏎ ${expanded ? "collapse" : "expand"}`);
+  lines.push(
+    `Prompt · ${promptLines.length} line${promptLines.length === 1 ? "" : "s"} · ⏎ ${expanded ? "collapse" : "expand"}`,
+  );
   for (const l of promptPreview(agent.prompt, expanded)) lines.push(`  ${l}`);
   lines.push("");
 
   const digest = activityDigest(agent);
-  lines.push(digest.total === 0 ? "Activity · no tool calls" : `Activity · last ${digest.shown.length} of ${digest.total} tool calls`);
+  lines.push(
+    digest.total === 0
+      ? "Activity · no tool calls"
+      : `Activity · last ${digest.shown.length} of ${digest.total} tool calls`,
+  );
   for (const l of digest.shown) lines.push(`  ${l}`);
   lines.push("");
 

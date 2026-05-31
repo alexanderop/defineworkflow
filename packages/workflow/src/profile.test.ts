@@ -5,7 +5,11 @@ import type { Profile } from "./index.js";
 describe("profile (authoring)", () => {
   it("creates a profile from a config", () => {
     const reviewer = profile({ adapter: "claude", model: "sonnet", instructions: "Review only." });
-    expect(reviewer.config).toEqual({ adapter: "claude", model: "sonnet", instructions: "Review only." });
+    expect(reviewer.config).toEqual({
+      adapter: "claude",
+      model: "sonnet",
+      instructions: "Review only.",
+    });
   });
 
   it("rejects per-call fields at the type level", () => {

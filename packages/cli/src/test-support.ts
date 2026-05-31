@@ -32,7 +32,9 @@ export const runMeta = (o: Partial<RunMeta> = {}): RunMeta => ({
  * In-memory RegistryFs for tests — also exposes its backing map.
  * @public — intentional shared test helper (see CLAUDE.md), may be unused at times.
  */
-export function memFs(seed: Record<string, string> = {}): RegistryFs & { files: Map<string, string> } {
+export function memFs(
+  seed: Record<string, string> = {},
+): RegistryFs & { files: Map<string, string> } {
   const files = new Map<string, string>(Object.entries(seed));
   const dirs = new Set<string>();
   return {
@@ -41,7 +43,10 @@ export function memFs(seed: Record<string, string> = {}): RegistryFs & { files: 
     writeFile: (p, data) => files.set(p, data),
     appendFile: (p, data) => files.set(p, (files.get(p) ?? "") + data),
     readFile: (p) => files.get(p),
-    readDir: (dir) => [...dirs].filter((d) => d.startsWith(dir + "/")).map((d) => d.slice(dir.length + 1).split("/")[0]!),
+    readDir: (dir) =>
+      [...dirs]
+        .filter((d) => d.startsWith(dir + "/"))
+        .map((d) => d.slice(dir.length + 1).split("/")[0]!),
     exists: (p) => files.has(p) || dirs.has(p),
   };
 }
@@ -73,7 +78,13 @@ export function fakeDeps(o: FakeDepsOverrides = {}): { deps: AppDeps; out: () =>
   const deps: AppDeps = {
     registry: o.registry ?? createRegistry({ root: "/runs", fs }),
     config: o.config ?? {},
-    clock: { now: () => clock++, rand: () => 0.5, pid: () => 4242, hash: (s) => `h:${s.length}`, ...o.clock },
+    clock: {
+      now: () => clock++,
+      rand: () => 0.5,
+      pid: () => 4242,
+      hash: (s) => `h:${s.length}`,
+      ...o.clock,
+    },
     env: {
       cwd: "/proj",
       homeDir: "/home/me",
@@ -99,8 +110,18 @@ export function fakeDeps(o: FakeDepsOverrides = {}): { deps: AppDeps; out: () =>
       },
       ...o.ui,
     },
-    consent: { io: { question: async () => "n", write: () => {} }, persist: () => {}, ...o.consent },
-    proc: { spawnDetached: () => 9999, kill: () => {}, onSigterm: () => {}, watchEvents: () => () => {}, ...o.proc },
+    consent: {
+      io: { question: async () => "n", write: () => {} },
+      persist: () => {},
+      ...o.consent,
+    },
+    proc: {
+      spawnDetached: () => 9999,
+      kill: () => {},
+      onSigterm: () => {},
+      watchEvents: () => () => {},
+      ...o.proc,
+    },
   };
   return { deps, out: () => out };
 }

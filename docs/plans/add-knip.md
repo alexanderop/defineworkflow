@@ -20,6 +20,7 @@ so `pnpm knip` exits clean and stays useful as a signal.
 ## Findings triage
 
 ### Real — fix
+
 1. **Unused dependency `tokenlens`** in `packages/core/package.json` — no `tokenlens` import in
    `packages/core/src`. Remove.
 2. **Unused dependency `@workflow/schema`** in `packages/cli/package.json` — cli `src` never imports
@@ -34,6 +35,7 @@ so `pnpm knip` exits clean and stays useful as a signal.
    code.
 
 ### False positive — suppress with rationale (not bugs)
+
 - **`packages/workflow` deps** `@anthropic-ai/sdk, acorn, ajv, esbuild, ink, neverthrow, react` +
   devDeps `@workflow/adapters, @workflow/schema, @workflow/ui`: the package is published as a single
   self-contained bundle (`tsup` `noExternal: [/^@workflow\//]`, third-party libs `external`). They're
@@ -43,10 +45,11 @@ so `pnpm knip` exits clean and stays useful as a signal.
   package scripts, not imported. Declare as knip `entry` for the examples workspace.
 - **`memFs` export** (`packages/cli/src/test-support.ts`): intentional, CLAUDE.md-documented public
   test helper → tag `@public`.
-- **`repos/**`, `.claude/**`, `.agents/**`, root `*.html`, `*.config.*` noise**: not workspace
-  source. Scope knip via `workspaces` + `ignore`.
+- **`repos/**`, `.claude/**`, `.agents/**`, root `_.html`, `_.config.\*`noise**: not workspace
+source. Scope knip via`workspaces`+`ignore`.
 
 ## Steps
+
 1. Add `knip` devDep (done) + root `knip` / `knip:fix` scripts.
 2. Write `knip.json`: per-workspace config, entry points, `ignore`, `ignoreDependencies`,
    `ignoreBinaries` as needed; tag `memFs` `@public`.
@@ -55,5 +58,6 @@ so `pnpm knip` exits clean and stays useful as a signal.
 5. Commit, push, open PR, compound a learning doc.
 
 ## Verification
+
 - `pnpm exec knip` exits 0 with no findings.
 - `pnpm build`, `pnpm typecheck`, `pnpm test` all green.

@@ -2,6 +2,20 @@
 pre-commit:
   parallel: true
   commands:
+    # Auto-format staged files with oxfmt and re-stage the results, so every
+    # commit lands already formatted. Scoped to the file types oxfmt handles and
+    # excludes the vendored `repos/`, the VitePress `apps/` site (Vue SFCs trip
+    # oxfmt's parser), and release-please-owned CHANGELOGs. `stage_fixed: true`
+    # adds oxfmt's edits back to the index. Config lives in `.oxfmtrc.json`.
+    format:
+      priority: 1
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,jsonc,md}"
+      exclude:
+        - "repos/**"
+        - "apps/**"
+        - "**/CHANGELOG.md"
+      run: pnpm exec oxfmt {staged_files}
+      stage_fixed: true
     lint:
       run: pnpm lint
     typecheck:

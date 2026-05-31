@@ -15,9 +15,9 @@ How to read priority: **P1** = biggest capability gap or highest leverage, **P2*
 
 ---
 
-## ATOM-1 — Automatic DAG inference from execution order  ·  P1 · effort: S
+## ATOM-1 — Automatic DAG inference from execution order · P1 · effort: S
 
-**Idea.** Infer a real dependency graph from *when* stages spawn vs. settle — no author-declared
+**Idea.** Infer a real dependency graph from _when_ stages spawn vs. settle — no author-declared
 edges. Maintain a `frontier` set; on stage spawn, snapshot the current frontier as that stage's
 parents; on settle, remove its parents from the frontier and add itself. You get a visualizable DAG
 for free.
@@ -39,10 +39,11 @@ parent→child in `RunState`; UI shows the branch/merge.
 
 ---
 
-## ATOM-2 — Intercom: agent ↔ orchestrator back-channel  ·  P1 · effort: L
+## ATOM-2 — Intercom: agent ↔ orchestrator back-channel · P1 · effort: L
 
 **Idea.** A separate **broker process** over a socket lets sub-agents message their supervisor
 mid-run via a `contact_supervisor` tool with three modes:
+
 - `progress_update` — fire-and-forget status,
 - `need_decision` — blocks the agent until the orchestrator replies,
 - `interview_request` — a structured multi-question form (typed options), answers parsed back as JSON.
@@ -53,7 +54,7 @@ Also does session presence/status (idle / thinking / `tool:<name>`) and idle-bat
 **In atomic.** `packages/intercom/` (broker, client, reply-tracker, types) and
 `packages/workflows/src/intercom/` (bridge/routing). `contact_supervisor` tool ≈ `index.ts:1033–1305`.
 
-**For us.** Biggest genuine *capability* gap — our dispatch is strictly one-shot; a running agent
+**For us.** Biggest genuine _capability_ gap — our dispatch is strictly one-shot; a running agent
 can't ask the orchestrator anything. Would need: a back-channel transport, a journaled
 request/response so it survives replay, and adapter wiring to expose the tool. Pairs with ATOM-3/4.
 
@@ -62,9 +63,9 @@ result so resume doesn't re-prompt. Decide broker-process vs. in-proc channel gi
 
 ---
 
-## ATOM-3 — HIL detection → unified `awaiting_input` status  ·  P1 · effort: M
+## ATOM-3 — HIL detection → unified `awaiting_input` status · P1 · effort: M
 
-**Idea.** Detect *that an agent is blocked waiting on the human* and surface it distinctly. Per
+**Idea.** Detect _that an agent is blocked waiting on the human_ and surface it distinctly. Per
 harness: Claude via `fs.watch()` on the JSONL transcript scanning for unresolved `AskUserQuestion`
 tool calls; Copilot via native `user_input.requested` events; OpenCode via SSE. All funnel into one
 `onHIL(waiting: boolean)` callback → session flips to `awaiting_input` (blue pulsing border vs.
@@ -75,11 +76,11 @@ yellow "running").
 **For us.** Maps cleanly onto our `StreamTranslator → onProgress` normalization boundary
 (see `docs/solutions/architecture-patterns/streaming-agent-progress-normalization-boundary.md`).
 Add an `awaiting_input` run/agent state to the event union and a distinct Ink rendering. We already
-normalize progress; this normalizes *blocked-on-human*.
+normalize progress; this normalizes _blocked-on-human_.
 
 ---
 
-## ATOM-4 — Model fallback with a retryable-error classifier  ·  P1 · effort: M
+## ATOM-4 — Model fallback with a retryable-error classifier · P1 · effort: M
 
 **Idea.** Per-stage `fallbackModels: [...]`. Build a candidate list deduped against the primary; a
 classifier retries only on rate-limit / quota / auth / 5xx / overload (never tool / validation / user
@@ -95,9 +96,9 @@ for observability. We have `budget`; this adds resilience.
 
 ---
 
-## ATOM-5 — `ask-user-question` as a first-class DSL node  ·  P2 · effort: M
+## ATOM-5 — `ask-user-question` as a first-class DSL node · P2 · effort: M
 
-**Idea.** Deterministic human-in-the-loop *inside* the workflow body. `question` can be a function of
+**Idea.** Deterministic human-in-the-loop _inside_ the workflow body. `question` can be a function of
 current state; `onAnswer` maps the reply into state. Reuses the HIL UI; renders question text as
 markdown; dynamic, contextual prompts.
 
@@ -109,9 +110,9 @@ constraints (no `Date.now`/`Math.random`).
 
 ---
 
-## ATOM-6 — Ralph: ready-set DAG scheduler + eager dispatch  ·  P2 · effort: L
+## ATOM-6 — Ralph: ready-set DAG scheduler + eager dispatch · P2 · effort: L
 
-**Idea.** A centralized coordinator that's the *sole writer* of a `tasks.json`, computes the ready set
+**Idea.** A centralized coordinator that's the _sole writer_ of a `tasks.json`, computes the ready set
 (`pending` + all `blockedBy` complete), dispatches workers in parallel, and **re-evaluates on each
 `onAgentComplete`** — so a freshly-unblocked task dispatches immediately instead of waiting for the
 slowest task in its wave (eager dispatch). Handles deadlock detection and bounded retries.
@@ -119,16 +120,16 @@ slowest task in its wave (eager dispatch). Handles deadlock detection and bounde
 **In atomic.** specs `specs/2026-02-16-ralph-dag-orchestration.md`,
 `specs/2026-03-18-ralph-eager-dispatch.md`, `specs/2026-03-23-ralph-review-debug-loop-termination.md`.
 
-**For us.** This is the *dynamic, agent-generated task list* version (vs. our statically-authored
+**For us.** This is the _dynamic, agent-generated task list_ version (vs. our statically-authored
 `pipeline()`). Could ship as a higher-level helper built on our primitives. Lower priority unless we
 want agent-authored DAGs.
 
 ---
 
-## ATOM-7 — Ancestor-agent retry on schema-validation failure  ·  P2 · effort: M
+## ATOM-7 — Ancestor-agent retry on schema-validation failure · P2 · effort: M
 
-**Idea.** When a downstream tool/node fails input (Zod) validation, walk *backward to the nearest
-ancestor agent* and re-run it with the error injected, so the LLM regenerates conforming output —
+**Idea.** When a downstream tool/node fails input (Zod) validation, walk _backward to the nearest
+ancestor agent_ and re-run it with the error injected, so the LLM regenerates conforming output —
 rather than retrying the failing tool.
 
 **In atomic.** spec `specs/2026-02-11-workflow-sdk-implementation.md` §5.3.
@@ -139,7 +140,7 @@ who the "nearest ancestor agent" is.
 
 ---
 
-## ATOM-8 — A `PRODUCT.md` / design-principles doc for the TUI  ·  P3 · effort: S
+## ATOM-8 — A `PRODUCT.md` / design-principles doc for the TUI · P3 · effort: S
 
 **Idea.** A tight brand + design-principles doc that doubles as a UI spec: canonical palette
 (Catppuccin Mocha), layout constants (24-char sidebar, collapse < 80 cols, rounded borders,
@@ -152,7 +153,7 @@ sticky-bottom scroll), a fixed Unicode icon set (no emoji), `NO_COLOR` respect, 
 
 ---
 
-## ATOM-9 — Ship a library of ready-to-use built-in workflows  ·  P1 · effort: M (per workflow)
+## ATOM-9 — Ship a library of ready-to-use built-in workflows · P1 · effort: M (per workflow)
 
 **Idea.** Like atomic's named built-ins (ralph / deep-research / goal), ship our own curated,
 supported, tested workflows that users run by name: `workflow deep-research --args '{...}'`.
@@ -167,8 +168,9 @@ project → personal → **bundled** tiers; `bundledDir` is wired to `packages/e
 needed — this ticket is **authoring + packaging**, not engine plumbing.
 
 **Shippability of the three atomic ships:**
+
 - **deep-research** — ✅ buildable now on existing primitives (`parallel()` fan-out → `pipeline()`
-  verify → aggregator `agent()`). Mine our existing `deep-research` *skill* for prompt structure.
+  verify → aggregator `agent()`). Mine our existing `deep-research` _skill_ for prompt structure.
   Recommended **first** built-in.
 - **goal** (loop-until-done) — ✅ mostly now: `while` loop gated on `budget.remaining()` + a
   "done?" check agent. It's a pattern more than new engine work.
@@ -196,5 +198,6 @@ surface. Lean toward the split once there are >2.
 ---
 
 ### Suggested order
+
 ATOM-1 (quick win, unlocks ATOM-7) → ATOM-3 + ATOM-5 (HIL pair) → ATOM-4 (resilience) →
 ATOM-2 (biggest, do once HIL plumbing exists) → ATOM-6 / ATOM-7 / ATOM-8 as capacity allows.

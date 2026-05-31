@@ -76,7 +76,8 @@ function spanMs(agents: readonly AgentState[]): number | undefined {
   let first: number | undefined;
   let last: number | undefined;
   for (const a of agents) {
-    if (a.startedAt !== undefined) first = first === undefined ? a.startedAt : Math.min(first, a.startedAt);
+    if (a.startedAt !== undefined)
+      first = first === undefined ? a.startedAt : Math.min(first, a.startedAt);
     if (a.endedAt !== undefined) last = last === undefined ? a.endedAt : Math.max(last, a.endedAt);
   }
   if (first === undefined || last === undefined) return undefined;
@@ -91,7 +92,8 @@ function spanMs(agents: readonly AgentState[]): number | undefined {
  */
 export function selectRunReport(state: RunState, opts: SelectRunReportOptions = {}): RunReport {
   const agents = [...state.agents.values()];
-  const status: RunReportStatus = opts.status ?? (state.status === "finished" ? "finished" : "running");
+  const status: RunReportStatus =
+    opts.status ?? (state.status === "finished" ? "finished" : "running");
 
   const fresh = agents.filter((a) => !a.cached);
   const totals: RunReportTotals = {
@@ -131,19 +133,28 @@ export function selectRunReport(state: RunState, opts: SelectRunReportOptions = 
       inputTokens: a.inputTokens,
       outputTokens: a.outputTokens,
       toolCalls: a.tools.length,
-      ...(a.startedAt !== undefined && a.endedAt !== undefined ? { wallMs: Math.max(0, a.endedAt - a.startedAt) } : {}),
-      ...(a.startedAt !== undefined && a.queuedAt !== undefined ? { queuedMs: Math.max(0, a.startedAt - a.queuedAt) } : {}),
+      ...(a.startedAt !== undefined && a.endedAt !== undefined
+        ? { wallMs: Math.max(0, a.endedAt - a.startedAt) }
+        : {}),
+      ...(a.startedAt !== undefined && a.queuedAt !== undefined
+        ? { queuedMs: Math.max(0, a.startedAt - a.queuedAt) }
+        : {}),
     }));
 
   const wallMs =
-    state.startedAt !== undefined && state.endedAt !== undefined ? Math.max(0, state.endedAt - state.startedAt) : undefined;
+    state.startedAt !== undefined && state.endedAt !== undefined
+      ? Math.max(0, state.endedAt - state.startedAt)
+      : undefined;
 
   const budget: RunBudgetReport | undefined =
     typeof state.budgetTotal === "number"
       ? {
           total: state.budgetTotal,
           spent: state.totalOutputTokens,
-          pct: state.budgetTotal > 0 ? Math.round((state.totalOutputTokens / state.budgetTotal) * 100) : 0,
+          pct:
+            state.budgetTotal > 0
+              ? Math.round((state.totalOutputTokens / state.budgetTotal) * 100)
+              : 0,
         }
       : undefined;
 

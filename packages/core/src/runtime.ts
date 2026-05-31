@@ -1,4 +1,11 @@
-import { validate, compileValidator, isZodSchema, toJsonSchema, type JsonSchema, type ZodLike } from "@workflow/schema";
+import {
+  validate,
+  compileValidator,
+  isZodSchema,
+  toJsonSchema,
+  type JsonSchema,
+  type ZodLike,
+} from "@workflow/schema";
 import type { AgentKey, RunId } from "./brand.js";
 import type { Immutable, JsonValue } from "./type-ext.js";
 import { createBudget, type Budget } from "./budget.js";
@@ -13,7 +20,11 @@ import { isProfile, type Profile, type ProfileConfig } from "./profile.js";
 
 /** Derive a readable label from a prompt's first non-empty line (truncated), for unlabeled agents. */
 export function labelFromPrompt(prompt: string, max = 48): string {
-  const firstLine = prompt.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
+  const firstLine =
+    prompt
+      .split("\n")
+      .map((l) => l.trim())
+      .find((l) => l.length > 0) ?? "";
   if (firstLine === "") return "";
   return firstLine.length > max ? `${firstLine.slice(0, max - 1)}…` : firstLine;
 }
@@ -79,7 +90,9 @@ export interface RuntimeDeps {
   /** Per-agent control: registers each in-flight agent's AbortController under its key for stop/restart. */
   readonly control?: ControlRegistry | undefined;
   /** Worktree isolation: produce an isolated working directory for a given agent key; cleaned up after the agent finishes. */
-  readonly makeIsolatedCwd?: ((key: AgentKey) => Promise<{ cwd: string; cleanup: () => Promise<void> }>) | undefined;
+  readonly makeIsolatedCwd?:
+    | ((key: AgentKey) => Promise<{ cwd: string; cleanup: () => Promise<void> }>)
+    | undefined;
   /** Human-in-the-loop: resolve a mid-run question to the user's answer. Required for askUserQuestion(). */
   readonly askUser?: ((req: QuestionRequest) => Promise<string>) | undefined;
 }
@@ -131,10 +144,19 @@ export interface Runtime {
 }
 
 /** The fields a {@link ProfileConfig} may set — also the keys a call site can override. */
-const PROFILE_CONFIG_KEYS = ["adapter", "model", "agentType", "isolation", "instructions"] as const satisfies ReadonlyArray<keyof ProfileConfig>;
+const PROFILE_CONFIG_KEYS = [
+  "adapter",
+  "model",
+  "agentType",
+  "isolation",
+  "instructions",
+] as const satisfies ReadonlyArray<keyof ProfileConfig>;
 
 /** Keys a call site re-specified that the profile already set with a different value. */
-function profileOverrides(config: ProfileConfig, callOpts: AgentOptions): readonly string[] | undefined {
+function profileOverrides(
+  config: ProfileConfig,
+  callOpts: AgentOptions,
+): readonly string[] | undefined {
   const keys = PROFILE_CONFIG_KEYS.filter(
     (k) => config[k] !== undefined && callOpts[k] !== undefined && callOpts[k] !== config[k],
   );
@@ -206,7 +228,15 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       });
     };
 
-    deps.emit({ type: "agent-queued", key, label, phase, prompt, ...(overrides ? { overrides } : {}), at: deps.now() });
+    deps.emit({
+      type: "agent-queued",
+      key,
+      label,
+      phase,
+      prompt,
+      ...(overrides ? { overrides } : {}),
+      at: deps.now(),
+    });
 
     // Run-scoped stop: a fired signal short-circuits before any work is scheduled.
     if (deps.signal?.aborted) {
@@ -220,14 +250,24 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     if (cached) {
       budget.record(cached.outputTokens);
       deps.emit({ type: "agent-output", key, chunk: cached.text, at: deps.now() });
-      deps.emit({ type: "agent-finished", key, usage: { inputTokens: 0, outputTokens: cached.outputTokens }, cached: true, at: deps.now() });
+      deps.emit({
+        type: "agent-finished",
+        key,
+        usage: { inputTokens: 0, outputTokens: cached.outputTokens },
+        cached: true,
+        at: deps.now(),
+      });
       return cached.data ?? cached.text;
     }
 
     // Budget gate (parity: further agent() calls throw once spent reaches total).
     // Best-effort gate: under concurrency spend may overshoot total by up to (concurrency × per-agent tokens). Spec defines budget as a gate, not a hard reservation.
     if (deps.budgetTotal !== null && budget.remaining() <= 0) {
-      const e: WorkflowError = { kind: "BudgetExhausted", spent: budget.spent(), total: deps.budgetTotal };
+      const e: WorkflowError = {
+        kind: "BudgetExhausted",
+        spent: budget.spent(),
+        total: deps.budgetTotal,
+      };
       deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
       throw new WorkflowThrow(e);
     }
@@ -254,7 +294,11 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
         compileValidator(candidate);
         jsonSchema = candidate;
       } catch (cause) {
-        const e: WorkflowError = { kind: "SchemaValidation", issues: [cause instanceof Error ? cause.message : String(cause)], attempts: 0 };
+        const e: WorkflowError = {
+          kind: "SchemaValidation",
+          issues: [cause instanceof Error ? cause.message : String(cause)],
+          attempts: 0,
+        };
         deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
         throw new WorkflowThrow(e);
       }
@@ -273,7 +317,9 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       // Acquire the isolated cwd inside the try so a rejecting makeIsolatedCwd still releases
       // the semaphore slot (via the outer finally). The cwd is stable across restart iterations.
       const isolated =
-        opts.isolation === "worktree" && deps.makeIsolatedCwd ? await deps.makeIsolatedCwd(key) : undefined;
+        opts.isolation === "worktree" && deps.makeIsolatedCwd
+          ? await deps.makeIsolatedCwd(key)
+          : undefined;
       const cwd = isolated?.cwd ?? deps.cwd;
       try {
         // Restart loop: a restart request aborts the current run and re-runs with the same
@@ -282,7 +328,9 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
           const controller = new AbortController();
           let restart = false;
           // Run-scoped stop and per-agent stop both drive the adapter's AbortSignal.
-          const signal = deps.signal ? AbortSignal.any([deps.signal, controller.signal]) : controller.signal;
+          const signal = deps.signal
+            ? AbortSignal.any([deps.signal, controller.signal])
+            : controller.signal;
           const unregister = deps.control?.register(key, controller, () => {
             restart = true;
           });
@@ -298,7 +346,9 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
               ...(opts.model ? { model: opts.model } : {}),
               ...(opts.agentType ? { agentType: opts.agentType } : {}),
             };
-            const runner = opts.adapter ? (deps.resolveRunner?.(opts.adapter) ?? deps.runner) : deps.runner;
+            const runner = opts.adapter
+              ? (deps.resolveRunner?.(opts.adapter) ?? deps.runner)
+              : deps.runner;
             const result = await runner.run(request, { runId: deps.runId, seq: mySeq, onProgress });
 
             if (result.isErr()) {
@@ -308,7 +358,8 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
             }
 
             const res = result.value;
-            for (const tool of res.toolCalls) deps.emit({ type: "agent-tool", key, tool, at: deps.now() });
+            for (const tool of res.toolCalls)
+              deps.emit({ type: "agent-tool", key, tool, at: deps.now() });
 
             let value: unknown = res.text;
             if (jsonSchema) {
@@ -316,7 +367,10 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
               if (validated.isErr()) {
                 const e: WorkflowError = {
                   kind: "SchemaValidation",
-                  issues: validated.error.kind === "Validation" ? validated.error.issues : ["validation failed"],
+                  issues:
+                    validated.error.kind === "Validation"
+                      ? validated.error.issues
+                      : ["validation failed"],
                   attempts: 1,
                   rawOutput: truncateRawOutput(res.text),
                 };
@@ -327,7 +381,13 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
             }
 
             budget.record(res.usage.outputTokens);
-            deps.journal.record({ seq: mySeq, key, text: res.text, data: res.data, outputTokens: res.usage.outputTokens });
+            deps.journal.record({
+              seq: mySeq,
+              key,
+              text: res.text,
+              data: res.data,
+              outputTokens: res.usage.outputTokens,
+            });
             deps.emit({ type: "agent-output", key, chunk: res.text, at: deps.now() });
             deps.emit({
               type: "agent-finished",
@@ -416,7 +476,11 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       }
 
       if (!deps.askUser) {
-        throw new WorkflowThrow({ kind: "AdapterSpawn", adapter: "askUser", cause: "no askUser handler configured" });
+        throw new WorkflowThrow({
+          kind: "AdapterSpawn",
+          adapter: "askUser",
+          cause: "no askUser handler configured",
+        });
       }
       const request: QuestionRequest = {
         key,
@@ -445,7 +509,11 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
 
   const workflow = async (name: string, childArgs?: Immutable<JsonValue>): Promise<unknown> => {
     if (!deps.resolveWorkflow) {
-      throw new WorkflowThrow({ kind: "AdapterSpawn", adapter: "workflow", cause: "no workflow resolver configured" });
+      throw new WorkflowThrow({
+        kind: "AdapterSpawn",
+        adapter: "workflow",
+        cause: "no workflow resolver configured",
+      });
     }
     const loaded = await deps.resolveWorkflow(name, childArgs);
     const childRuntime: Runtime = {
@@ -457,12 +525,26 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
       phase,
       log,
       workflow: async () => {
-        throw new WorkflowThrow({ kind: "AdapterSpawn", adapter: "workflow", cause: "workflow() nesting is one level only" });
+        throw new WorkflowThrow({
+          kind: "AdapterSpawn",
+          adapter: "workflow",
+          cause: "workflow() nesting is one level only",
+        });
       },
       askUserQuestion,
     };
     return loaded.run(childRuntime, childArgs);
   };
 
-  return { args: deps.args, budget, agent, parallel, pipeline, phase, log, workflow, askUserQuestion };
+  return {
+    args: deps.args,
+    budget,
+    agent,
+    parallel,
+    pipeline,
+    phase,
+    log,
+    workflow,
+    askUserQuestion,
+  };
 }

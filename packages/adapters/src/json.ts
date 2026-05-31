@@ -3,7 +3,10 @@ import type { Validator } from "./coercion.js";
 
 /** Extract a JSON value from CLI text: prefer a ```json fenced block, else the first balanced {...} or [...]. */
 export function extractJson(text: string): unknown {
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(text);
+  // No `\s*` before the lazy body: a whitespace quantifier feeding a `[\s\S]*?`
+  // backtracks polynomially on an unterminated fence (ReDoS). Any leading
+  // whitespace stays in the capture and is skipped by the `search(/[[{]/)` below.
+  const fenced = /```(?:json)?([\s\S]*?)```/.exec(text);
   const candidate = fenced ? fenced[1]! : text;
   const start = candidate.search(/[[{]/);
   if (start === -1) return undefined;

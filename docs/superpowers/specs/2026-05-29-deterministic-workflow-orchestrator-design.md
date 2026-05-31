@@ -12,7 +12,7 @@
 
 A portable, harness-agnostic reimplementation of Claude Code's **dynamic workflows**:
 a JavaScript/TypeScript library + CLI that orchestrates many subagents from a
-deterministic script, where the *control flow* is code you own and each unit of
+deterministic script, where the _control flow_ is code you own and each unit of
 work is delegated to whatever coding harness the user has installed (Claude Code,
 Codex, Copilot, …).
 
@@ -23,7 +23,7 @@ progress UI with drill-down, save-as-command, and the documented runtime limits.
 
 ### Non-goals (v1)
 
-- Reimplementing any harness's own intelligence — we *drive* harnesses, we don't replace them.
+- Reimplementing any harness's own intelligence — we _drive_ harnesses, we don't replace them.
 - A long-lived daemon (the file-based run registry makes this a clean v2 optimization).
 - A hosted/remote execution backend.
 
@@ -40,31 +40,31 @@ progress UI with drill-down, save-as-command, and the documented runtime limits.
 
 ### Documented runtime limits we honor
 
-| Constraint | Value | Where enforced |
-|---|---|---|
-| No mid-run user input | — | runner (only adapter permission prompts can pause) |
-| No direct fs/shell from the script | — | `node:vm` sandbox (only agents touch disk) |
-| Max concurrent agents | `min(16, cores − 2)` | core scheduler semaphore |
-| Max agents per run | 1000 | core scheduler (aborts runaway loops) |
-| Determinism | `Date.now`/`Math.random`/argless `new Date()` throw | sandbox guard |
+| Constraint                         | Value                                               | Where enforced                                     |
+| ---------------------------------- | --------------------------------------------------- | -------------------------------------------------- |
+| No mid-run user input              | —                                                   | runner (only adapter permission prompts can pause) |
+| No direct fs/shell from the script | —                                                   | `node:vm` sandbox (only agents touch disk)         |
+| Max concurrent agents              | `min(16, cores − 2)`                                | core scheduler semaphore                           |
+| Max agents per run                 | 1000                                                | core scheduler (aborts runaway loops)              |
+| Determinism                        | `Date.now`/`Math.random`/argless `new Date()` throw | sandbox guard                                      |
 
 ## 3. Architecture decisions (resolved)
 
-| Decision | Choice |
-|---|---|
-| Agent runtime | **Pluggable CLI adapters** shelling out to harnesses in headless mode |
-| Usage surface | **CLI runner over script files** (CLI is a thin wrapper over the public library) |
-| v1 scope | **Full parity** incl. journaling/resume, budget, worktree isolation, nested workflows |
-| Progress UI | **Full interactive Ink TUI**, Miller-columns / master-detail layout |
-| Runtime topology | **Detached process + persisted run registry** (no daemon) |
-| Script sandbox | **`node:vm` + banned non-deterministic globals** |
-| Structured output | **Adapter-native where available, else prompt-injected; always validate + retry** |
-| Schema API | **Zod (typed inference), converted to JSON Schema under the hood** |
-| Errors | **Rust-style errors-as-types**: `Result<T, WorkflowError>`, no throwing across module boundaries (via `neverthrow`) |
-| Authoring boundary | **Parity surface** (`agent()` returns value, `parallel` → null on failure); Result is internal only |
-| Style | **Functional**: pure core, immutable `readonly` data, effects at the edges |
-| Lint | **oxlint** + `tsc --strict` |
-| Tests | **Vitest** with projects; default suite free + deterministic; opt-in real e2e |
+| Decision           | Choice                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Agent runtime      | **Pluggable CLI adapters** shelling out to harnesses in headless mode                                               |
+| Usage surface      | **CLI runner over script files** (CLI is a thin wrapper over the public library)                                    |
+| v1 scope           | **Full parity** incl. journaling/resume, budget, worktree isolation, nested workflows                               |
+| Progress UI        | **Full interactive Ink TUI**, Miller-columns / master-detail layout                                                 |
+| Runtime topology   | **Detached process + persisted run registry** (no daemon)                                                           |
+| Script sandbox     | **`node:vm` + banned non-deterministic globals**                                                                    |
+| Structured output  | **Adapter-native where available, else prompt-injected; always validate + retry**                                   |
+| Schema API         | **Zod (typed inference), converted to JSON Schema under the hood**                                                  |
+| Errors             | **Rust-style errors-as-types**: `Result<T, WorkflowError>`, no throwing across module boundaries (via `neverthrow`) |
+| Authoring boundary | **Parity surface** (`agent()` returns value, `parallel` → null on failure); Result is internal only                 |
+| Style              | **Functional**: pure core, immutable `readonly` data, effects at the edges                                          |
+| Lint               | **oxlint** + `tsc --strict`                                                                                         |
+| Tests              | **Vitest** with projects; default suite free + deterministic; opt-in real e2e                                       |
 
 ## 4. Monorepo & package boundaries
 
@@ -98,22 +98,24 @@ type-check in an editor.
 
 ```ts
 export const meta = {
-  name: 'deep-research',
-  description: 'Fan out searches, verify claims, synthesize a cited report',
-  phases: [{ title: 'Scope' }, { title: 'Search' }, { title: 'Verify' }, { title: 'Synthesize' }],
-} as const
+  name: "deep-research",
+  description: "Fan out searches, verify claims, synthesize a cited report",
+  phases: [{ title: "Scope" }, { title: "Search" }, { title: "Verify" }, { title: "Synthesize" }],
+} as const;
 
-const Claim = z.object({ text: z.string(), source: z.string().url(), confidence: z.number() })
+const Claim = z.object({ text: z.string(), source: z.string().url(), confidence: z.number() });
 
-phase('Scope')
-const angles = await agent(`Decompose: ${args.question}`, { schema: z.array(z.string()) })
+phase("Scope");
+const angles = await agent(`Decompose: ${args.question}`, { schema: z.array(z.string()) });
 //    ^? string[]  — inferred from the Zod schema
 
-phase('Search')
-const hits = await parallel(angles.map(a => () => agent(`Search: ${a}`, { schema: z.array(Claim) })))
-const claims = hits.filter(Boolean).flat()
+phase("Search");
+const hits = await parallel(
+  angles.map((a) => () => agent(`Search: ${a}`, { schema: z.array(Claim) })),
+);
+const claims = hits.filter(Boolean).flat();
 
-return { report: await agent(synthPrompt(claims)) }
+return { report: await agent(synthPrompt(claims)) };
 ```
 
 ### Primitives
@@ -134,11 +136,11 @@ return { report: await agent(synthPrompt(claims)) }
 
 - **Concurrency:** a single global semaphore capped at `min(16, cores − 2)`.
   `parallel`/`pipeline` enqueue; the scheduler drains. Nested workflows draw from
-  the *same* semaphore, so total concurrency stays bounded. Hard ceiling of 1000
+  the _same_ semaphore, so total concurrency stays bounded. Hard ceiling of 1000
   agents/run.
 - **Determinism guard:** inside the vm, `Date.now`, `Math.random`, argless
   `new Date()` throw (`SandboxViolation`). All timestamps are stamped by the runner
-  *outside* the sandbox onto each event, never by the script — this is what keeps
+  _outside_ the sandbox onto each event, never by the script — this is what keeps
   the journal valid for replay.
 
 ### Divergence from Claude Code (intentional)
@@ -151,51 +153,56 @@ globals-only.
 
 ```ts
 interface AgentRunner {
-  readonly id: string                       // 'claude' | 'codex' | 'copilot' | 'raw-api' | custom
+  readonly id: string; // 'claude' | 'codex' | 'copilot' | 'raw-api' | custom
   readonly capabilities: {
-    readonly nativeSchema: boolean
-    readonly reportsTokens: boolean
-    readonly toolEvents: boolean
-  }
-  run(req: AgentRequest, ctx: RunCtx): Promise<Result<AgentResult, WorkflowError>>
+    readonly nativeSchema: boolean;
+    readonly reportsTokens: boolean;
+    readonly toolEvents: boolean;
+  };
+  run(req: AgentRequest, ctx: RunCtx): Promise<Result<AgentResult, WorkflowError>>;
 }
 
 interface AgentRequest {
-  readonly prompt: string
-  readonly schema?: JSONSchema
-  readonly model?: string
-  readonly agentType?: string
-  readonly cwd: string
-  readonly signal: AbortSignal              // powers pause / stop (x) / restart (r)
+  readonly prompt: string;
+  readonly schema?: JSONSchema;
+  readonly model?: string;
+  readonly agentType?: string;
+  readonly cwd: string;
+  readonly signal: AbortSignal; // powers pause / stop (x) / restart (r)
 }
 
 interface AgentResult {
-  readonly text: string
-  readonly data?: unknown                   // validated against schema
-  readonly usage: { readonly inputTokens: number; readonly outputTokens: number }
-  readonly toolCalls: readonly ToolEvent[]  // feeds the drill-down "tool calls" pane
+  readonly text: string;
+  readonly data?: unknown; // validated against schema
+  readonly usage: { readonly inputTokens: number; readonly outputTokens: number };
+  readonly toolCalls: readonly ToolEvent[]; // feeds the drill-down "tool calls" pane
 }
 ```
 
 ### Verified command mappings (from installed CLIs)
 
 **codex** — `codex exec` v0.125.0, **native structured output**:
+
 ```
 codex exec --json --output-schema <schema.json> -o <last-msg-file> \
            -m <model> -C <cwd> --full-auto "<prompt>"
 ```
+
 `--output-schema` takes a JSON Schema file (fed from the Zod→JSON-Schema bridge);
 `--json` emits JSONL events (token usage + tool calls); `-o` writes the final
 message. → `{ nativeSchema: true, reportsTokens: true, toolEvents: true }`.
 
 **copilot** — GitHub Copilot CLI v1.0.55, no native schema flag:
+
 ```
 copilot -p "<prompt>" --output-format json --allow-all-tools --no-ask-user \
         --model <model> -C <cwd> [--add-dir <worktree>]
 ```
+
 `--output-format json` is JSONL (usage + tool events). `--allow-all-tools`
-+ `--no-ask-user` are **required** for unattended runs. No schema flag →
-prompt-injected schema + validate/retry. → `{ nativeSchema: false, reportsTokens: true, toolEvents: true }`.
+
+- `--no-ask-user` are **required** for unattended runs. No schema flag →
+  prompt-injected schema + validate/retry. → `{ nativeSchema: false, reportsTokens: true, toolEvents: true }`.
 
 **claude** — `claude -p --output-format stream-json`; native tool-forcing schema +
 full event stream. → `{ nativeSchema: true, reportsTokens: true, toolEvents: true }`.
@@ -229,17 +236,26 @@ layer (§7) so it behaves identically across all adapters.
 
 Custom adapters declared by config (no TypeScript required) so Gemini CLI / aider /
 cursor work:
+
 ```json
-{ "adapters": { "gemini": {
-  "command": "gemini", "promptArg": "stdin",
-  "args": ["-o", "json"], "parse": "jsonl",
-  "resultPath": "response", "usagePath": "usageMetadata"
-}}}
+{
+  "adapters": {
+    "gemini": {
+      "command": "gemini",
+      "promptArg": "stdin",
+      "args": ["-o", "json"],
+      "parse": "jsonl",
+      "resultPath": "response",
+      "usagePath": "usageMetadata"
+    }
+  }
+}
 ```
 
 ## 7. Run lifecycle, journaling & resume
 
 Each run gets `~/.workflow/runs/<runId>/`:
+
 ```
 meta.json        # script path, args, adapter, status, started/ended (runner-stamped)
 journal.jsonl    # one record per agent() call: {seq, key, status, result, usage}
@@ -304,16 +320,16 @@ pane while the left columns keep ticking — no drill-in/back-out.
 
 ### Keybindings (full parity)
 
-| Key | Action |
-|---|---|
-| `↑`/`↓` | select phase or agent |
-| `←`/`→` | move focus between columns (right = drill toward detail) |
-| `Esc` | focus back to phases column |
-| `j`/`k` | scroll the right detail pane |
-| `p` | pause / resume the run |
-| `x` | stop selected agent, or whole run when focus is on phases |
-| `r` | restart selected running agent |
-| `s` | save the run's script as a command (save dialog) |
+| Key     | Action                                                    |
+| ------- | --------------------------------------------------------- |
+| `↑`/`↓` | select phase or agent                                     |
+| `←`/`→` | move focus between columns (right = drill toward detail)  |
+| `Esc`   | focus back to phases column                               |
+| `j`/`k` | scroll the right detail pane                              |
+| `p`     | pause / resume the run                                    |
+| `x`     | stop selected agent, or whole run when focus is on phases |
+| `r`     | restart selected running agent                            |
+| `s`     | save the run's script as a command (save dialog)          |
 
 ### Rendering concerns
 
@@ -365,12 +381,12 @@ both ported from the source post. They double as e2e targets and living docs.
 
 ```ts
 type WorkflowError =
-  | { kind: 'AdapterSpawn';      adapter: string; cause: string }
-  | { kind: 'SchemaValidation';  issues: readonly string[]; attempts: number }
-  | { kind: 'SandboxViolation';  api: string }
-  | { kind: 'JournalCorrupt';    runId: string; detail: string }
-  | { kind: 'BudgetExhausted';   spent: number; total: number }
-  | { kind: 'AgentCapExceeded';  cap: number }
+  | { kind: "AdapterSpawn"; adapter: string; cause: string }
+  | { kind: "SchemaValidation"; issues: readonly string[]; attempts: number }
+  | { kind: "SandboxViolation"; api: string }
+  | { kind: "JournalCorrupt"; runId: string; detail: string }
+  | { kind: "BudgetExhausted"; spent: number; total: number }
+  | { kind: "AgentCapExceeded"; cap: number };
 ```
 
 - **Authoring boundary stays parity-faithful.** Scripts keep Claude Code ergonomics:
@@ -436,7 +452,7 @@ default (`pnpm test`); `e2e` only via `pnpm test:e2e`. v8 coverage on the first 
 ## 13. Open items for the implementation plan
 
 - Confirm the exact JSONL event shapes for `codex --json` and `copilot --output-format
-  json` by capturing real fixtures (`WORKFLOW_RECORD=1`) before finalizing parsers.
+json` by capturing real fixtures (`WORKFLOW_RECORD=1`) before finalizing parsers.
 - Confirm `claude -p --output-format stream-json` tool-forcing schema mechanics
   against the installed Claude Code version.
 - Decide the final npm scope/name (placeholder `@workflow/*` — rename before publish).

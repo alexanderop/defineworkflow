@@ -33,9 +33,9 @@ not raw text).
 
 ## Examples
 
-| Script | What it does |
-| --- | --- |
-| [`src/haiku.workflow.ts`](src/haiku.workflow.ts) | One `agent()` call — asks an agent for a haiku. Spawns a real agent (uses tokens). |
+| Script                                                             | What it does                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`src/haiku.workflow.ts`](src/haiku.workflow.ts)                   | One `agent()` call — asks an agent for a haiku. Spawns a real agent (uses tokens).                                                                                                                                                               |
 | [`src/vue-newsletter.workflow.ts`](src/vue-newsletter.workflow.ts) | Parallel fan-out: one schema-typed `agent()` per source researches the Vue/Nuxt ecosystem, then curate + write agents synthesize a newsletter. Demonstrates `parallel`, `phase`, `args`, and zod `schema`. Spawns ~11 real agents (uses tokens). |
 
 ## Running

@@ -18,14 +18,5 @@ export default defineConfig({
   // Pull the workspace packages (and their workspace-internal deps) into the bundle.
   noExternal: [/^@workflow\//],
   // Everything below is resolved from the consumer's node_modules at runtime.
-  external: [
-    "@anthropic-ai/sdk",
-    "acorn",
-    "ajv",
-    "esbuild",
-    "ink",
-    "neverthrow",
-    "react",
-    "zod",
-  ],
+  external: ["@anthropic-ai/sdk", "acorn", "ajv", "esbuild", "ink", "neverthrow", "react", "zod"],
 });

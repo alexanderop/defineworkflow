@@ -19,7 +19,10 @@ export interface GenericAdapterDeps {
   readonly processRunner: ProcessRunner;
 }
 
-export function createGenericAdapter(config: GenericAdapterConfig, deps: GenericAdapterDeps): AgentRunner {
+export function createGenericAdapter(
+  config: GenericAdapterConfig,
+  deps: GenericAdapterDeps,
+): AgentRunner {
   const maxRetries = config.maxRetries ?? 2;
   const useSchema = config.schema === "prompt-inject";
   return {
@@ -35,9 +38,10 @@ export function createGenericAdapter(config: GenericAdapterConfig, deps: Generic
           validate,
           maxRetries,
           attempt: async (hint) => {
-            const schemaInstr = useSchema && req.schema
-              ? `\n\nRespond with ONLY JSON matching this schema:\n${JSON.stringify(req.schema)}`
-              : "";
+            const schemaInstr =
+              useSchema && req.schema
+                ? `\n\nRespond with ONLY JSON matching this schema:\n${JSON.stringify(req.schema)}`
+                : "";
             const fullPrompt = `${req.prompt}${schemaInstr}${hint ? `\n\n${hint}` : ""}`;
             const args = [...(config.args ?? [])];
             let stdin: string | undefined;
@@ -47,24 +51,44 @@ export function createGenericAdapter(config: GenericAdapterConfig, deps: Generic
             if (config.modelFlag && req.model) args.push(config.modelFlag, req.model);
 
             const out = await deps.processRunner.run({
-              command: config.command, args, cwd: req.cwd, signal: req.signal,
+              command: config.command,
+              args,
+              cwd: req.cwd,
+              signal: req.signal,
               ...(stdin !== undefined ? { stdin } : {}),
             });
             if (out.code !== 0) {
-              spawnError = { kind: "AdapterSpawn", adapter: config.id, cause: out.stderr || `exit ${out.code}` };
+              spawnError = {
+                kind: "AdapterSpawn",
+                adapter: config.id,
+                cause: out.stderr || `exit ${out.code}`,
+              };
               throw new Error("spawn failed");
             }
             const data = useSchema && req.schema ? extractJson(out.stdout) : undefined;
-            return { text: out.stdout, data, usage: { inputTokens: 0, outputTokens: Math.ceil(out.stdout.length / 4) } };
+            return {
+              text: out.stdout,
+              data,
+              usage: { inputTokens: 0, outputTokens: Math.ceil(out.stdout.length / 4) },
+            };
           },
         });
       } catch (e) {
         if (spawnError) return err(spawnError);
-        return err({ kind: "AdapterSpawn", adapter: config.id, cause: e instanceof Error ? e.message : String(e) });
+        return err({
+          kind: "AdapterSpawn",
+          adapter: config.id,
+          cause: e instanceof Error ? e.message : String(e),
+        });
       }
       if (result.isErr()) return err(result.error);
       const r = result.value;
-      return ok({ text: r.text, ...(r.data !== undefined ? { data: r.data } : {}), usage: { ...r.usage, approximate: true }, toolCalls: [] });
+      return ok({
+        text: r.text,
+        ...(r.data !== undefined ? { data: r.data } : {}),
+        usage: { ...r.usage, approximate: true },
+        toolCalls: [],
+      });
     },
   };
 }

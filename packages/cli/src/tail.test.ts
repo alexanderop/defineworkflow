@@ -21,7 +21,9 @@ function fakeTail(store: WorkflowEvent[]) {
 
 describe("subscribeToRun", () => {
   it("snapshots initial events and delivers only newly-appended ones", () => {
-    const store: WorkflowEvent[] = [{ type: "run-started", runId: "r" as RunId, name: "demo", at: 0 }];
+    const store: WorkflowEvent[] = [
+      { type: "run-started", runId: "r" as RunId, name: "demo", at: 0 },
+    ];
     const { deps, fire } = fakeTail(store);
     const { initial, subscribe } = subscribeToRun(deps);
     expect(initial).toHaveLength(1);

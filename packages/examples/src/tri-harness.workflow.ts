@@ -24,7 +24,8 @@ import { agent, defineWorkflow, log, parallel, phase, z } from "defineworkflow";
 
 export default defineWorkflow({
   name: "tri-harness",
-  description: "Run the same tiny coding task on claude, codex, and copilot, then judge the results",
+  description:
+    "Run the same tiny coding task on claude, codex, and copilot, then judge the results",
   harness: "claude", // run default + the judge; contestants override this per call
   phases: [
     { title: "Implement", detail: "each harness solves the same task in parallel" },
@@ -37,7 +38,9 @@ export default defineWorkflow({
       note: z.string().describe("One sentence explaining the approach."),
     });
     const Verdict = z.object({
-      winner: z.enum(["claude", "codex", "copilot"]).describe("Which harness produced the best solution."),
+      winner: z
+        .enum(["claude", "codex", "copilot"])
+        .describe("Which harness produced the best solution."),
       reason: z.string().describe("One sentence justifying the choice."),
     });
 
@@ -52,13 +55,22 @@ export default defineWorkflow({
     log(`racing ${HARNESSES.length} harnesses: ${HARNESSES.join(", ")}`);
 
     const results = await parallel(
-      HARNESSES.map((harness) => () =>
-        agent(TASK, { adapter: harness, label: `impl:${harness}`, phase: "Implement", schema: Solution }),
+      HARNESSES.map(
+        (harness) => () =>
+          agent(TASK, {
+            adapter: harness,
+            label: `impl:${harness}`,
+            phase: "Implement",
+            schema: Solution,
+          }),
       ),
     );
 
     // Pair each result back with the harness that produced it; drop any that failed.
-    const solutions = HARNESSES.map((harness, i) => ({ harness, ...(results[i] ?? undefined) })).filter(
+    const solutions = HARNESSES.map((harness, i) => ({
+      harness,
+      ...(results[i] ?? undefined),
+    })).filter(
       (s): s is { harness: (typeof HARNESSES)[number]; code: string; note: string } =>
         typeof s.code === "string" && s.code.trim().length > 0,
     );

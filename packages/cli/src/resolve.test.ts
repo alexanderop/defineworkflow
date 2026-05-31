@@ -32,7 +32,10 @@ describe("resolveSavedWorkflow", () => {
   });
 
   it("resolves a bundled workflow when no project/personal copy exists", () => {
-    const r = resolveSavedWorkflow("deep-research", deps({ "/bundled/deep-research.ts": "BUNDLED" }, "/bundled"));
+    const r = resolveSavedWorkflow(
+      "deep-research",
+      deps({ "/bundled/deep-research.ts": "BUNDLED" }, "/bundled"),
+    );
     expect(r?.source).toBe("BUNDLED");
     expect(r?.path).toBe("/bundled/deep-research.ts");
   });
@@ -40,7 +43,10 @@ describe("resolveSavedWorkflow", () => {
   it("project copy wins over bundled", () => {
     const r = resolveSavedWorkflow(
       "deep",
-      deps({ "/proj/.workflow/workflows/deep.ts": "PROJECT", "/bundled/deep.ts": "BUNDLED" }, "/bundled"),
+      deps(
+        { "/proj/.workflow/workflows/deep.ts": "PROJECT", "/bundled/deep.ts": "BUNDLED" },
+        "/bundled",
+      ),
     );
     expect(r?.source).toBe("PROJECT");
   });

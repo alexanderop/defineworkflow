@@ -29,14 +29,14 @@ function harness(responses = {}, opts = {}) {
 
 describe("runtime.agent", () => {
   it("returns the text when no schema is given and exposes args", async () => {
-    const { rt } = harness({ "agent": { text: "hello" } });
+    const { rt } = harness({ agent: { text: "hello" } });
     expect(rt.args).toEqual({ topic: "vue" });
     const out = await rt.agent("say hi", { label: "agent" });
     expect(out).toBe("hello");
   });
 
   it("accepts a zod schema, converting it before validating the agent's data", async () => {
-    const { rt } = harness({ "a": { data: { n: 7 } } });
+    const { rt } = harness({ a: { data: { n: 7 } } });
     const out = await rt.agent("give n", { label: "a", schema: z.object({ n: z.number() }) });
     expect(out).toEqual({ n: 7 });
   });
@@ -48,7 +48,12 @@ describe("runtime.agent", () => {
       capabilities: { nativeSchema: true, reportsTokens: true, toolEvents: false },
       run: async (req: AgentRequest, _ctx: RunCtx) => {
         captured = req;
-        return ok<AgentResult>({ text: '{"n":1}', data: { n: 1 }, usage: { inputTokens: 0, outputTokens: 0 }, toolCalls: [] });
+        return ok<AgentResult>({
+          text: '{"n":1}',
+          data: { n: 1 },
+          usage: { inputTokens: 0, outputTokens: 0 },
+          toolCalls: [],
+        });
       },
     };
     const rt = createRuntime({
@@ -67,26 +72,33 @@ describe("runtime.agent", () => {
     expect(out).toEqual({ n: 1 });
     expect(captured?.schema).toBeDefined();
     expect(captured?.schema?.["type"]).toBe("object");
-    expect((captured?.schema?.["properties"] as Record<string, unknown> | undefined)?.["n"]).toBeDefined();
+    expect(
+      (captured?.schema?.["properties"] as Record<string, unknown> | undefined)?.["n"],
+    ).toBeDefined();
   });
 
   it("fails with SchemaValidation when a non-zod schema object reaches agent()", async () => {
-    const { rt } = harness({ "a": { data: { n: 7 } } });
+    const { rt } = harness({ a: { data: { n: 7 } } });
     // A plain JSON Schema object is only reachable from type-erased sandbox JS — simulate that
     // ingress past the (now zod-only) AgentOptions type.
-    const opts = { label: "a", schema: { type: "object", properties: { n: { type: "number" } } } } as unknown as AgentOptions;
-    await expect(rt.agent("give n", opts)).rejects.toMatchObject({ workflowError: { kind: "SchemaValidation" } });
+    const opts = {
+      label: "a",
+      schema: { type: "object", properties: { n: { type: "number" } } },
+    } as unknown as AgentOptions;
+    await expect(rt.agent("give n", opts)).rejects.toMatchObject({
+      workflowError: { kind: "SchemaValidation" },
+    });
   });
 
   it("rejects data that violates a zod schema with a SchemaValidation error", async () => {
-    const { rt } = harness({ "a": { text: "n is five", data: { n: "five" } } });
+    const { rt } = harness({ a: { text: "n is five", data: { n: "five" } } });
     await expect(
       rt.agent("give n", { label: "a", schema: z.object({ n: z.number() }) }),
     ).rejects.toMatchObject({ workflowError: { kind: "SchemaValidation" } });
   });
 
   it("surfaces the model's raw output when re-validation fails", async () => {
-    const { rt } = harness({ "a": { text: "I think n is five", data: { n: "five" } } });
+    const { rt } = harness({ a: { text: "I think n is five", data: { n: "five" } } });
     await expect(
       rt.agent("give n", { label: "a", schema: z.object({ n: z.number() }) }),
     ).rejects.toMatchObject({
@@ -95,21 +107,29 @@ describe("runtime.agent", () => {
   });
 
   it("records spend against the budget", async () => {
-    const { rt } = harness({ "a": { text: "x", outputTokens: 25 } });
+    const { rt } = harness({ a: { text: "x", outputTokens: 25 } });
     await rt.agent("p", { label: "a" });
     expect(rt.budget.spent()).toBe(25);
   });
 
   it("emits queued/started/finished events for an agent", async () => {
-    const { rt, events } = harness({ "a": { text: "x" } });
+    const { rt, events } = harness({ a: { text: "x" } });
     rt.phase("Search");
     await rt.agent("p", { label: "a" });
     const types = events.map((e) => e.type);
-    expect(types).toEqual(["phase-started", "agent-queued", "agent-started", "agent-output", "agent-finished"]);
+    expect(types).toEqual([
+      "phase-started",
+      "agent-queued",
+      "agent-started",
+      "agent-output",
+      "agent-finished",
+    ]);
   });
 
   it("throws when the runner fails, so parallel can null it", async () => {
-    const { rt } = harness({ "a": { fail: { kind: "AdapterSpawn", adapter: "scripted", cause: "boom" } } });
+    const { rt } = harness({
+      a: { fail: { kind: "AdapterSpawn", adapter: "scripted", cause: "boom" } },
+    });
     await expect(rt.agent("p", { label: "a" })).rejects.toThrow();
   });
 });
@@ -198,7 +218,9 @@ describe("runtime stop/pause hooks", () => {
 
 describe("makeIsolatedCwd: worktree isolation hook", () => {
   /** A recording runner that captures the cwd from each AgentRequest. */
-  function createRecordingRunner(response: AgentResult): AgentRunner & { lastCwd(): string | undefined } {
+  function createRecordingRunner(
+    response: AgentResult,
+  ): AgentRunner & { lastCwd(): string | undefined } {
     let lastCwd: string | undefined;
     return {
       id: "recording",
@@ -276,13 +298,19 @@ describe("makeIsolatedCwd: worktree isolation hook", () => {
 
 describe("runtime.agent progress + labels", () => {
   // A runner that drives ctx.onProgress with a scripted sequence before resolving.
-  function progressRunner(updates: ReadonlyArray<Parameters<NonNullable<RunCtx["onProgress"]>>[0]>): AgentRunner {
+  function progressRunner(
+    updates: ReadonlyArray<Parameters<NonNullable<RunCtx["onProgress"]>>[0]>,
+  ): AgentRunner {
     return {
       id: "p",
       capabilities: { nativeSchema: true, reportsTokens: true, toolEvents: true },
       run: async (_req: AgentRequest, ctx: RunCtx) => {
         for (const u of updates) ctx.onProgress?.(u);
-        return ok<AgentResult>({ text: "done", usage: { inputTokens: 0, outputTokens: 1 }, toolCalls: [] });
+        return ok<AgentResult>({
+          text: "done",
+          usage: { inputTokens: 0, outputTokens: 1 },
+          toolCalls: [],
+        });
       },
     };
   }
@@ -305,11 +333,17 @@ describe("runtime.agent progress + labels", () => {
   }
 
   it("emits agent-tool per tool call observed via onProgress", async () => {
-    const runner = progressRunner([{ tool: { name: "WebFetch", input: { url: "x" } } }, { tool: { name: "WebSearch" } }]);
+    const runner = progressRunner([
+      { tool: { name: "WebFetch", input: { url: "x" } } },
+      { tool: { name: "WebSearch" } },
+    ]);
     const { rt, events } = progressHarness(runner, () => 0);
     await rt.agent("p", { label: "a" });
     const tools = events.filter((e) => e.type === "agent-tool");
-    expect(tools.map((t) => (t as { tool: { name: string } }).tool.name)).toEqual(["WebFetch", "WebSearch"]);
+    expect(tools.map((t) => (t as { tool: { name: string } }).tool.name)).toEqual([
+      "WebFetch",
+      "WebSearch",
+    ]);
   });
 
   it("coalesces token/model progress to <=1/sec and carries model into agent-finished", async () => {
@@ -324,7 +358,10 @@ describe("runtime.agent progress + labels", () => {
     ]);
     const { rt, events } = progressHarness(runner, now);
     await rt.agent("p", { label: "a" });
-    const progress = events.filter((e) => e.type === "agent-progress") as Array<{ tokens?: number; model?: string }>;
+    const progress = events.filter((e) => e.type === "agent-progress") as Array<{
+      tokens?: number;
+      model?: string;
+    }>;
     expect(progress.length).toBe(2);
     expect(progress[0]).toMatchObject({ tokens: 100, model: "claude-opus-4-8[1m]" });
     expect(progress[1]?.tokens).toBe(300);

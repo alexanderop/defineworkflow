@@ -67,7 +67,10 @@ export function createClaudeTranslator(): StreamTranslator {
         const content = asContentBlocks(message?.content);
         for (const block of content) {
           if (block.type === "tool_use" && typeof block.name === "string") {
-            const tool: ToolEvent = block.input !== undefined ? { name: block.name, input: block.input } : { name: block.name };
+            const tool: ToolEvent =
+              block.input !== undefined
+                ? { name: block.name, input: block.input }
+                : { name: block.name };
             out.push({ tool });
           }
         }
@@ -77,7 +80,11 @@ export function createClaudeTranslator(): StreamTranslator {
         const tokens = numberField(message?.usage, "output_tokens");
         if (typeof tokens === "number") {
           cumulativeOutput += tokens;
-          out.push(model !== undefined ? { tokens: cumulativeOutput, model } : { tokens: cumulativeOutput });
+          out.push(
+            model !== undefined
+              ? { tokens: cumulativeOutput, model }
+              : { tokens: cumulativeOutput },
+          );
         }
         return out;
       }
@@ -85,9 +92,13 @@ export function createClaudeTranslator(): StreamTranslator {
       if (type === "result") {
         const result = ev.result;
         // Absent result → empty text (lets the adapter distinguish "no output" from "output").
-        text = typeof result === "string" ? result : result === undefined ? "" : JSON.stringify(result);
+        text =
+          typeof result === "string" ? result : result === undefined ? "" : JSON.stringify(result);
         if (ev.structured_output !== undefined) structuredOutput = ev.structured_output;
-        usage = { inputTokens: numberField(ev.usage, "input_tokens") ?? 0, outputTokens: numberField(ev.usage, "output_tokens") ?? 0 };
+        usage = {
+          inputTokens: numberField(ev.usage, "input_tokens") ?? 0,
+          outputTokens: numberField(ev.usage, "output_tokens") ?? 0,
+        };
         if (ev.is_error === true) {
           isError = true;
           errorMessage = "claude reported is_error";

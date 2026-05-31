@@ -1,952 +1,2089 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>workflow · under the hood</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>workflow · under the hood</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+      rel="stylesheet"
+    />
 
-<!-- ───────────────────────── real source excerpts (raw, un-escaped) ───────────────────────── -->
-<script type="text/plain" id="code-workflow">export const meta = {
-  name: "research-bugs",
-  description: "Find bugs across the codebase, then verify each one",
-  phases: [{ title: "Find" }, { title: "Verify" }],
-}
+    <!-- ───────────────────────── real source excerpts (raw, un-escaped) ───────────────────────── -->
+    <script type="text/plain" id="code-workflow">
+      export const meta = {
+        name: "research-bugs",
+        description: "Find bugs across the codebase, then verify each one",
+        phases: [{ title: "Find" }, { title: "Verify" }],
+      }
 
-phase("Find")
-const found = await agent("List suspicious files.", { schema: BUGS })
+      phase("Find")
+      const found = await agent("List suspicious files.", { schema: BUGS })
 
-phase("Verify")
-const checked = await parallel(
-  found.bugs.map((b) => () =>
-    agent(`Is this real? ${b.desc}`, { schema: VERDICT })),
-)
+      phase("Verify")
+      const checked = await parallel(
+        found.bugs.map((b) => () =>
+          agent(`Is this real? ${b.desc}`, { schema: VERDICT })),
+      )
 
-return checked.filter(Boolean).filter((v) => v.real)</script>
+      return checked.filter(Boolean).filter((v) => v.real)
+    </script>
 
-<script type="text/plain" id="code-seq">const agent = async (prompt, opts = {}) => {
-  const mySeq = seq++;              // monotonic, per-runtime
-  const phase = opts.phase ?? currentPhase;
-  const label = opts.label ?? `agent-${mySeq}`;
-  const key = `${mySeq}:${phase}:${label}`;</script>
+    <script type="text/plain" id="code-seq">
+      const agent = async (prompt, opts = {}) => {
+        const mySeq = seq++;              // monotonic, per-runtime
+        const phase = opts.phase ?? currentPhase;
+        const label = opts.label ?? `agent-${mySeq}`;
+        const key = `${mySeq}:${phase}:${label}`;
+    </script>
 
-<script type="text/plain" id="code-queued">  deps.emit({ type: "agent-queued", key, label, phase, prompt, at: deps.now() });</script>
+    <script type="text/plain" id="code-queued">
+      deps.emit({ type: "agent-queued", key, label, phase, prompt, at: deps.now() });
+    </script>
 
-<script type="text/plain" id="code-abort">  // A fired stop signal short-circuits before any work is scheduled.
-  if (deps.signal?.aborted) {
-    const e = { kind: "AdapterSpawn", adapter: "run", cause: "run stopped" };
-    deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
-    throw new WorkflowThrow(e);
-  }</script>
+    <script type="text/plain" id="code-abort">
+      // A fired stop signal short-circuits before any work is scheduled.
+      if (deps.signal?.aborted) {
+        const e = { kind: "AdapterSpawn", adapter: "run", cause: "run stopped" };
+        deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
+        throw new WorkflowThrow(e);
+      }
+    </script>
 
-<script type="text/plain" id="code-journal">  // Resume: a journal hit returns the cached result WITHOUT spawning a model.
-  const cached = deps.journal.lookup(mySeq);
-  if (cached) {
-    budget.record(cached.outputTokens);
-    deps.emit({ type: "agent-output", key, chunk: cached.text, at: deps.now() });
-    deps.emit({ type: "agent-finished", key,
-      usage: { inputTokens: 0, outputTokens: cached.outputTokens },
-      cached: true, at: deps.now() });
-    return cached.data ?? cached.text;
-  }</script>
+    <script type="text/plain" id="code-journal">
+      // Resume: a journal hit returns the cached result WITHOUT spawning a model.
+      const cached = deps.journal.lookup(mySeq);
+      if (cached) {
+        budget.record(cached.outputTokens);
+        deps.emit({ type: "agent-output", key, chunk: cached.text, at: deps.now() });
+        deps.emit({ type: "agent-finished", key,
+          usage: { inputTokens: 0, outputTokens: cached.outputTokens },
+          cached: true, at: deps.now() });
+        return cached.data ?? cached.text;
+      }
+    </script>
 
-<script type="text/plain" id="code-budget">  // Soft gate — under concurrency, spend may overshoot `total`. Not a reservation.
-  if (deps.budgetTotal !== null && budget.remaining() <= 0) {
-    const e = { kind: "BudgetExhausted", spent: budget.spent(), total: deps.budgetTotal };
-    deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
-    throw new WorkflowThrow(e);
-  }</script>
+    <script type="text/plain" id="code-budget">
+      // Soft gate — under concurrency, spend may overshoot `total`. Not a reservation.
+      if (deps.budgetTotal !== null && budget.remaining() <= 0) {
+        const e = { kind: "BudgetExhausted", spent: budget.spent(), total: deps.budgetTotal };
+        deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
+        throw new WorkflowThrow(e);
+      }
+    </script>
 
-<script type="text/plain" id="code-cap">  // Agent cap — claim the slot synchronously so concurrent launches can't overshoot.
-  if (spawned >= deps.maxAgents) {
-    const e = { kind: "AgentCapExceeded", cap: deps.maxAgents };
-    deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
-    throw new WorkflowThrow(e);
-  }
-  spawned++;</script>
+    <script type="text/plain" id="code-cap">
+      // Agent cap — claim the slot synchronously so concurrent launches can't overshoot.
+      if (spawned >= deps.maxAgents) {
+        const e = { kind: "AgentCapExceeded", cap: deps.maxAgents };
+        deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
+        throw new WorkflowThrow(e);
+      }
+      spawned++;
+    </script>
 
-<script type="text/plain" id="code-schema">  let jsonSchema;
-  if (opts.schema) {
-    const converted = toJsonSchema(opts.schema);   // zod → JSON Schema
-    if (converted.isErr()) {
-      const e = { kind: "SchemaValidation", issues: [...], attempts: 0 };
-      deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
-      throw new WorkflowThrow(e);
-    }
-    jsonSchema = converted.value;
-  }</script>
+    <script type="text/plain" id="code-schema">
+      let jsonSchema;
+      if (opts.schema) {
+        const converted = toJsonSchema(opts.schema);   // zod → JSON Schema
+        if (converted.isErr()) {
+          const e = { kind: "SchemaValidation", issues: [...], attempts: 0 };
+          deps.emit({ type: "agent-failed", key, error: e, at: deps.now() });
+          throw new WorkflowThrow(e);
+        }
+        jsonSchema = converted.value;
+      }
+    </script>
 
-<script type="text/plain" id="code-pause">  // Hold here while paused, then re-check stop (a pause may span a stop).
-  if (deps.gate) await deps.gate();
-  if (deps.signal?.aborted) { /* … emit agent-failed, throw … */ }</script>
+    <script type="text/plain" id="code-pause">
+      // Hold here while paused, then re-check stop (a pause may span a stop).
+      if (deps.gate) await deps.gate();
+      if (deps.signal?.aborted) { /* … emit agent-failed, throw … */ }
+    </script>
 
-<script type="text/plain" id="code-acquire">  const release = await deps.semaphore.acquire();   // ← blocks until a slot is free
-  deps.emit({ type: "agent-started", key, at: deps.now() });
-  try {
-    const request = {
-      prompt, label, cwd: deps.cwd,
-      signal: deps.signal ?? new AbortController().signal,
-      ...(jsonSchema ? { schema: jsonSchema } : {}),
-      ...(opts.model ? { model: opts.model } : {}),
-    };
-    const result = await deps.runner.run(request, { runId: deps.runId, seq: mySeq });</script>
+    <script type="text/plain" id="code-acquire">
+      const release = await deps.semaphore.acquire();   // ← blocks until a slot is free
+      deps.emit({ type: "agent-started", key, at: deps.now() });
+      try {
+        const request = {
+          prompt, label, cwd: deps.cwd,
+          signal: deps.signal ?? new AbortController().signal,
+          ...(jsonSchema ? { schema: jsonSchema } : {}),
+          ...(opts.model ? { model: opts.model } : {}),
+        };
+        const result = await deps.runner.run(request, { runId: deps.runId, seq: mySeq });
+    </script>
 
-<script type="text/plain" id="code-validate">    const res = result.value;
-    for (const tool of res.toolCalls) deps.emit({ type: "agent-tool", key, tool, ... });
+    <script type="text/plain" id="code-validate">
+      const res = result.value;
+      for (const tool of res.toolCalls) deps.emit({ type: "agent-tool", key, tool, ... });
 
-    let value = res.text;
-    if (opts.schema) {
-      const validated = validate(opts.schema, res.data);  // zod re-checks the model
-      if (validated.isErr()) { /* SchemaValidation, throw */ }
-      value = validated.value;
-    }</script>
+      let value = res.text;
+      if (opts.schema) {
+        const validated = validate(opts.schema, res.data);  // zod re-checks the model
+        if (validated.isErr()) { /* SchemaValidation, throw */ }
+        value = validated.value;
+      }
+    </script>
 
-<script type="text/plain" id="code-record">    budget.record(res.usage.outputTokens);
-    deps.journal.record({ seq: mySeq, key, text: res.text,
-      data: res.data, outputTokens: res.usage.outputTokens });   // ← future resumes hit this
-    deps.emit({ type: "agent-output", key, chunk: res.text, at: deps.now() });
-    deps.emit({ type: "agent-finished", key, usage: res.usage, cached: false, ... });
-    return value;</script>
+    <script type="text/plain" id="code-record">
+      budget.record(res.usage.outputTokens);
+      deps.journal.record({ seq: mySeq, key, text: res.text,
+        data: res.data, outputTokens: res.usage.outputTokens });   // ← future resumes hit this
+      deps.emit({ type: "agent-output", key, chunk: res.text, at: deps.now() });
+      deps.emit({ type: "agent-finished", key, usage: res.usage, cached: false, ... });
+      return value;
+    </script>
 
-<script type="text/plain" id="code-release">  } finally {
-    release();   // hand the semaphore slot to the next waiter — always runs
-  }
-};</script>
+    <script type="text/plain" id="code-release">
+        } finally {
+          release();   // hand the semaphore slot to the next waiter — always runs
+        }
+      };
+    </script>
 
-<script type="text/plain" id="code-journal-impl">export function createJournal(seed = []) {
-  const bySeq = new Map();
-  for (const e of seed) bySeq.set(e.seq, e);   // ← resume seeds from persisted JSONL
-  return {
-    lookup: (seq) => bySeq.get(seq),
-    record: (entry) => { bySeq.set(entry.seq, entry); },
-    entries: () => [...bySeq.values()].sort((a, b) => a.seq - b.seq),
-  };
-}</script>
+    <script type="text/plain" id="code-journal-impl">
+      export function createJournal(seed = []) {
+        const bySeq = new Map();
+        for (const e of seed) bySeq.set(e.seq, e);   // ← resume seeds from persisted JSONL
+        return {
+          lookup: (seq) => bySeq.get(seq),
+          record: (entry) => { bySeq.set(entry.seq, entry); },
+          entries: () => [...bySeq.values()].sort((a, b) => a.seq - b.seq),
+        };
+      }
+    </script>
 
-<script type="text/plain" id="code-semaphore">export function createSemaphore(limit) {
-  let available = limit;
-  const waiters = [];
-  const release = () => {
-    available++;
-    const next = waiters.shift();
-    if (next) { available--; next(); }      // wake the longest-waiting agent
-  };
-  return {
-    acquire: () => new Promise((resolve) => {
-      if (available > 0) { available--; resolve(release); }
-      else waiters.push(() => resolve(release));
-    }),
-  };
-}</script>
+    <script type="text/plain" id="code-semaphore">
+      export function createSemaphore(limit) {
+        let available = limit;
+        const waiters = [];
+        const release = () => {
+          available++;
+          const next = waiters.shift();
+          if (next) { available--; next(); }      // wake the longest-waiting agent
+        };
+        return {
+          acquire: () => new Promise((resolve) => {
+            if (available > 0) { available--; resolve(release); }
+            else waiters.push(() => resolve(release));
+          }),
+        };
+      }
+    </script>
 
-<script type="text/plain" id="code-parallel">// BARRIER: awaits everything. A throw becomes null (never rejects the group).
-const parallel = (thunks) =>
-  Promise.all(thunks.map((t) => t().catch(() => null)));
+    <script type="text/plain" id="code-parallel">
+      // BARRIER: awaits everything. A throw becomes null (never rejects the group).
+      const parallel = (thunks) =>
+        Promise.all(thunks.map((t) => t().catch(() => null)));
 
-// NO BARRIER: each item flows through all stages independently.
-// Item A can be in stage 3 while item B is still in stage 1.
-const pipeline = (items, ...stages) =>
-  Promise.all(items.map(async (item, index) => {
-    let prev = item;
-    try { for (const s of stages) prev = await s(prev, item, index); return prev; }
-    catch { return null; }   // a thrown stage drops THAT item, keeps the rest
-  }));</script>
+      // NO BARRIER: each item flows through all stages independently.
+      // Item A can be in stage 3 while item B is still in stage 1.
+      const pipeline = (items, ...stages) =>
+        Promise.all(items.map(async (item, index) => {
+          let prev = item;
+          try { for (const s of stages) prev = await s(prev, item, index); return prev; }
+          catch { return null; }   // a thrown stage drops THAT item, keeps the rest
+        }));
+    </script>
 
-<script type="text/plain" id="code-sandbox">function makeBannedDate() {
-  const Banned = function (...args) {
-    if (args.length === 0)
-      throw new Error("SandboxViolation: argless new Date() is not allowed");
-    return new RealDate(...args);
-  };
-  Banned.now = () => { throw new Error("SandboxViolation: Date.now() is not allowed"); };
-  return Banned;
-}
-const bannedMath = {
-  ...Math,
-  random: () => { throw new Error("SandboxViolation: Math.random() is not allowed"); },
-};</script>
+    <script type="text/plain" id="code-sandbox">
+      function makeBannedDate() {
+        const Banned = function (...args) {
+          if (args.length === 0)
+            throw new Error("SandboxViolation: argless new Date() is not allowed");
+          return new RealDate(...args);
+        };
+        Banned.now = () => { throw new Error("SandboxViolation: Date.now() is not allowed"); };
+        return Banned;
+      }
+      const bannedMath = {
+        ...Math,
+        random: () => { throw new Error("SandboxViolation: Math.random() is not allowed"); },
+      };
+    </script>
 
-<script type="text/plain" id="code-reduce">case "agent-finished": {
-  const a = state.agents.get(event.key);
-  const tokens = event.usage.inputTokens + event.usage.outputTokens;
-  agents.set(event.key, { ...a, status: "done", tokens });
-  return { ...state, agents,
-    totalTokens: state.totalTokens + tokens,
-    phases: upsertPhase(state.phases, a.phase, (p) => ({
-      ...p, done: p.done + 1,
-      running: Math.max(0, p.running - (event.cached ? 0 : 1)),
-      tokens: p.tokens + tokens })) };
-}</script>
+    <script type="text/plain" id="code-reduce">
+      case "agent-finished": {
+        const a = state.agents.get(event.key);
+        const tokens = event.usage.inputTokens + event.usage.outputTokens;
+        agents.set(event.key, { ...a, status: "done", tokens });
+        return { ...state, agents,
+          totalTokens: state.totalTokens + tokens,
+          phases: upsertPhase(state.phases, a.phase, (p) => ({
+            ...p, done: p.done + 1,
+            running: Math.max(0, p.running - (event.cached ? 0 : 1)),
+            tokens: p.tokens + tokens })) };
+      }
+    </script>
 
-<style>
-:root{
-  --bg:#0a0b0d;
-  --bg-rise:#101216;
-  --panel:#13161b;
-  --panel-2:#171b21;
-  --ink:#e7e3d8;
-  --ink-dim:#9aa0a8;
-  --ink-faint:#5b6168;
-  --line:#23282f;
-  --line-bright:#313842;
-  --amber:#ffb000;       /* phosphor */
-  --amber-soft:#ffce6b;
-  --cyan:#5ad1e0;
-  --green:#67e08a;
-  --red:#ff5d54;
-  --violet:#b69cff;
-  --grid: rgba(255,176,0,.035);
-  --r:14px;
-}
-*{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{
-  margin:0;
-  background:
-    radial-gradient(1100px 600px at 80% -10%, rgba(90,209,224,.07), transparent 60%),
-    radial-gradient(900px 500px at 0% 100%, rgba(255,176,0,.06), transparent 55%),
-    var(--bg);
-  color:var(--ink);
-  font-family:"Spectral",Georgia,serif;
-  font-size:17px;line-height:1.65;
-  -webkit-font-smoothing:antialiased;
-  overflow-x:hidden;
-}
-/* blueprint grid + grain overlay */
-body::before{
-  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
-  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
-  background-size:46px 46px;
-  mask-image:radial-gradient(circle at 50% 30%,#000,transparent 95%);
-}
-body::after{
-  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.04;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-#app{position:relative;z-index:1}
+    <style>
+      :root {
+        --bg: #0a0b0d;
+        --bg-rise: #101216;
+        --panel: #13161b;
+        --panel-2: #171b21;
+        --ink: #e7e3d8;
+        --ink-dim: #9aa0a8;
+        --ink-faint: #5b6168;
+        --line: #23282f;
+        --line-bright: #313842;
+        --amber: #ffb000; /* phosphor */
+        --amber-soft: #ffce6b;
+        --cyan: #5ad1e0;
+        --green: #67e08a;
+        --red: #ff5d54;
+        --violet: #b69cff;
+        --grid: rgba(255, 176, 0, 0.035);
+        --r: 14px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background:
+          radial-gradient(1100px 600px at 80% -10%, rgba(90, 209, 224, 0.07), transparent 60%),
+          radial-gradient(900px 500px at 0% 100%, rgba(255, 176, 0, 0.06), transparent 55%),
+          var(--bg);
+        color: var(--ink);
+        font-family: "Spectral", Georgia, serif;
+        font-size: 17px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+      }
+      /* blueprint grid + grain overlay */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        background-image:
+          linear-gradient(var(--grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+        background-size: 46px 46px;
+        mask-image: radial-gradient(circle at 50% 30%, #000, transparent 95%);
+      }
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        opacity: 0.04;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+      #app {
+        position: relative;
+        z-index: 1;
+      }
 
-/* ── typography ── */
-.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
-.display{font-family:"Big Shoulders Display",sans-serif;font-weight:900;letter-spacing:.01em;line-height:.92}
-h1,h2,h3{font-family:"Big Shoulders Display",sans-serif;font-weight:900;letter-spacing:.01em;margin:0}
-.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:var(--amber);font-weight:500}
+      /* ── typography ── */
+      .mono {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+      }
+      .display {
+        font-family: "Big Shoulders Display", sans-serif;
+        font-weight: 900;
+        letter-spacing: 0.01em;
+        line-height: 0.92;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: "Big Shoulders Display", sans-serif;
+        font-weight: 900;
+        letter-spacing: 0.01em;
+        margin: 0;
+      }
+      .eyebrow {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 12px;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
+        color: var(--amber);
+        font-weight: 500;
+      }
 
-/* ── nav ── */
-nav{
-  position:sticky;top:0;z-index:50;
-  display:flex;align-items:center;gap:22px;
-  padding:14px 30px;
-  background:rgba(10,11,13,.78);
-  backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--line);
-}
-nav .brand{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:15px;color:var(--ink);display:flex;align-items:center;gap:10px}
-nav .dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px var(--amber);animation:pulse 2.4s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-nav .links{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
-nav a{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.04em;color:var(--ink-dim);text-decoration:none;padding:6px 10px;border-radius:8px;transition:.15s}
-nav a:hover{color:var(--amber);background:var(--panel)}
+      /* ── nav ── */
+      nav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        padding: 14px 30px;
+        background: rgba(10, 11, 13, 0.78);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--line);
+      }
+      nav .brand {
+        font-family: "IBM Plex Mono", monospace;
+        font-weight: 600;
+        font-size: 15px;
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      nav .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--amber);
+        box-shadow: 0 0 12px var(--amber);
+        animation: pulse 2.4s infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+      nav .links {
+        display: flex;
+        gap: 4px;
+        margin-left: auto;
+        flex-wrap: wrap;
+      }
+      nav a {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        color: var(--ink-dim);
+        text-decoration: none;
+        padding: 6px 10px;
+        border-radius: 8px;
+        transition: 0.15s;
+      }
+      nav a:hover {
+        color: var(--amber);
+        background: var(--panel);
+      }
 
-/* ── layout ── */
-.wrap{max-width:1120px;margin:0 auto;padding:0 30px}
-section{padding:92px 0;border-bottom:1px solid var(--line)}
-section:last-of-type{border-bottom:none}
-.kicker{display:flex;align-items:baseline;gap:16px;margin-bottom:26px}
-.kicker .idx{font-family:"IBM Plex Mono",monospace;color:var(--amber);font-size:13px;font-weight:600;border:1px solid var(--line-bright);padding:3px 9px;border-radius:6px}
-.lead{color:var(--ink-dim);max-width:62ch;font-size:18.5px}
+      /* ── layout ── */
+      .wrap {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 0 30px;
+      }
+      section {
+        padding: 92px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      section:last-of-type {
+        border-bottom: none;
+      }
+      .kicker {
+        display: flex;
+        align-items: baseline;
+        gap: 16px;
+        margin-bottom: 26px;
+      }
+      .kicker .idx {
+        font-family: "IBM Plex Mono", monospace;
+        color: var(--amber);
+        font-size: 13px;
+        font-weight: 600;
+        border: 1px solid var(--line-bright);
+        padding: 3px 9px;
+        border-radius: 6px;
+      }
+      .lead {
+        color: var(--ink-dim);
+        max-width: 62ch;
+        font-size: 18.5px;
+      }
 
-/* ── hero ── */
-.hero{padding:120px 0 96px;text-align:left}
-.hero h1{font-size:clamp(58px,11vw,148px);color:var(--ink)}
-.hero h1 .glow{color:var(--amber);text-shadow:0 0 38px rgba(255,176,0,.35)}
-.hero .sub{font-size:22px;color:var(--ink-dim);max-width:60ch;margin-top:26px}
-.flow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:38px;font-family:"IBM Plex Mono",monospace;font-size:13px}
-.flow .node{padding:8px 14px;border:1px solid var(--line-bright);border-radius:9px;background:var(--panel);color:var(--ink)}
-.flow .node.edge{color:var(--ink-faint);border-style:dashed}
-.flow .arr{color:var(--amber)}
-.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-top:54px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
-.stat{background:var(--panel);padding:22px}
-.stat .n{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:42px;color:var(--amber);line-height:1}
-.stat .l{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);margin-top:8px}
+      /* ── hero ── */
+      .hero {
+        padding: 120px 0 96px;
+        text-align: left;
+      }
+      .hero h1 {
+        font-size: clamp(58px, 11vw, 148px);
+        color: var(--ink);
+      }
+      .hero h1 .glow {
+        color: var(--amber);
+        text-shadow: 0 0 38px rgba(255, 176, 0, 0.35);
+      }
+      .hero .sub {
+        font-size: 22px;
+        color: var(--ink-dim);
+        max-width: 60ch;
+        margin-top: 26px;
+      }
+      .flow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 38px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 13px;
+      }
+      .flow .node {
+        padding: 8px 14px;
+        border: 1px solid var(--line-bright);
+        border-radius: 9px;
+        background: var(--panel);
+        color: var(--ink);
+      }
+      .flow .node.edge {
+        color: var(--ink-faint);
+        border-style: dashed;
+      }
+      .flow .arr {
+        color: var(--amber);
+      }
+      .stat-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1px;
+        margin-top: 54px;
+        background: var(--line);
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+        overflow: hidden;
+      }
+      .stat {
+        background: var(--panel);
+        padding: 22px;
+      }
+      .stat .n {
+        font-family: "Big Shoulders Display", sans-serif;
+        font-weight: 900;
+        font-size: 42px;
+        color: var(--amber);
+        line-height: 1;
+      }
+      .stat .l {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-dim);
+        margin-top: 8px;
+      }
 
-/* ── cards / code ── */
-.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
-.codecard{background:#0d0f13;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
-.codecard .bar{display:flex;align-items:center;gap:7px;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
-.codecard .bar .b{width:11px;height:11px;border-radius:50%}
-.codecard .bar .fn{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-faint);margin-left:8px}
-.shiki-host{font-size:13.5px;line-height:1.62;overflow:auto;max-height:520px}
-.shiki-host pre{margin:0;padding:18px 20px!important;background:transparent!important;font-family:"IBM Plex Mono",monospace!important}
-.shiki-host code{font-family:"IBM Plex Mono",monospace!important}
-.shiki-host .line{display:block;padding:0 4px}
+      /* ── cards / code ── */
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+      }
+      .codecard {
+        background: #0d0f13;
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+        overflow: hidden;
+      }
+      .codecard .bar {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 11px 16px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+      }
+      .codecard .bar .b {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+      }
+      .codecard .bar .fn {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 12px;
+        color: var(--ink-faint);
+        margin-left: 8px;
+      }
+      .shiki-host {
+        font-size: 13.5px;
+        line-height: 1.62;
+        overflow: auto;
+        max-height: 520px;
+      }
+      .shiki-host pre {
+        margin: 0;
+        padding: 18px 20px !important;
+        background: transparent !important;
+        font-family: "IBM Plex Mono", monospace !important;
+      }
+      .shiki-host code {
+        font-family: "IBM Plex Mono", monospace !important;
+      }
+      .shiki-host .line {
+        display: block;
+        padding: 0 4px;
+      }
 
-/* ── lifecycle stepper ── */
-.stepper{display:grid;grid-template-columns:300px 1fr;gap:26px}
-.steps-list{display:flex;flex-direction:column;gap:5px;max-height:560px;overflow:auto;padding-right:6px}
-.step-btn{display:flex;gap:12px;align-items:flex-start;text-align:left;width:100%;cursor:pointer;
-  background:transparent;border:1px solid transparent;border-radius:10px;padding:10px 12px;color:var(--ink-dim);transition:.14s;font-family:"IBM Plex Mono",monospace}
-.step-btn:hover{background:var(--panel)}
-.step-btn .num{flex:0 0 26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:12px;font-weight:600;background:var(--panel-2);border:1px solid var(--line-bright);color:var(--ink-dim)}
-.step-btn .t{font-size:13px;line-height:1.4;padding-top:3px}
-.step-btn.active{background:linear-gradient(90deg,rgba(255,176,0,.12),transparent);border-color:var(--line-bright);color:var(--ink)}
-.step-btn.active .num{background:var(--amber);color:#100c00;border-color:var(--amber);box-shadow:0 0 14px rgba(255,176,0,.4)}
-.step-detail{display:flex;flex-direction:column;gap:16px}
-.step-explain{padding:18px 20px}
-.step-explain h3{font-size:23px;color:var(--ink);margin-bottom:8px}
-.step-explain p{margin:0;color:var(--ink-dim);font-size:16px}
-.tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;padding:3px 8px;border-radius:5px;border:1px solid var(--line-bright);color:var(--cyan);margin-top:12px;text-transform:uppercase}
-.tag.warn{color:var(--red)} .tag.key{color:var(--amber)} .tag.ok{color:var(--green)}
-.stepnav{display:flex;gap:10px}
-.btn{font-family:"IBM Plex Mono",monospace;font-size:13px;cursor:pointer;border:1px solid var(--line-bright);background:var(--panel);color:var(--ink);padding:9px 16px;border-radius:9px;transition:.14s}
-.btn:hover{border-color:var(--amber);color:var(--amber)}
-.btn:disabled{opacity:.35;cursor:not-allowed}
-.btn.primary{background:var(--amber);color:#100c00;border-color:var(--amber);font-weight:600}
-.btn.primary:hover{filter:brightness(1.08);color:#100c00}
+      /* ── lifecycle stepper ── */
+      .stepper {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 26px;
+      }
+      .steps-list {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        max-height: 560px;
+        overflow: auto;
+        padding-right: 6px;
+      }
+      .step-btn {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        text-align: left;
+        width: 100%;
+        cursor: pointer;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        padding: 10px 12px;
+        color: var(--ink-dim);
+        transition: 0.14s;
+        font-family: "IBM Plex Mono", monospace;
+      }
+      .step-btn:hover {
+        background: var(--panel);
+      }
+      .step-btn .num {
+        flex: 0 0 26px;
+        height: 26px;
+        border-radius: 7px;
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+        font-weight: 600;
+        background: var(--panel-2);
+        border: 1px solid var(--line-bright);
+        color: var(--ink-dim);
+      }
+      .step-btn .t {
+        font-size: 13px;
+        line-height: 1.4;
+        padding-top: 3px;
+      }
+      .step-btn.active {
+        background: linear-gradient(90deg, rgba(255, 176, 0, 0.12), transparent);
+        border-color: var(--line-bright);
+        color: var(--ink);
+      }
+      .step-btn.active .num {
+        background: var(--amber);
+        color: #100c00;
+        border-color: var(--amber);
+        box-shadow: 0 0 14px rgba(255, 176, 0, 0.4);
+      }
+      .step-detail {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .step-explain {
+        padding: 18px 20px;
+      }
+      .step-explain h3 {
+        font-size: 23px;
+        color: var(--ink);
+        margin-bottom: 8px;
+      }
+      .step-explain p {
+        margin: 0;
+        color: var(--ink-dim);
+        font-size: 16px;
+      }
+      .tag {
+        display: inline-block;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        padding: 3px 8px;
+        border-radius: 5px;
+        border: 1px solid var(--line-bright);
+        color: var(--cyan);
+        margin-top: 12px;
+        text-transform: uppercase;
+      }
+      .tag.warn {
+        color: var(--red);
+      }
+      .tag.key {
+        color: var(--amber);
+      }
+      .tag.ok {
+        color: var(--green);
+      }
+      .stepnav {
+        display: flex;
+        gap: 10px;
+      }
+      .btn {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid var(--line-bright);
+        background: var(--panel);
+        color: var(--ink);
+        padding: 9px 16px;
+        border-radius: 9px;
+        transition: 0.14s;
+      }
+      .btn:hover {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+      .btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      .btn.primary {
+        background: var(--amber);
+        color: #100c00;
+        border-color: var(--amber);
+        font-weight: 600;
+      }
+      .btn.primary:hover {
+        filter: brightness(1.08);
+        color: #100c00;
+      }
 
-/* ── resume sim ── */
-.sim{display:grid;grid-template-columns:1fr 360px;gap:26px;align-items:start}
-.journal-rows{display:flex;flex-direction:column;gap:8px}
-.jrow{display:grid;grid-template-columns:54px 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-family:"IBM Plex Mono",monospace;font-size:13px;transition:.3s}
-.jrow .seq{color:var(--ink-faint)}
-.jrow .badge{font-size:11px;letter-spacing:.06em;padding:3px 9px;border-radius:20px;border:1px solid var(--line-bright);text-transform:uppercase}
-.jrow.cached{border-color:rgba(103,224,138,.35);background:linear-gradient(90deg,rgba(103,224,138,.08),var(--panel))}
-.jrow.cached .badge{color:var(--green);border-color:rgba(103,224,138,.4)}
-.jrow.fresh{border-color:rgba(255,176,0,.4);background:linear-gradient(90deg,rgba(255,176,0,.1),var(--panel))}
-.jrow.fresh .badge{color:var(--amber);border-color:rgba(255,176,0,.45)}
-.jrow.pending{opacity:.4}
-.jrow .desc{color:var(--ink)}
-.jrow .cost{color:var(--ink-dim);font-size:12px}
-.sim-panel{padding:20px;position:sticky;top:80px}
-.sim-panel .meter{height:8px;border-radius:6px;background:var(--panel-2);overflow:hidden;margin:6px 0 2px;border:1px solid var(--line)}
-.sim-panel .meter > div{height:100%;background:linear-gradient(90deg,var(--amber),var(--amber-soft));transition:width .4s}
-.slider{width:100%;accent-color:var(--amber);margin:14px 0}
-.bignum{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:34px;color:var(--ink)}
-.bignum.save{color:var(--green)}
+      /* ── resume sim ── */
+      .sim {
+        display: grid;
+        grid-template-columns: 1fr 360px;
+        gap: 26px;
+        align-items: start;
+      }
+      .journal-rows {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .jrow {
+        display: grid;
+        grid-template-columns: 54px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 13px;
+        transition: 0.3s;
+      }
+      .jrow .seq {
+        color: var(--ink-faint);
+      }
+      .jrow .badge {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        padding: 3px 9px;
+        border-radius: 20px;
+        border: 1px solid var(--line-bright);
+        text-transform: uppercase;
+      }
+      .jrow.cached {
+        border-color: rgba(103, 224, 138, 0.35);
+        background: linear-gradient(90deg, rgba(103, 224, 138, 0.08), var(--panel));
+      }
+      .jrow.cached .badge {
+        color: var(--green);
+        border-color: rgba(103, 224, 138, 0.4);
+      }
+      .jrow.fresh {
+        border-color: rgba(255, 176, 0, 0.4);
+        background: linear-gradient(90deg, rgba(255, 176, 0, 0.1), var(--panel));
+      }
+      .jrow.fresh .badge {
+        color: var(--amber);
+        border-color: rgba(255, 176, 0, 0.45);
+      }
+      .jrow.pending {
+        opacity: 0.4;
+      }
+      .jrow .desc {
+        color: var(--ink);
+      }
+      .jrow .cost {
+        color: var(--ink-dim);
+        font-size: 12px;
+      }
+      .sim-panel {
+        padding: 20px;
+        position: sticky;
+        top: 80px;
+      }
+      .sim-panel .meter {
+        height: 8px;
+        border-radius: 6px;
+        background: var(--panel-2);
+        overflow: hidden;
+        margin: 6px 0 2px;
+        border: 1px solid var(--line);
+      }
+      .sim-panel .meter > div {
+        height: 100%;
+        background: linear-gradient(90deg, var(--amber), var(--amber-soft));
+        transition: width 0.4s;
+      }
+      .slider {
+        width: 100%;
+        accent-color: var(--amber);
+        margin: 14px 0;
+      }
+      .bignum {
+        font-family: "Big Shoulders Display", sans-serif;
+        font-weight: 900;
+        font-size: 34px;
+        color: var(--ink);
+      }
+      .bignum.save {
+        color: var(--green);
+      }
 
-/* ── semaphore viz ── */
-.sema{display:grid;grid-template-columns:1fr 320px;gap:26px;align-items:start}
-.slots{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
-.slot{width:64px;height:64px;border-radius:12px;border:1px dashed var(--line-bright);display:grid;place-items:center;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-faint);transition:.2s}
-.slot.busy{border-style:solid;border-color:var(--amber);background:rgba(255,176,0,.12);color:var(--amber);box-shadow:0 0 16px rgba(255,176,0,.2)}
-.agent-chips{display:flex;gap:8px;flex-wrap:wrap}
-.chip{font-family:"IBM Plex Mono",monospace;font-size:12px;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink-dim);transition:.25s}
-.chip.run{border-color:var(--amber);color:var(--amber);background:rgba(255,176,0,.1)}
-.chip.done{border-color:rgba(103,224,138,.4);color:var(--green);background:rgba(103,224,138,.07)}
-.chip.queue{border-style:dashed}
+      /* ── semaphore viz ── */
+      .sema {
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: 26px;
+        align-items: start;
+      }
+      .slots {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+      }
+      .slot {
+        width: 64px;
+        height: 64px;
+        border-radius: 12px;
+        border: 1px dashed var(--line-bright);
+        display: grid;
+        place-items: center;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 11px;
+        color: var(--ink-faint);
+        transition: 0.2s;
+      }
+      .slot.busy {
+        border-style: solid;
+        border-color: var(--amber);
+        background: rgba(255, 176, 0, 0.12);
+        color: var(--amber);
+        box-shadow: 0 0 16px rgba(255, 176, 0, 0.2);
+      }
+      .agent-chips {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .chip {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 12px;
+        padding: 8px 12px;
+        border-radius: 9px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--ink-dim);
+        transition: 0.25s;
+      }
+      .chip.run {
+        border-color: var(--amber);
+        color: var(--amber);
+        background: rgba(255, 176, 0, 0.1);
+      }
+      .chip.done {
+        border-color: rgba(103, 224, 138, 0.4);
+        color: var(--green);
+        background: rgba(103, 224, 138, 0.07);
+      }
+      .chip.queue {
+        border-style: dashed;
+      }
 
-/* ── parallel vs pipeline ── */
-.toggle{display:inline-flex;border:1px solid var(--line-bright);border-radius:10px;overflow:hidden;font-family:"IBM Plex Mono",monospace;font-size:13px;margin-bottom:24px}
-.toggle button{background:var(--panel);color:var(--ink-dim);border:none;padding:10px 20px;cursor:pointer;transition:.15s}
-.toggle button.on{background:var(--amber);color:#100c00;font-weight:600}
-.track{display:grid;gap:10px}
-.lane{display:grid;grid-template-columns:64px 1fr;align-items:center;gap:12px}
-.lane .lab{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-dim)}
-.lane .bars{position:relative;height:34px;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.seg{position:absolute;top:4px;height:26px;border-radius:6px;display:grid;place-items:center;font-family:"IBM Plex Mono",monospace;font-size:11px;color:#100c00;font-weight:600;transition:.5s cubic-bezier(.2,.7,.2,1)}
-.seg.s1{background:var(--cyan)} .seg.s2{background:var(--amber)} .barrier{position:absolute;top:0;bottom:0;width:2px;background:var(--red);box-shadow:0 0 8px var(--red)}
+      /* ── parallel vs pipeline ── */
+      .toggle {
+        display: inline-flex;
+        border: 1px solid var(--line-bright);
+        border-radius: 10px;
+        overflow: hidden;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 13px;
+        margin-bottom: 24px;
+      }
+      .toggle button {
+        background: var(--panel);
+        color: var(--ink-dim);
+        border: none;
+        padding: 10px 20px;
+        cursor: pointer;
+        transition: 0.15s;
+      }
+      .toggle button.on {
+        background: var(--amber);
+        color: #100c00;
+        font-weight: 600;
+      }
+      .track {
+        display: grid;
+        gap: 10px;
+      }
+      .lane {
+        display: grid;
+        grid-template-columns: 64px 1fr;
+        align-items: center;
+        gap: 12px;
+      }
+      .lane .lab {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 12px;
+        color: var(--ink-dim);
+      }
+      .lane .bars {
+        position: relative;
+        height: 34px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .seg {
+        position: absolute;
+        top: 4px;
+        height: 26px;
+        border-radius: 6px;
+        display: grid;
+        place-items: center;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 11px;
+        color: #100c00;
+        font-weight: 600;
+        transition: 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+      }
+      .seg.s1 {
+        background: var(--cyan);
+      }
+      .seg.s2 {
+        background: var(--amber);
+      }
+      .barrier {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--red);
+        box-shadow: 0 0 8px var(--red);
+      }
 
-/* ── sandbox widget ── */
-.sb{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-.sb .picks{display:flex;flex-direction:column;gap:8px}
-.sb .pick{font-family:"IBM Plex Mono",monospace;font-size:13px;text-align:left;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;transition:.14s}
-.sb .pick:hover{border-color:var(--line-bright)}
-.sb .pick.on{border-color:var(--amber);background:rgba(255,176,0,.08)}
-.console{font-family:"IBM Plex Mono",monospace;font-size:13px;background:#0d0f13;border:1px solid var(--line);border-radius:12px;padding:18px;min-height:160px}
-.console .ln{display:flex;gap:10px;padding:3px 0}
-.console .ok{color:var(--green)} .console .err{color:var(--red)} .console .mut{color:var(--ink-faint)}
+      /* ── sandbox widget ── */
+      .sb {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+      .sb .picks {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .sb .pick {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 13px;
+        text-align: left;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--ink);
+        cursor: pointer;
+        transition: 0.14s;
+      }
+      .sb .pick:hover {
+        border-color: var(--line-bright);
+      }
+      .sb .pick.on {
+        border-color: var(--amber);
+        background: rgba(255, 176, 0, 0.08);
+      }
+      .console {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 13px;
+        background: #0d0f13;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 18px;
+        min-height: 160px;
+      }
+      .console .ln {
+        display: flex;
+        gap: 10px;
+        padding: 3px 0;
+      }
+      .console .ok {
+        color: var(--green);
+      }
+      .console .err {
+        color: var(--red);
+      }
+      .console .mut {
+        color: var(--ink-faint);
+      }
 
-/* ── generic grids ── */
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-.feat{padding:22px}
-.feat .ic{font-family:"IBM Plex Mono",monospace;color:var(--amber);font-size:13px;margin-bottom:10px}
-.feat h3{font-size:21px;color:var(--ink);margin-bottom:6px}
-.feat p{margin:0;color:var(--ink-dim);font-size:15px}
-.adapters{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.ad{padding:18px;text-align:left}
-.ad h3{font-size:19px;color:var(--ink)}
-.ad .id{font-family:"IBM Plex Mono",monospace;color:var(--cyan);font-size:12px}
-.ad ul{margin:12px 0 0;padding-left:16px;color:var(--ink-dim);font-size:13px;font-family:"IBM Plex Mono",monospace}
-.ad li{margin:4px 0}
-.cmd-table{width:100%;border-collapse:collapse;font-family:"IBM Plex Mono",monospace;font-size:13.5px}
-.cmd-table td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
-.cmd-table tr:last-child td{border-bottom:none}
-.cmd-table .c{color:var(--amber);white-space:nowrap}
-.cmd-table .d{color:var(--ink-dim)}
-.callout{border-left:3px solid var(--amber);padding:14px 18px;background:var(--panel);border-radius:0 10px 10px 0;color:var(--ink-dim);font-size:15px}
-.callout b{color:var(--ink)}
-footer{padding:60px 30px;text-align:center;color:var(--ink-faint);font-family:"IBM Plex Mono",monospace;font-size:12px}
-.loading{padding:40px;text-align:center;color:var(--ink-faint);font-family:"IBM Plex Mono",monospace;font-size:13px}
-@media(max-width:880px){
-  .stepper,.sim,.sema,.sb,.grid2,.grid3{grid-template-columns:1fr}
-  .stat-row{grid-template-columns:1fr 1fr}.adapters{grid-template-columns:1fr 1fr}
-  .sim-panel,.sema .card{position:static}
-  nav .links{display:none}
-}
-</style>
-</head>
-<body>
-<div id="app"><div class="loading">booting onboarding console…</div></div>
+      /* ── generic grids ── */
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+      .grid3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+      }
+      .feat {
+        padding: 22px;
+      }
+      .feat .ic {
+        font-family: "IBM Plex Mono", monospace;
+        color: var(--amber);
+        font-size: 13px;
+        margin-bottom: 10px;
+      }
+      .feat h3 {
+        font-size: 21px;
+        color: var(--ink);
+        margin-bottom: 6px;
+      }
+      .feat p {
+        margin: 0;
+        color: var(--ink-dim);
+        font-size: 15px;
+      }
+      .adapters {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+      }
+      .ad {
+        padding: 18px;
+        text-align: left;
+      }
+      .ad h3 {
+        font-size: 19px;
+        color: var(--ink);
+      }
+      .ad .id {
+        font-family: "IBM Plex Mono", monospace;
+        color: var(--cyan);
+        font-size: 12px;
+      }
+      .ad ul {
+        margin: 12px 0 0;
+        padding-left: 16px;
+        color: var(--ink-dim);
+        font-size: 13px;
+        font-family: "IBM Plex Mono", monospace;
+      }
+      .ad li {
+        margin: 4px 0;
+      }
+      .cmd-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 13.5px;
+      }
+      .cmd-table td {
+        padding: 13px 14px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      .cmd-table tr:last-child td {
+        border-bottom: none;
+      }
+      .cmd-table .c {
+        color: var(--amber);
+        white-space: nowrap;
+      }
+      .cmd-table .d {
+        color: var(--ink-dim);
+      }
+      .callout {
+        border-left: 3px solid var(--amber);
+        padding: 14px 18px;
+        background: var(--panel);
+        border-radius: 0 10px 10px 0;
+        color: var(--ink-dim);
+        font-size: 15px;
+      }
+      .callout b {
+        color: var(--ink);
+      }
+      footer {
+        padding: 60px 30px;
+        text-align: center;
+        color: var(--ink-faint);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 12px;
+      }
+      .loading {
+        padding: 40px;
+        text-align: center;
+        color: var(--ink-faint);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 13px;
+      }
+      @media (max-width: 880px) {
+        .stepper,
+        .sim,
+        .sema,
+        .sb,
+        .grid2,
+        .grid3 {
+          grid-template-columns: 1fr;
+        }
+        .stat-row {
+          grid-template-columns: 1fr 1fr;
+        }
+        .adapters {
+          grid-template-columns: 1fr 1fr;
+        }
+        .sim-panel,
+        .sema .card {
+          position: static;
+        }
+        nav .links {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"><div class="loading">booting onboarding console…</div></div>
 
-<script type="module">
-import { createHighlighter } from "https://esm.sh/shiki@1.24.0";
-import React from "https://esm.sh/react@18.3.1";
-import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
-import htm from "https://esm.sh/htm@3.1.1";
+    <script type="module">
+      import { createHighlighter } from "https://esm.sh/shiki@1.24.0";
+      import React from "https://esm.sh/react@18.3.1";
+      import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
+      import htm from "https://esm.sh/htm@3.1.1";
 
-const html = htm.bind(React.createElement);
-const { useState, useEffect, useRef, useMemo } = React;
+      const html = htm.bind(React.createElement);
+      const { useState, useEffect, useRef, useMemo } = React;
 
-// collect raw code excerpts
-const CODE = {};
-document.querySelectorAll('script[type="text/plain"]').forEach((s) => {
-  CODE[s.id.replace("code-", "")] = s.textContent.replace(/^\n/, "").replace(/\s+$/, "");
-});
+      // collect raw code excerpts
+      const CODE = {};
+      document.querySelectorAll('script[type="text/plain"]').forEach((s) => {
+        CODE[s.id.replace("code-", "")] = s.textContent.replace(/^\n/, "").replace(/\s+$/, "");
+      });
 
-const highlighter = await createHighlighter({
-  themes: ["vesper"],
-  langs: ["typescript", "javascript", "bash"],
-});
-const hl = (code, lang = "typescript") =>
-  highlighter.codeToHtml(code, { lang, theme: "vesper" });
+      const highlighter = await createHighlighter({
+        themes: ["vesper"],
+        langs: ["typescript", "javascript", "bash"],
+      });
+      const hl = (code, lang = "typescript") =>
+        highlighter.codeToHtml(code, { lang, theme: "vesper" });
 
-// ── shared bits ──
-function Code({ id, code, lang = "typescript", fn }) {
-  const src = code ?? CODE[id] ?? "";
-  const out = useMemo(() => hl(src, lang), [src, lang]);
-  return html`
-    <div class="codecard">
-      <div class="bar">
-        <span class="b" style=${{ background: "#ff5d54" }}></span>
-        <span class="b" style=${{ background: "#ffb000" }}></span>
-        <span class="b" style=${{ background: "#67e08a" }}></span>
-        ${fn && html`<span class="fn">${fn}</span>`}
-      </div>
-      <div class="shiki-host" dangerouslySetInnerHTML=${{ __html: out }}></div>
-    </div>`;
-}
+      // ── shared bits ──
+      function Code({ id, code, lang = "typescript", fn }) {
+        const src = code ?? CODE[id] ?? "";
+        const out = useMemo(() => hl(src, lang), [src, lang]);
+        return html` <div class="codecard">
+          <div class="bar">
+            <span class="b" style=${{ background: "#ff5d54" }}></span>
+            <span class="b" style=${{ background: "#ffb000" }}></span>
+            <span class="b" style=${{ background: "#67e08a" }}></span>
+            ${fn && html`<span class="fn">${fn}</span>`}
+          </div>
+          <div class="shiki-host" dangerouslySetInnerHTML=${{ __html: out }}></div>
+        </div>`;
+      }
 
-const Kicker = ({ idx, title }) => html`
-  <div class="kicker">
-    <span class="idx">${idx}</span>
-    <h2 style=${{ fontSize: "34px", color: "var(--ink)" }}>${title}</h2>
-  </div>`;
+      const Kicker = ({ idx, title }) =>
+        html` <div class="kicker">
+          <span class="idx">${idx}</span>
+          <h2 style=${{ fontSize: "34px", color: "var(--ink)" }}>${title}</h2>
+        </div>`;
 
-// ───────────────────────── 1. Hero ─────────────────────────
-function Hero() {
-  return html`
-  <header class="hero wrap">
-    <div class="eyebrow">deterministic multi-agent workflow engine</div>
-    <h1 style=${{ marginTop: "18px" }}>workflow,<br/><span class="glow">under the hood</span></h1>
-    <p class="sub">A workflow is a plain JS/TS script that orchestrates coding-agent calls —
-      <span class="mono" style=${{ color: "var(--ink)" }}>agent()</span>,
-      <span class="mono" style=${{ color: "var(--ink)" }}>parallel()</span>,
-      <span class="mono" style=${{ color: "var(--ink)" }}>pipeline()</span> —
-      with <b style=${{ color: "var(--amber-soft)" }}>durable, crash-safe</b> execution. Every agent result is journaled by
-      sequence number, so a run can replay from a checkpoint <i>without re-invoking the model</i>.</p>
-    <div class="flow">
-      <span class="node">schema</span><span class="arr">→</span>
-      <span class="node">core</span><span class="arr">→</span>
-      <span class="node">adapters</span><span class="arr">→</span>
-      <span class="node">cli</span>
-      <span style=${{ margin: "0 8px", color: "var(--ink-faint)" }}>·</span>
-      <span class="node edge">ui</span><span class="node edge">examples</span>
-    </div>
-    <div class="stat-row">
-      <div class="stat"><div class="n">13</div><div class="l">steps per agent()</div></div>
-      <div class="stat"><div class="n">1</div><div class="l">vm sandbox</div></div>
-      <div class="stat"><div class="n">∞</div><div class="l">replays, 0 tokens</div></div>
-      <div class="stat"><div class="n">4</div><div class="l">harness adapters</div></div>
-    </div>
-  </header>`;
-}
+      // ───────────────────────── 1. Hero ─────────────────────────
+      function Hero() {
+        return html` <header class="hero wrap">
+          <div class="eyebrow">deterministic multi-agent workflow engine</div>
+          <h1 style=${{ marginTop: "18px" }}>
+            workflow,<br /><span class="glow">under the hood</span>
+          </h1>
+          <p class="sub">
+            A workflow is a plain JS/TS script that orchestrates coding-agent calls —
+            <span class="mono" style=${{ color: "var(--ink)" }}>agent()</span>,
+            <span class="mono" style=${{ color: "var(--ink)" }}>parallel()</span>,
+            <span class="mono" style=${{ color: "var(--ink)" }}>pipeline()</span> — with
+            <b style=${{ color: "var(--amber-soft)" }}>durable, crash-safe</b> execution. Every
+            agent result is journaled by sequence number, so a run can replay from a checkpoint
+            <i>without re-invoking the model</i>.
+          </p>
+          <div class="flow">
+            <span class="node">schema</span><span class="arr">→</span> <span class="node">core</span
+            ><span class="arr">→</span> <span class="node">adapters</span><span class="arr">→</span>
+            <span class="node">cli</span>
+            <span style=${{ margin: "0 8px", color: "var(--ink-faint)" }}>·</span>
+            <span class="node edge">ui</span><span class="node edge">examples</span>
+          </div>
+          <div class="stat-row">
+            <div class="stat">
+              <div class="n">13</div>
+              <div class="l">steps per agent()</div>
+            </div>
+            <div class="stat">
+              <div class="n">1</div>
+              <div class="l">vm sandbox</div>
+            </div>
+            <div class="stat">
+              <div class="n">∞</div>
+              <div class="l">replays, 0 tokens</div>
+            </div>
+            <div class="stat">
+              <div class="n">4</div>
+              <div class="l">harness adapters</div>
+            </div>
+          </div>
+        </header>`;
+      }
 
-// ───────────────────────── 2. Mental model ─────────────────────────
-function MentalModel() {
-  return html`
-  <section id="model"><div class="wrap">
-    <${Kicker} idx="01" title="The mental model" />
-    <p class="lead">You don't call models directly. You write a <b style=${{color:"var(--ink)"}}>script</b> that
-      describes orchestration, and the engine runs it inside a sandbox, handing your script a
-      <span class="mono">Runtime</span> of primitives. The script is pure control-flow; the engine
-      makes it durable, observable, and concurrent.</p>
-    <div class="grid2" style=${{ marginTop: "28px" }}>
-      <${Code} id="workflow" fn="research-bugs.workflow.ts" />
-      <div style=${{ display: "flex", flexDirection: "column", gap: "14px" }}>
-        <div class="card feat"><div class="ic">// export const meta</div>
-          <h3>Declared, not configured</h3>
-          <p><span class="mono">meta.harness</span> picks the backend — the single source of truth, no
-          auto-detect. <span class="mono">meta.phases</span> are seeded up front so the UI shows the whole
-          pipeline before it runs.</p></div>
-        <div class="card feat"><div class="ic">// the runtime injects</div>
-          <h3>Primitives, not imports</h3>
-          <p><span class="mono">agent · parallel · pipeline · phase · log · workflow · args · budget</span>
-          are globals in the sandbox. Your script is wrapped in an async IIFE, so top-level
-          <span class="mono">await</span> and <span class="mono">return</span> just work.</p></div>
-      </div>
-    </div>
-  </div></section>`;
-}
+      // ───────────────────────── 2. Mental model ─────────────────────────
+      function MentalModel() {
+        return html` <section id="model">
+          <div class="wrap">
+            <${Kicker} idx="01" title="The mental model" />
+            <p class="lead">
+              You don't call models directly. You write a
+              <b style=${{ color: "var(--ink)" }}>script</b> that describes orchestration, and the
+              engine runs it inside a sandbox, handing your script a
+              <span class="mono">Runtime</span> of primitives. The script is pure control-flow; the
+              engine makes it durable, observable, and concurrent.
+            </p>
+            <div class="grid2" style=${{ marginTop: "28px" }}>
+              <${Code} id="workflow" fn="research-bugs.workflow.ts" />
+              <div style=${{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div class="card feat">
+                  <div class="ic">// export const meta</div>
+                  <h3>Declared, not configured</h3>
+                  <p>
+                    <span class="mono">meta.harness</span> picks the backend — the single source of
+                    truth, no auto-detect. <span class="mono">meta.phases</span> are seeded up front
+                    so the UI shows the whole pipeline before it runs.
+                  </p>
+                </div>
+                <div class="card feat">
+                  <div class="ic">// the runtime injects</div>
+                  <h3>Primitives, not imports</h3>
+                  <p>
+                    <span class="mono"
+                      >agent · parallel · pipeline · phase · log · workflow · args · budget</span
+                    >
+                    are globals in the sandbox. Your script is wrapped in an async IIFE, so
+                    top-level
+                    <span class="mono">await</span> and <span class="mono">return</span> just work.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>`;
+      }
 
-// ───────────────────────── 3. agent() lifecycle stepper ─────────────────────────
-const STEPS = [
-  { n:0, t:"Assign a sequence number", code:"seq",
-    title:"seq++  — the replay key", tag:["key","this number is everything"],
-    body:"Every agent() call grabs a monotonic seq from the runtime. It's the primary key in the journal — the entire resume mechanism keys off it. Same script + same args ⇒ identical seq order, which is exactly why scripts must be deterministic." },
-  { n:1, t:"Emit agent-queued", code:"queued",
-    title:"Become observable", tag:["ok","the UI is built from events"],
-    body:"Before doing any work, the runtime emits a typed event. The UI and the persisted registry are pure functions of this event stream — there are no side channels. reduce(state, event) rebuilds RunState." },
-  { n:2, t:"Check the stop signal", code:"abort",
-    title:"Fail fast on stop", tag:["warn","run-scoped AbortSignal"],
-    body:"A fired stop short-circuits before scheduling work. Errors are values here: it throws a WorkflowThrow wrapping a tagged WorkflowError, which author code can catch like a normal exception." },
-  { n:3, t:"Journal lookup (resume!)", code:"journal",
-    title:"The cache that makes resume free", tag:["key","return BEFORE spawning a model"],
-    body:"If this seq is already in the journal, return the cached result immediately — no model call, no tokens spent on the model (recorded output tokens are replayed for accounting). On a fresh run the journal is empty; on resume it's seeded from persisted JSONL, so everything up to the crash point flashes back instantly." },
-  { n:4, t:"Budget gate", code:"budget",
-    title:"A soft ceiling, not a reservation", tag:["", "may overshoot under concurrency"],
-    body:"If a token budget is set and it's spent, throw BudgetExhausted. It's best-effort: several concurrent agents can read remaining() before any of them records, so spend can overshoot total. remaining() is Infinity when no cap is set." },
-  { n:5, t:"Agent-cap gate", code:"cap",
-    title:"Claim the slot synchronously", tag:["", "runaway backstop"],
-    body:"spawned++ happens synchronously the instant the cap check passes, so concurrent launches can't race past maxAgents. It's a far-above-normal backstop against an infinite loop spawning agents forever." },
-  { n:6, t:"Convert zod → JSON Schema", code:"schema",
-    title:"Schema in, structured out", tag:["ok","@workflow/schema only"],
-    body:"If you passed a zod schema, it's converted to JSON Schema now (the only place that touches z.toJSONSchema). Conversion failure is itself a value: SchemaValidation with attempts:0. The JSON Schema rides along in the AgentRequest." },
-  { n:7, t:"Pause gate, re-check stop", code:"pause",
-    title:"Hold here while paused", tag:["", "pause may span a stop"],
-    body:"The pause gate awaits before acquiring a slot — resolving instantly when not paused. After it resolves, stop is re-checked, because a long pause might have outlived the run." },
-  { n:8, t:"Acquire a semaphore slot", code:"acquire",
-    title:"Concurrency throttle", tag:["key","blocks until a slot frees"],
-    body:"This is where real concurrency is enforced. await semaphore.acquire() blocks until one of the N slots is free. Only after acquiring does agent-started fire and the AgentRequest get built and handed to the adapter's runner.run()." },
-  { n:9, t:"Validate the model output", code:"validate",
-    title:"Trust, then verify", tag:["", "zod re-checks"],
-    body:"Tool calls are emitted as events. If a schema was supplied, the model's parsed data is validated again with zod — a mismatch is SchemaValidation with attempts:1, thrown as a value. Without a schema, the raw text is the return value." },
-  { n:10, t:"Record to the journal", code:"record",
-    title:"Make the future replay free", tag:["key","the durability write"],
-    body:"Output tokens are recorded against budget, then the result is written to the journal keyed by seq. THIS is the entry a future resume will hit at step 4. Then agent-output and agent-finished (cached:false) fire and the validated value returns." },
-  { n:11, t:"Release the slot — always", code:"release",
-    title:"finally { release() }", tag:["ok","hands off to the next waiter"],
-    body:"In a finally, the semaphore slot is released whether the agent succeeded or threw, waking the longest-waiting queued agent. Forgetting this would deadlock the whole run, which is why it lives in finally." },
-];
+      // ───────────────────────── 3. agent() lifecycle stepper ─────────────────────────
+      const STEPS = [
+        {
+          n: 0,
+          t: "Assign a sequence number",
+          code: "seq",
+          title: "seq++  — the replay key",
+          tag: ["key", "this number is everything"],
+          body: "Every agent() call grabs a monotonic seq from the runtime. It's the primary key in the journal — the entire resume mechanism keys off it. Same script + same args ⇒ identical seq order, which is exactly why scripts must be deterministic.",
+        },
+        {
+          n: 1,
+          t: "Emit agent-queued",
+          code: "queued",
+          title: "Become observable",
+          tag: ["ok", "the UI is built from events"],
+          body: "Before doing any work, the runtime emits a typed event. The UI and the persisted registry are pure functions of this event stream — there are no side channels. reduce(state, event) rebuilds RunState.",
+        },
+        {
+          n: 2,
+          t: "Check the stop signal",
+          code: "abort",
+          title: "Fail fast on stop",
+          tag: ["warn", "run-scoped AbortSignal"],
+          body: "A fired stop short-circuits before scheduling work. Errors are values here: it throws a WorkflowThrow wrapping a tagged WorkflowError, which author code can catch like a normal exception.",
+        },
+        {
+          n: 3,
+          t: "Journal lookup (resume!)",
+          code: "journal",
+          title: "The cache that makes resume free",
+          tag: ["key", "return BEFORE spawning a model"],
+          body: "If this seq is already in the journal, return the cached result immediately — no model call, no tokens spent on the model (recorded output tokens are replayed for accounting). On a fresh run the journal is empty; on resume it's seeded from persisted JSONL, so everything up to the crash point flashes back instantly.",
+        },
+        {
+          n: 4,
+          t: "Budget gate",
+          code: "budget",
+          title: "A soft ceiling, not a reservation",
+          tag: ["", "may overshoot under concurrency"],
+          body: "If a token budget is set and it's spent, throw BudgetExhausted. It's best-effort: several concurrent agents can read remaining() before any of them records, so spend can overshoot total. remaining() is Infinity when no cap is set.",
+        },
+        {
+          n: 5,
+          t: "Agent-cap gate",
+          code: "cap",
+          title: "Claim the slot synchronously",
+          tag: ["", "runaway backstop"],
+          body: "spawned++ happens synchronously the instant the cap check passes, so concurrent launches can't race past maxAgents. It's a far-above-normal backstop against an infinite loop spawning agents forever.",
+        },
+        {
+          n: 6,
+          t: "Convert zod → JSON Schema",
+          code: "schema",
+          title: "Schema in, structured out",
+          tag: ["ok", "@workflow/schema only"],
+          body: "If you passed a zod schema, it's converted to JSON Schema now (the only place that touches z.toJSONSchema). Conversion failure is itself a value: SchemaValidation with attempts:0. The JSON Schema rides along in the AgentRequest.",
+        },
+        {
+          n: 7,
+          t: "Pause gate, re-check stop",
+          code: "pause",
+          title: "Hold here while paused",
+          tag: ["", "pause may span a stop"],
+          body: "The pause gate awaits before acquiring a slot — resolving instantly when not paused. After it resolves, stop is re-checked, because a long pause might have outlived the run.",
+        },
+        {
+          n: 8,
+          t: "Acquire a semaphore slot",
+          code: "acquire",
+          title: "Concurrency throttle",
+          tag: ["key", "blocks until a slot frees"],
+          body: "This is where real concurrency is enforced. await semaphore.acquire() blocks until one of the N slots is free. Only after acquiring does agent-started fire and the AgentRequest get built and handed to the adapter's runner.run().",
+        },
+        {
+          n: 9,
+          t: "Validate the model output",
+          code: "validate",
+          title: "Trust, then verify",
+          tag: ["", "zod re-checks"],
+          body: "Tool calls are emitted as events. If a schema was supplied, the model's parsed data is validated again with zod — a mismatch is SchemaValidation with attempts:1, thrown as a value. Without a schema, the raw text is the return value.",
+        },
+        {
+          n: 10,
+          t: "Record to the journal",
+          code: "record",
+          title: "Make the future replay free",
+          tag: ["key", "the durability write"],
+          body: "Output tokens are recorded against budget, then the result is written to the journal keyed by seq. THIS is the entry a future resume will hit at step 4. Then agent-output and agent-finished (cached:false) fire and the validated value returns.",
+        },
+        {
+          n: 11,
+          t: "Release the slot — always",
+          code: "release",
+          title: "finally { release() }",
+          tag: ["ok", "hands off to the next waiter"],
+          body: "In a finally, the semaphore slot is released whether the agent succeeded or threw, waking the longest-waiting queued agent. Forgetting this would deadlock the whole run, which is why it lives in finally.",
+        },
+      ];
 
-function Lifecycle() {
-  const [i, setI] = useState(0);
-  const s = STEPS[i];
-  const tagClass = s.tag[0] ? `tag ${s.tag[0]}` : "tag";
-  return html`
-  <section id="lifecycle"><div class="wrap">
-    <${Kicker} idx="02" title="What one agent() call actually does" />
-    <p class="lead">This is the heart of <span class="mono">@workflow/core</span>. Every
-      <span class="mono">agent()</span> walks the same fixed 13-step sequence. Click through it —
-      the order is load-bearing.</p>
-    <div class="stepper" style=${{ marginTop: "30px" }}>
-      <div class="steps-list">
-        ${STEPS.map((st) => html`
-          <button key=${st.n} class=${"step-btn" + (st.n === i ? " active" : "")} onClick=${() => setI(st.n)}>
-            <span class="num">${st.n + 1}</span><span class="t">${st.t}</span>
-          </button>`)}
-      </div>
-      <div class="step-detail">
-        <div class="card step-explain">
-          <h3>${s.title}</h3>
-          <p>${s.body}</p>
-          <span class=${tagClass}>${s.tag[1]}</span>
-        </div>
-        <${Code} id=${s.code} fn=${"runtime.ts · agent()  →  step " + (i + 1) + "/13"} />
-        <div class="stepnav">
-          <button class="btn" disabled=${i === 0} onClick=${() => setI(Math.max(0, i - 1))}>← prev</button>
-          <button class="btn primary" disabled=${i === STEPS.length - 1} onClick=${() => setI(Math.min(STEPS.length - 1, i + 1))}>next step →</button>
-          <span style=${{ marginLeft: "auto", alignSelf: "center", fontFamily: "IBM Plex Mono", fontSize: "12px", color: "var(--ink-faint)" }}>
-            increment seq · gate · gate · gate · acquire · run · validate · record · release
-          </span>
-        </div>
-      </div>
-    </div>
-  </div></section>`;
-}
+      function Lifecycle() {
+        const [i, setI] = useState(0);
+        const s = STEPS[i];
+        const tagClass = s.tag[0] ? `tag ${s.tag[0]}` : "tag";
+        return html` <section id="lifecycle">
+          <div class="wrap">
+            <${Kicker} idx="02" title="What one agent() call actually does" />
+            <p class="lead">
+              This is the heart of <span class="mono">@workflow/core</span>. Every
+              <span class="mono">agent()</span> walks the same fixed 13-step sequence. Click through
+              it — the order is load-bearing.
+            </p>
+            <div class="stepper" style=${{ marginTop: "30px" }}>
+              <div class="steps-list">
+                ${STEPS.map(
+                  (st) =>
+                    html` <button
+                      key=${st.n}
+                      class=${"step-btn" + (st.n === i ? " active" : "")}
+                      onClick=${() => setI(st.n)}
+                    >
+                      <span class="num">${st.n + 1}</span><span class="t">${st.t}</span>
+                    </button>`,
+                )}
+              </div>
+              <div class="step-detail">
+                <div class="card step-explain">
+                  <h3>${s.title}</h3>
+                  <p>${s.body}</p>
+                  <span class=${tagClass}>${s.tag[1]}</span>
+                </div>
+                <${Code} id=${s.code} fn=${"runtime.ts · agent()  →  step " + (i + 1) + "/13"} />
+                <div class="stepnav">
+                  <button class="btn" disabled=${i === 0} onClick=${() => setI(Math.max(0, i - 1))}>
+                    ← prev
+                  </button>
+                  <button
+                    class="btn primary"
+                    disabled=${i === STEPS.length - 1}
+                    onClick=${() => setI(Math.min(STEPS.length - 1, i + 1))}
+                  >
+                    next step →
+                  </button>
+                  <span
+                    style=${{
+                      marginLeft: "auto",
+                      alignSelf: "center",
+                      fontFamily: "IBM Plex Mono",
+                      fontSize: "12px",
+                      color: "var(--ink-faint)",
+                    }}
+                  >
+                    increment seq · gate · gate · gate · acquire · run · validate · record · release
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>`;
+      }
 
-// ───────────────────────── 4. Resume simulator ─────────────────────────
-const SIM_AGENTS = [
-  { seq: 0, desc: "scan repo for smells", cost: 1200 },
-  { seq: 1, desc: "rank by severity", cost: 800 },
-  { seq: 2, desc: "verify bug #1", cost: 1500 },
-  { seq: 3, desc: "verify bug #2", cost: 1500 },
-  { seq: 4, desc: "synthesize report", cost: 2100 },
-];
-const TOTAL = SIM_AGENTS.reduce((a, b) => a + b.cost, 0);
+      // ───────────────────────── 4. Resume simulator ─────────────────────────
+      const SIM_AGENTS = [
+        { seq: 0, desc: "scan repo for smells", cost: 1200 },
+        { seq: 1, desc: "rank by severity", cost: 800 },
+        { seq: 2, desc: "verify bug #1", cost: 1500 },
+        { seq: 3, desc: "verify bug #2", cost: 1500 },
+        { seq: 4, desc: "synthesize report", cost: 2100 },
+      ];
+      const TOTAL = SIM_AGENTS.reduce((a, b) => a + b.cost, 0);
 
-function ResumeSim() {
-  const [crash, setCrash] = useState(3);   // crashed after seq < 3 were journaled
-  const [phase, setPhase] = useState("idle"); // idle | replaying | live | done
-  const [cursor, setCursor] = useState(-1);
+      function ResumeSim() {
+        const [crash, setCrash] = useState(3); // crashed after seq < 3 were journaled
+        const [phase, setPhase] = useState("idle"); // idle | replaying | live | done
+        const [cursor, setCursor] = useState(-1);
 
-  const run = () => {
-    setPhase("replaying"); setCursor(-1);
-    let k = 0;
-    const tick = () => {
-      setCursor(k);
-      const journaled = k < crash;
-      k++;
-      if (k > SIM_AGENTS.length) { setPhase("done"); return; }
-      setTimeout(tick, journaled ? 180 : 950);  // cached = instant, fresh = slow
-      if (!journaled) setPhase("live");
-    };
-    setTimeout(tick, 200);
-  };
+        const run = () => {
+          setPhase("replaying");
+          setCursor(-1);
+          let k = 0;
+          const tick = () => {
+            setCursor(k);
+            const journaled = k < crash;
+            k++;
+            if (k > SIM_AGENTS.length) {
+              setPhase("done");
+              return;
+            }
+            setTimeout(tick, journaled ? 180 : 950); // cached = instant, fresh = slow
+            if (!journaled) setPhase("live");
+          };
+          setTimeout(tick, 200);
+        };
 
-  const saved = SIM_AGENTS.slice(0, crash).reduce((a, b) => a + b.cost, 0);
-  const rowState = (seq) => {
-    if (phase === "idle") return seq < crash ? "journaled-static" : "pending-static";
-    if (seq > cursor) return "pending";
-    return seq < crash ? "cached" : "fresh";
-  };
+        const saved = SIM_AGENTS.slice(0, crash).reduce((a, b) => a + b.cost, 0);
+        const rowState = (seq) => {
+          if (phase === "idle") return seq < crash ? "journaled-static" : "pending-static";
+          if (seq > cursor) return "pending";
+          return seq < crash ? "cached" : "fresh";
+        };
 
-  return html`
-  <section id="resume"><div class="wrap">
-    <${Kicker} idx="03" title="Determinism & the journal: resume is free" />
-    <p class="lead">A run persists every agent result as JSONL keyed by <span class="mono">seq</span>.
-      Crash, kill, or edit-and-rerun: the longest unchanged prefix replays from disk in milliseconds
-      and burns <b style=${{ color: "var(--green)" }}>zero model calls</b>. Drag the crash point and hit resume.</p>
-    <div class="sim" style=${{ marginTop: "30px" }}>
-      <div class="journal-rows">
-        ${SIM_AGENTS.map((a) => {
-          const st = rowState(a.seq);
-          const cls = st.startsWith("cached") || st === "journaled-static" ? "cached"
-            : st === "fresh" ? "fresh"
-            : st.startsWith("pending") ? "pending" : "";
-          const badge = (st === "cached" || st === "journaled-static") ? "journal hit"
-            : st === "fresh" ? "spawning model" : "—";
-          return html`
-          <div key=${a.seq} class=${"jrow " + cls}>
-            <span class="seq">seq ${a.seq}</span>
-            <span class="desc">agent("${a.desc}")</span>
-            <span style=${{ display: "flex", gap: "10px", alignItems: "center" }}>
-              <span class="cost">${(st === "cached") ? "0 tok · cached" : st === "fresh" ? a.cost + " tok" : a.cost + " tok"}</span>
-              <span class="badge">${badge}</span>
-            </span>
-          </div>`;
-        })}
-      </div>
-      <div class="card sim-panel">
-        <div class="eyebrow" style=${{ marginBottom: "14px" }}>resume control</div>
-        <label class="mono" style=${{ fontSize: "12px", color: "var(--ink-dim)" }}>
-          crash after seq: <b style=${{ color: "var(--amber)" }}>${crash - 1}</b> (${crash} entries journaled)
-        </label>
-        <input class="slider" type="range" min="0" max="5" value=${crash}
-          onInput=${(e) => { setCrash(+e.target.value); setPhase("idle"); setCursor(-1); }} />
-        <div style=${{ display: "flex", justifyContent: "space-between", marginTop: "16px" }}>
-          <div><div class="bignum save">${Math.round((saved / TOTAL) * 100)}%</div>
-            <div class="mono" style=${{ fontSize: "11px", color: "var(--ink-dim)" }}>replayed free</div></div>
-          <div style=${{ textAlign: "right" }}><div class="bignum">${TOTAL - saved}</div>
-            <div class="mono" style=${{ fontSize: "11px", color: "var(--ink-dim)" }}>tokens still spent</div></div>
-        </div>
-        <div class="meter"><div style=${{ width: (saved / TOTAL) * 100 + "%" }}></div></div>
-        <button class="btn primary" style=${{ width: "100%", marginTop: "18px" }}
-          onClick=${run} disabled=${phase === "replaying" || phase === "live"}>
-          ${phase === "replaying" || phase === "live" ? "resuming…" : "▶ workflow resume <id>"}
-        </button>
-        <p class="mono" style=${{ fontSize: "11.5px", color: "var(--ink-faint)", marginTop: "14px", lineHeight: 1.6 }}>
-          Same-session, same script + args ⇒ 100% cache hit. The first edited/new
-          agent() call and everything after it runs live.
-        </p>
-      </div>
-    </div>
-    <div style=${{ marginTop: "26px" }}><${Code} id="journal-impl" fn="journal.ts" lang="javascript" /></div>
-  </div></section>`;
-}
+        return html` <section id="resume">
+          <div class="wrap">
+            <${Kicker} idx="03" title="Determinism & the journal: resume is free" />
+            <p class="lead">
+              A run persists every agent result as JSONL keyed by <span class="mono">seq</span>.
+              Crash, kill, or edit-and-rerun: the longest unchanged prefix replays from disk in
+              milliseconds and burns <b style=${{ color: "var(--green)" }}>zero model calls</b>.
+              Drag the crash point and hit resume.
+            </p>
+            <div class="sim" style=${{ marginTop: "30px" }}>
+              <div class="journal-rows">
+                ${SIM_AGENTS.map((a) => {
+                  const st = rowState(a.seq);
+                  const cls =
+                    st.startsWith("cached") || st === "journaled-static"
+                      ? "cached"
+                      : st === "fresh"
+                        ? "fresh"
+                        : st.startsWith("pending")
+                          ? "pending"
+                          : "";
+                  const badge =
+                    st === "cached" || st === "journaled-static"
+                      ? "journal hit"
+                      : st === "fresh"
+                        ? "spawning model"
+                        : "—";
+                  return html` <div key=${a.seq} class=${"jrow " + cls}>
+                    <span class="seq">seq ${a.seq}</span>
+                    <span class="desc">agent("${a.desc}")</span>
+                    <span style=${{ display: "flex", gap: "10px", alignItems: "center" }}>
+                      <span class="cost"
+                        >${st === "cached"
+                          ? "0 tok · cached"
+                          : st === "fresh"
+                            ? a.cost + " tok"
+                            : a.cost + " tok"}</span
+                      >
+                      <span class="badge">${badge}</span>
+                    </span>
+                  </div>`;
+                })}
+              </div>
+              <div class="card sim-panel">
+                <div class="eyebrow" style=${{ marginBottom: "14px" }}>resume control</div>
+                <label class="mono" style=${{ fontSize: "12px", color: "var(--ink-dim)" }}>
+                  crash after seq: <b style=${{ color: "var(--amber)" }}>${crash - 1}</b> (${crash}
+                  entries journaled)
+                </label>
+                <input
+                  class="slider"
+                  type="range"
+                  min="0"
+                  max="5"
+                  value=${crash}
+                  onInput=${(e) => {
+                    setCrash(+e.target.value);
+                    setPhase("idle");
+                    setCursor(-1);
+                  }}
+                />
+                <div
+                  style=${{ display: "flex", justifyContent: "space-between", marginTop: "16px" }}
+                >
+                  <div>
+                    <div class="bignum save">${Math.round((saved / TOTAL) * 100)}%</div>
+                    <div class="mono" style=${{ fontSize: "11px", color: "var(--ink-dim)" }}>
+                      replayed free
+                    </div>
+                  </div>
+                  <div style=${{ textAlign: "right" }}>
+                    <div class="bignum">${TOTAL - saved}</div>
+                    <div class="mono" style=${{ fontSize: "11px", color: "var(--ink-dim)" }}>
+                      tokens still spent
+                    </div>
+                  </div>
+                </div>
+                <div class="meter"><div style=${{ width: (saved / TOTAL) * 100 + "%" }}></div></div>
+                <button
+                  class="btn primary"
+                  style=${{ width: "100%", marginTop: "18px" }}
+                  onClick=${run}
+                  disabled=${phase === "replaying" || phase === "live"}
+                >
+                  ${phase === "replaying" || phase === "live"
+                    ? "resuming…"
+                    : "▶ workflow resume <id>"}
+                </button>
+                <p
+                  class="mono"
+                  style=${{
+                    fontSize: "11.5px",
+                    color: "var(--ink-faint)",
+                    marginTop: "14px",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  Same-session, same script + args ⇒ 100% cache hit. The first edited/new agent()
+                  call and everything after it runs live.
+                </p>
+              </div>
+            </div>
+            <div style=${{ marginTop: "26px" }}>
+              <${Code} id="journal-impl" fn="journal.ts" lang="javascript" />
+            </div>
+          </div>
+        </section>`;
+      }
 
-// ───────────────────────── 5. Semaphore visualizer ─────────────────────────
-function SemaphoreViz() {
-  const [limit, setLimit] = useState(3);
-  const [n] = useState(7);
-  const [agents, setAgents] = useState([]); // {id,state}
-  const timer = useRef(null);
+      // ───────────────────────── 5. Semaphore visualizer ─────────────────────────
+      function SemaphoreViz() {
+        const [limit, setLimit] = useState(3);
+        const [n] = useState(7);
+        const [agents, setAgents] = useState([]); // {id,state}
+        const timer = useRef(null);
 
-  const reset = () => {
-    if (timer.current) clearInterval(timer.current);
-    setAgents(Array.from({ length: n }, (_, k) => ({ id: k, state: "queue" })));
-  };
-  useEffect(() => { reset(); return () => timer.current && clearInterval(timer.current); }, [limit]);
+        const reset = () => {
+          if (timer.current) clearInterval(timer.current);
+          setAgents(Array.from({ length: n }, (_, k) => ({ id: k, state: "queue" })));
+        };
+        useEffect(() => {
+          reset();
+          return () => timer.current && clearInterval(timer.current);
+        }, [limit]);
 
-  const play = () => {
-    reset();
-    setTimeout(() => {
-      timer.current = setInterval(() => {
-        setAgents((prev) => {
-          const running = prev.filter((a) => a.state === "run");
-          let next = [...prev];
-          // finish ~half the running ones each tick
-          running.slice(0, Math.ceil(running.length / 2)).forEach((a) => { next[a.id] = { ...a, state: "done" }; });
-          // fill free slots from the queue
-          const busy = next.filter((a) => a.state === "run").length;
-          let free = limit - busy;
-          for (let k = 0; k < next.length && free > 0; k++) {
-            if (next[k].state === "queue") { next[k] = { ...next[k], state: "run" }; free--; }
+        const play = () => {
+          reset();
+          setTimeout(() => {
+            timer.current = setInterval(() => {
+              setAgents((prev) => {
+                const running = prev.filter((a) => a.state === "run");
+                let next = [...prev];
+                // finish ~half the running ones each tick
+                running.slice(0, Math.ceil(running.length / 2)).forEach((a) => {
+                  next[a.id] = { ...a, state: "done" };
+                });
+                // fill free slots from the queue
+                const busy = next.filter((a) => a.state === "run").length;
+                let free = limit - busy;
+                for (let k = 0; k < next.length && free > 0; k++) {
+                  if (next[k].state === "queue") {
+                    next[k] = { ...next[k], state: "run" };
+                    free--;
+                  }
+                }
+                if (next.every((a) => a.state === "done")) {
+                  clearInterval(timer.current);
+                }
+                return next;
+              });
+            }, 850);
+          }, 100);
+        };
+
+        const busy = agents.filter((a) => a.state === "run").length;
+        return html` <section id="concurrency">
+          <div class="wrap">
+            <${Kicker} idx="04" title="Concurrency: a counting semaphore" />
+            <p class="lead">
+              You can hand <span class="mono">parallel()</span> a hundred thunks — only
+              <span class="mono">N</span> run at once. A tiny counting semaphore hands out slots;
+              the rest queue and wake in FIFO order as slots free in a
+              <span class="mono">finally</span>.
+            </p>
+            <div class="sema" style=${{ marginTop: "30px" }}>
+              <div>
+                <div
+                  class="mono"
+                  style=${{ fontSize: "12px", color: "var(--ink-dim)", marginBottom: "10px" }}
+                >
+                  slots — ${busy}/${limit} busy
+                </div>
+                <div class="slots">
+                  ${Array.from(
+                    { length: limit },
+                    (_, k) =>
+                      html` <div key=${k} class=${"slot" + (k < busy ? " busy" : "")}>
+                        ${k < busy ? "▶ run" : "free"}
+                      </div>`,
+                  )}
+                </div>
+                <div
+                  class="mono"
+                  style=${{ fontSize: "12px", color: "var(--ink-dim)", margin: "8px 0 10px" }}
+                >
+                  agents
+                </div>
+                <div class="agent-chips">
+                  ${agents.map(
+                    (a) =>
+                      html`<span
+                        key=${a.id}
+                        class=${"chip " +
+                        (a.state === "run" ? "run" : a.state === "done" ? "done" : "queue")}
+                      >
+                        agent-${a.id}
+                        ${a.state === "queue"
+                          ? "·waiting"
+                          : a.state === "run"
+                            ? "·running"
+                            : "·done"}</span
+                      >`,
+                  )}
+                </div>
+              </div>
+              <div class="card" style=${{ padding: "20px" }}>
+                <div class="eyebrow" style=${{ marginBottom: "14px" }}>concurrency</div>
+                <label class="mono" style=${{ fontSize: "12px", color: "var(--ink-dim)" }}
+                  >limit = <b style=${{ color: "var(--amber)" }}>${limit}</b></label
+                >
+                <input
+                  class="slider"
+                  type="range"
+                  min="1"
+                  max="5"
+                  value=${limit}
+                  onInput=${(e) => setLimit(+e.target.value)}
+                />
+                <button
+                  class="btn primary"
+                  style=${{ width: "100%", marginTop: "6px" }}
+                  onClick=${play}
+                >
+                  ▶ run ${n} agents
+                </button>
+                <button class="btn" style=${{ width: "100%", marginTop: "8px" }} onClick=${reset}>
+                  reset
+                </button>
+                <p
+                  class="mono"
+                  style=${{
+                    fontSize: "11.5px",
+                    color: "var(--ink-faint)",
+                    marginTop: "14px",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  Default cap = min(16, cores − 2). The total-agents-per-run cap is a separate
+                  runaway backstop.
+                </p>
+              </div>
+            </div>
+            <div style=${{ marginTop: "26px" }}>
+              <${Code} id="semaphore" fn="semaphore.ts" lang="javascript" />
+            </div>
+          </div>
+        </section>`;
+      }
+
+      // ───────────────────────── 6. parallel vs pipeline ─────────────────────────
+      function ParallelPipeline() {
+        const [mode, setMode] = useState("pipeline");
+        const items = [0, 1, 2];
+        // timings: stage durations differ per item to show the barrier effect
+        const dur = [
+          [1, 3],
+          [2, 1],
+          [3, 2],
+        ]; // [stage1, stage2] per item
+        const layout = (i) => {
+          const [s1, s2] = dur[i];
+          if (mode === "parallel") {
+            const maxS1 = Math.max(...dur.map((d) => d[0]));
+            return { x1: 0, w1: s1, x2: maxS1, w2: s2 }; // stage2 starts after ALL stage1 (barrier)
           }
-          if (next.every((a) => a.state === "done")) { clearInterval(timer.current); }
-          return next;
-        });
-      }, 850);
-    }, 100);
-  };
-
-  const busy = agents.filter((a) => a.state === "run").length;
-  return html`
-  <section id="concurrency"><div class="wrap">
-    <${Kicker} idx="04" title="Concurrency: a counting semaphore" />
-    <p class="lead">You can hand <span class="mono">parallel()</span> a hundred thunks — only
-      <span class="mono">N</span> run at once. A tiny counting semaphore hands out slots; the rest queue
-      and wake in FIFO order as slots free in a <span class="mono">finally</span>.</p>
-    <div class="sema" style=${{ marginTop: "30px" }}>
-      <div>
-        <div class="mono" style=${{ fontSize: "12px", color: "var(--ink-dim)", marginBottom: "10px" }}>
-          slots — ${busy}/${limit} busy</div>
-        <div class="slots">
-          ${Array.from({ length: limit }, (_, k) => html`
-            <div key=${k} class=${"slot" + (k < busy ? " busy" : "")}>${k < busy ? "▶ run" : "free"}</div>`)}
-        </div>
-        <div class="mono" style=${{ fontSize: "12px", color: "var(--ink-dim)", margin: "8px 0 10px" }}>agents</div>
-        <div class="agent-chips">
-          ${agents.map((a) => html`<span key=${a.id} class=${"chip " + (a.state === "run" ? "run" : a.state === "done" ? "done" : "queue")}>
-            agent-${a.id} ${a.state === "queue" ? "·waiting" : a.state === "run" ? "·running" : "·done"}</span>`)}
-        </div>
-      </div>
-      <div class="card" style=${{ padding: "20px" }}>
-        <div class="eyebrow" style=${{ marginBottom: "14px" }}>concurrency</div>
-        <label class="mono" style=${{ fontSize: "12px", color: "var(--ink-dim)" }}>limit = <b style=${{ color: "var(--amber)" }}>${limit}</b></label>
-        <input class="slider" type="range" min="1" max="5" value=${limit} onInput=${(e) => setLimit(+e.target.value)} />
-        <button class="btn primary" style=${{ width: "100%", marginTop: "6px" }} onClick=${play}>▶ run ${n} agents</button>
-        <button class="btn" style=${{ width: "100%", marginTop: "8px" }} onClick=${reset}>reset</button>
-        <p class="mono" style=${{ fontSize: "11.5px", color: "var(--ink-faint)", marginTop: "14px", lineHeight: 1.6 }}>
-          Default cap = min(16, cores − 2). The total-agents-per-run cap is a separate runaway backstop.
-        </p>
-      </div>
-    </div>
-    <div style=${{ marginTop: "26px" }}><${Code} id="semaphore" fn="semaphore.ts" lang="javascript" /></div>
-  </div></section>`;
-}
-
-// ───────────────────────── 6. parallel vs pipeline ─────────────────────────
-function ParallelPipeline() {
-  const [mode, setMode] = useState("pipeline");
-  const items = [0, 1, 2];
-  // timings: stage durations differ per item to show the barrier effect
-  const dur = [[1, 3], [2, 1], [3, 2]]; // [stage1, stage2] per item
-  const layout = (i) => {
-    const [s1, s2] = dur[i];
-    if (mode === "parallel") {
-      const maxS1 = Math.max(...dur.map((d) => d[0]));
-      return { x1: 0, w1: s1, x2: maxS1, w2: s2 }; // stage2 starts after ALL stage1 (barrier)
-    }
-    return { x1: 0, w1: s1, x2: s1, w2: s2 }; // pipeline: stage2 right after this item's stage1
-  };
-  const unit = 70;
-  const maxEnd = Math.max(...items.map((i) => { const l = layout(i); return l.x2 + l.w2; }));
-  return html`
-  <section id="flow"><div class="wrap">
-    <${Kicker} idx="05" title="parallel() vs pipeline(): the barrier" />
-    <p class="lead"><span class="mono">parallel()</span> is a barrier — it awaits everything before
-      returning. <span class="mono">pipeline()</span> has no barrier: each item flows through all stages
-      independently, so item A can be in stage 2 while item B is still in stage 1. Watch the wall-clock.</p>
-    <div class="toggle" style=${{ marginTop: "26px" }}>
-      <button class=${mode === "pipeline" ? "on" : ""} onClick=${() => setMode("pipeline")}>pipeline() — no barrier</button>
-      <button class=${mode === "parallel" ? "on" : ""} onClick=${() => setMode("parallel")}>parallel() ×2 — barrier</button>
-    </div>
-    <div class="track">
-      ${items.map((i) => { const l = layout(i); return html`
-        <div key=${i} class="lane">
-          <span class="lab">item ${i}</span>
-          <div class="bars">
-            <div class="seg s1" style=${{ left: l.x1 * unit + 4 + "px", width: l.w1 * unit - 6 + "px" }}>stage1</div>
-            <div class="seg s2" style=${{ left: l.x2 * unit + 4 + "px", width: l.w2 * unit - 6 + "px" }}>stage2</div>
-            ${mode === "parallel" && html`<div class="barrier" style=${{ left: Math.max(...dur.map((d) => d[0])) * unit + "px" }}></div>`}
+          return { x1: 0, w1: s1, x2: s1, w2: s2 }; // pipeline: stage2 right after this item's stage1
+        };
+        const unit = 70;
+        const maxEnd = Math.max(
+          ...items.map((i) => {
+            const l = layout(i);
+            return l.x2 + l.w2;
+          }),
+        );
+        return html` <section id="flow">
+          <div class="wrap">
+            <${Kicker} idx="05" title="parallel() vs pipeline(): the barrier" />
+            <p class="lead">
+              <span class="mono">parallel()</span> is a barrier — it awaits everything before
+              returning. <span class="mono">pipeline()</span> has no barrier: each item flows
+              through all stages independently, so item A can be in stage 2 while item B is still in
+              stage 1. Watch the wall-clock.
+            </p>
+            <div class="toggle" style=${{ marginTop: "26px" }}>
+              <button class=${mode === "pipeline" ? "on" : ""} onClick=${() => setMode("pipeline")}>
+                pipeline() — no barrier
+              </button>
+              <button class=${mode === "parallel" ? "on" : ""} onClick=${() => setMode("parallel")}>
+                parallel() ×2 — barrier
+              </button>
+            </div>
+            <div class="track">
+              ${items.map((i) => {
+                const l = layout(i);
+                return html` <div key=${i} class="lane">
+                  <span class="lab">item ${i}</span>
+                  <div class="bars">
+                    <div
+                      class="seg s1"
+                      style=${{ left: l.x1 * unit + 4 + "px", width: l.w1 * unit - 6 + "px" }}
+                    >
+                      stage1
+                    </div>
+                    <div
+                      class="seg s2"
+                      style=${{ left: l.x2 * unit + 4 + "px", width: l.w2 * unit - 6 + "px" }}
+                    >
+                      stage2
+                    </div>
+                    ${mode === "parallel" &&
+                    html`<div
+                      class="barrier"
+                      style=${{ left: Math.max(...dur.map((d) => d[0])) * unit + "px" }}
+                    ></div>`}
+                  </div>
+                </div>`;
+              })}
+              <div class="lane">
+                <span class="lab" style=${{ color: "var(--amber)" }}>wall</span>
+                <div
+                  style=${{
+                    fontFamily: "IBM Plex Mono",
+                    fontSize: "13px",
+                    color: "var(--ink-dim)",
+                  }}
+                >
+                  ≈
+                  <b style=${{ color: mode === "pipeline" ? "var(--green)" : "var(--red)" }}
+                    >${maxEnd} units</b
+                  >
+                  ${mode === "parallel"
+                    ? " — fast items idle at the red barrier waiting for the slowest stage-1"
+                    : " — slowest single chain, nothing waits"}
+                </div>
+              </div>
+            </div>
+            <div style=${{ marginTop: "26px" }}>
+              <${Code} id="parallel" fn="runtime.ts · parallel & pipeline" lang="javascript" />
+            </div>
+            <div class="callout mono" style=${{ marginTop: "20px", fontSize: "13.5px" }}>
+              <b>Rule of thumb:</b> default to <b>pipeline()</b>. Reach for a barrier only when
+              stage N genuinely needs all of stage N−1 at once — dedup/merge across the full set, or
+              early-exit on a zero count.
+            </div>
           </div>
-        </div>`; })}
-      <div class="lane"><span class="lab" style=${{ color: "var(--amber)" }}>wall</span>
-        <div style=${{ fontFamily: "IBM Plex Mono", fontSize: "13px", color: "var(--ink-dim)" }}>
-          ≈ <b style=${{ color: mode === "pipeline" ? "var(--green)" : "var(--red)" }}>${maxEnd} units</b>
-          ${mode === "parallel" ? " — fast items idle at the red barrier waiting for the slowest stage-1" : " — slowest single chain, nothing waits"}
-        </div></div>
-    </div>
-    <div style=${{ marginTop: "26px" }}><${Code} id="parallel" fn="runtime.ts · parallel & pipeline" lang="javascript" /></div>
-    <div class="callout mono" style=${{ marginTop: "20px", fontSize: "13.5px" }}>
-      <b>Rule of thumb:</b> default to <b>pipeline()</b>. Reach for a barrier only when stage N genuinely
-      needs all of stage N−1 at once — dedup/merge across the full set, or early-exit on a zero count.
-    </div>
-  </div></section>`;
-}
+        </section>`;
+      }
 
-// ───────────────────────── 7. Events → reduce → RunState ─────────────────────────
-const EVENT_SCRIPT = [
-  { type: "run-started", c: "var(--cyan)" },
-  { type: "phase-started", c: "var(--violet)" },
-  { type: "agent-queued", c: "var(--ink-dim)" },
-  { type: "agent-started", c: "var(--amber)" },
-  { type: "agent-tool", c: "var(--amber)" },
-  { type: "agent-output", c: "var(--amber)" },
-  { type: "agent-finished", c: "var(--green)" },
-  { type: "run-finished", c: "var(--cyan)" },
-];
-function EventStream() {
-  const [feed, setFeed] = useState([]);
-  const [run, setRun] = useState(false);
-  const play = () => {
-    if (run) return;
-    setRun(true); setFeed([]);
-    let k = 0;
-    const tick = () => {
-      setFeed((f) => [...f, EVENT_SCRIPT[k]]);
-      k++;
-      if (k < EVENT_SCRIPT.length) setTimeout(tick, 520); else setRun(false);
-    };
-    setTimeout(tick, 200);
-  };
-  const done = feed.filter((e) => e.type === "agent-finished").length;
-  return html`
-  <section id="events"><div class="wrap">
-    <${Kicker} idx="06" title="Events are the only observable" />
-    <p class="lead">The runtime emits a typed <span class="mono">WorkflowEvent</span> stream — that's it,
-      no side channels. A pure <span class="mono">reduce(state, event)</span> folds the stream into
-      <span class="mono">RunState</span>, which is exactly what the Ink UI, the registry, and resume all consume.</p>
-    <div class="grid2" style=${{ marginTop: "30px", alignItems: "start" }}>
-      <div class="card" style=${{ padding: "18px" }}>
-        <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <span class="eyebrow">event stream</span>
-          <button class="btn primary" onClick=${play} disabled=${run}>${run ? "emitting…" : "▶ emit"}</button>
-        </div>
-        <div class="console" style=${{ minHeight: "260px" }}>
-          ${feed.length === 0 && html`<div class="ln mut">// press emit — events flow as the run progresses</div>`}
-          ${feed.map((e, k) => html`<div class="ln" key=${k}>
-            <span class="mut">${String(k).padStart(2, "0")}</span>
-            <span style=${{ color: e.c }}>${e.type}</span></div>`)}
-        </div>
-      </div>
-      <div style=${{ display: "flex", flexDirection: "column", gap: "14px" }}>
-        <div class="card" style=${{ padding: "20px" }}>
-          <span class="eyebrow">RunState (reduced)</span>
-          <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginTop: "14px" }}>
-            <div><div class="bignum">${feed.some((e) => e.type === "run-finished") ? "finished" : run ? "running" : "pending"}</div>
-              <div class="mono" style=${{ fontSize: "11px", color: "var(--ink-dim)" }}>status</div></div>
-            <div><div class="bignum">${done}</div><div class="mono" style=${{ fontSize: "11px", color: "var(--ink-dim)" }}>agents done</div></div>
+      // ───────────────────────── 7. Events → reduce → RunState ─────────────────────────
+      const EVENT_SCRIPT = [
+        { type: "run-started", c: "var(--cyan)" },
+        { type: "phase-started", c: "var(--violet)" },
+        { type: "agent-queued", c: "var(--ink-dim)" },
+        { type: "agent-started", c: "var(--amber)" },
+        { type: "agent-tool", c: "var(--amber)" },
+        { type: "agent-output", c: "var(--amber)" },
+        { type: "agent-finished", c: "var(--green)" },
+        { type: "run-finished", c: "var(--cyan)" },
+      ];
+      function EventStream() {
+        const [feed, setFeed] = useState([]);
+        const [run, setRun] = useState(false);
+        const play = () => {
+          if (run) return;
+          setRun(true);
+          setFeed([]);
+          let k = 0;
+          const tick = () => {
+            setFeed((f) => [...f, EVENT_SCRIPT[k]]);
+            k++;
+            if (k < EVENT_SCRIPT.length) setTimeout(tick, 520);
+            else setRun(false);
+          };
+          setTimeout(tick, 200);
+        };
+        const done = feed.filter((e) => e.type === "agent-finished").length;
+        return html` <section id="events">
+          <div class="wrap">
+            <${Kicker} idx="06" title="Events are the only observable" />
+            <p class="lead">
+              The runtime emits a typed <span class="mono">WorkflowEvent</span> stream — that's it,
+              no side channels. A pure <span class="mono">reduce(state, event)</span> folds the
+              stream into <span class="mono">RunState</span>, which is exactly what the Ink UI, the
+              registry, and resume all consume.
+            </p>
+            <div class="grid2" style=${{ marginTop: "30px", alignItems: "start" }}>
+              <div class="card" style=${{ padding: "18px" }}>
+                <div
+                  style=${{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <span class="eyebrow">event stream</span>
+                  <button class="btn primary" onClick=${play} disabled=${run}>
+                    ${run ? "emitting…" : "▶ emit"}
+                  </button>
+                </div>
+                <div class="console" style=${{ minHeight: "260px" }}>
+                  ${feed.length === 0 &&
+                  html`<div class="ln mut">// press emit — events flow as the run progresses</div>`}
+                  ${feed.map(
+                    (e, k) =>
+                      html`<div class="ln" key=${k}>
+                        <span class="mut">${String(k).padStart(2, "0")}</span>
+                        <span style=${{ color: e.c }}>${e.type}</span>
+                      </div>`,
+                  )}
+                </div>
+              </div>
+              <div style=${{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div class="card" style=${{ padding: "20px" }}>
+                  <span class="eyebrow">RunState (reduced)</span>
+                  <div
+                    style=${{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "14px",
+                      marginTop: "14px",
+                    }}
+                  >
+                    <div>
+                      <div class="bignum">
+                        ${feed.some((e) => e.type === "run-finished")
+                          ? "finished"
+                          : run
+                            ? "running"
+                            : "pending"}
+                      </div>
+                      <div class="mono" style=${{ fontSize: "11px", color: "var(--ink-dim)" }}>
+                        status
+                      </div>
+                    </div>
+                    <div>
+                      <div class="bignum">${done}</div>
+                      <div class="mono" style=${{ fontSize: "11px", color: "var(--ink-dim)" }}>
+                        agents done
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <${Code} id="reduce" fn="events.ts · reduce()" lang="javascript" />
+              </div>
+            </div>
           </div>
-        </div>
-        <${Code} id="reduce" fn="events.ts · reduce()" lang="javascript" />
-      </div>
-    </div>
-  </div></section>`;
-}
+        </section>`;
+      }
 
-// ───────────────────────── 8. Sandbox ─────────────────────────
-const VIOL = [
-  { id: "now", code: "const t = Date.now()", out: { err: "SandboxViolation: Date.now() is not allowed in a workflow" } },
-  { id: "rand", code: "const r = Math.random()", out: { err: "SandboxViolation: Math.random() is not allowed in a workflow" } },
-  { id: "date", code: "const d = new Date()", out: { err: "SandboxViolation: argless new Date() is not allowed in a workflow" } },
-  { id: "ok", code: 'const d = new Date("2026-05-30")', out: { ok: "✓ allowed — an explicit timestamp is deterministic" } },
-  { id: "ok2", code: "const r = (idx % 7) / 7  // derive from the index", out: { ok: "✓ allowed — varies by item without randomness" } },
-];
-function Sandbox() {
-  const [sel, setSel] = useState("now");
-  const v = VIOL.find((x) => x.id === sel);
-  return html`
-  <section id="sandbox"><div class="wrap">
-    <${Kicker} idx="07" title="The sandbox: why determinism is enforced" />
-    <p class="lead">Scripts run in a Node <span class="mono">vm</span> context. Replay only works if a re-run
-      produces the identical sequence of calls — so the three sources of nondeterminism are
-      <b style=${{ color: "var(--red)" }}>hard-banned</b>. Click each to run it against the sandbox.</p>
-    <div class="sb" style=${{ marginTop: "30px" }}>
-      <div class="picks">
-        ${VIOL.map((x) => html`<button key=${x.id} class=${"pick" + (x.id === sel ? " on" : "")} onClick=${() => setSel(x.id)}>${x.code}</button>`)}
-      </div>
-      <div class="console">
-        <div class="ln mut">$ workflow run my.workflow.ts</div>
-        <div class="ln"><span class="mut">›</span><span style=${{ color: "var(--ink)" }}>${v.code}</span></div>
-        <div class="ln">${v.out.err
-          ? html`<span class="err">✗ ${v.out.err}</span>`
-          : html`<span class="ok">${v.out.ok}</span>`}</div>
-        <div class="ln mut" style=${{ marginTop: "10px" }}>// need time/randomness? pass it via <b style=${{ color: "var(--ink-dim)" }}>args</b>, or derive from the item index.</div>
-      </div>
-    </div>
-    <div style=${{ marginTop: "26px" }}><${Code} id="sandbox" fn="sandbox.ts" lang="javascript" /></div>
-    <div class="callout" style=${{ marginTop: "20px" }}>
-      <b>extractMeta()</b> uses the same sandbox with sentinel-throwing stubs to read <span class="mono">meta</span>
-      cheaply — it aborts at the first <span class="mono">agent()</span> call, after <span class="mono">meta</span> is
-      already assigned. That's how the consent gate shows you the plan <i>before</i> a real run.
-    </div>
-  </div></section>`;
-}
+      // ───────────────────────── 8. Sandbox ─────────────────────────
+      const VIOL = [
+        {
+          id: "now",
+          code: "const t = Date.now()",
+          out: { err: "SandboxViolation: Date.now() is not allowed in a workflow" },
+        },
+        {
+          id: "rand",
+          code: "const r = Math.random()",
+          out: { err: "SandboxViolation: Math.random() is not allowed in a workflow" },
+        },
+        {
+          id: "date",
+          code: "const d = new Date()",
+          out: { err: "SandboxViolation: argless new Date() is not allowed in a workflow" },
+        },
+        {
+          id: "ok",
+          code: 'const d = new Date("2026-05-30")',
+          out: { ok: "✓ allowed — an explicit timestamp is deterministic" },
+        },
+        {
+          id: "ok2",
+          code: "const r = (idx % 7) / 7  // derive from the index",
+          out: { ok: "✓ allowed — varies by item without randomness" },
+        },
+      ];
+      function Sandbox() {
+        const [sel, setSel] = useState("now");
+        const v = VIOL.find((x) => x.id === sel);
+        return html` <section id="sandbox">
+          <div class="wrap">
+            <${Kicker} idx="07" title="The sandbox: why determinism is enforced" />
+            <p class="lead">
+              Scripts run in a Node <span class="mono">vm</span> context. Replay only works if a
+              re-run produces the identical sequence of calls — so the three sources of
+              nondeterminism are <b style=${{ color: "var(--red)" }}>hard-banned</b>. Click each to
+              run it against the sandbox.
+            </p>
+            <div class="sb" style=${{ marginTop: "30px" }}>
+              <div class="picks">
+                ${VIOL.map(
+                  (x) =>
+                    html`<button
+                      key=${x.id}
+                      class=${"pick" + (x.id === sel ? " on" : "")}
+                      onClick=${() => setSel(x.id)}
+                    >
+                      ${x.code}
+                    </button>`,
+                )}
+              </div>
+              <div class="console">
+                <div class="ln mut">$ workflow run my.workflow.ts</div>
+                <div class="ln">
+                  <span class="mut">›</span><span style=${{ color: "var(--ink)" }}>${v.code}</span>
+                </div>
+                <div class="ln">
+                  ${v.out.err
+                    ? html`<span class="err">✗ ${v.out.err}</span>`
+                    : html`<span class="ok">${v.out.ok}</span>`}
+                </div>
+                <div class="ln mut" style=${{ marginTop: "10px" }}>
+                  // need time/randomness? pass it via
+                  <b style=${{ color: "var(--ink-dim)" }}>args</b>, or derive from the item index.
+                </div>
+              </div>
+            </div>
+            <div style=${{ marginTop: "26px" }}>
+              <${Code} id="sandbox" fn="sandbox.ts" lang="javascript" />
+            </div>
+            <div class="callout" style=${{ marginTop: "20px" }}>
+              <b>extractMeta()</b> uses the same sandbox with sentinel-throwing stubs to read
+              <span class="mono">meta</span> cheaply — it aborts at the first
+              <span class="mono">agent()</span> call, after <span class="mono">meta</span> is
+              already assigned. That's how the consent gate shows you the plan <i>before</i> a real
+              run.
+            </div>
+          </div>
+        </section>`;
+      }
 
-// ───────────────────────── 9. Adapters ─────────────────────────
-const ADAPTERS = [
-  { id: "claude", name: "Claude CLI", note: "native --json-schema", caps: ["native schema", "tool events", "tokens"] },
-  { id: "codex", name: "Codex CLI", note: "schema via temp file", caps: ["schema (file)", "output read-back"] },
-  { id: "copilot", name: "Copilot CLI", note: "prompt + retry loop", caps: ["validate/retry", "coercion"] },
-  { id: "raw-api", name: "Raw Anthropic", note: "SDK direct", caps: ["ANTHROPIC_API_KEY", "no CLI needed"] },
-];
-function Adapters() {
-  return html`
-  <section id="adapters"><div class="wrap">
-    <${Kicker} idx="08" title="Harness adapters: one request, many backends" />
-    <p class="lead">Each adapter implements <span class="mono">AgentRunner { id, capabilities, run() }</span>,
-      mapping the uniform <span class="mono">AgentRequest</span> onto a specific backend. The harness is
-      <b style=${{ color: "var(--ink)" }}>declared in meta.harness</b> — no auto-detect, no CLI override.
-      Schema handling differs per backend, so <span class="mono">coercion.ts</span> normalizes and repairs output.</p>
-    <div class="adapters" style=${{ marginTop: "30px" }}>
-      ${ADAPTERS.map((a) => html`
-        <div key=${a.id} class="card ad">
-          <div class="id">"${a.id}"</div>
-          <h3>${a.name}</h3>
-          <div class="mono" style=${{ fontSize: "12px", color: "var(--ink-faint)", marginTop: "2px" }}>${a.note}</div>
-          <ul>${a.caps.map((c) => html`<li key=${c}>${c}</li>`)}</ul>
-        </div>`)}
-    </div>
-    <div class="callout mono" style=${{ marginTop: "22px", fontSize: "13.5px" }}>
-      Process spawning goes through a <b>ProcessRunner</b> abstraction (real or fake). In unit tests you inject
-      the <b>FakeProcessRunner</b> and <b>createScriptedRunner()</b> — never spawn a real CLI.
-    </div>
-  </div></section>`;
-}
+      // ───────────────────────── 9. Adapters ─────────────────────────
+      const ADAPTERS = [
+        {
+          id: "claude",
+          name: "Claude CLI",
+          note: "native --json-schema",
+          caps: ["native schema", "tool events", "tokens"],
+        },
+        {
+          id: "codex",
+          name: "Codex CLI",
+          note: "schema via temp file",
+          caps: ["schema (file)", "output read-back"],
+        },
+        {
+          id: "copilot",
+          name: "Copilot CLI",
+          note: "prompt + retry loop",
+          caps: ["validate/retry", "coercion"],
+        },
+        {
+          id: "raw-api",
+          name: "Raw Anthropic",
+          note: "SDK direct",
+          caps: ["ANTHROPIC_API_KEY", "no CLI needed"],
+        },
+      ];
+      function Adapters() {
+        return html` <section id="adapters">
+          <div class="wrap">
+            <${Kicker} idx="08" title="Harness adapters: one request, many backends" />
+            <p class="lead">
+              Each adapter implements
+              <span class="mono">AgentRunner { id, capabilities, run() }</span>, mapping the uniform
+              <span class="mono">AgentRequest</span> onto a specific backend. The harness is
+              <b style=${{ color: "var(--ink)" }}>declared in meta.harness</b> — no auto-detect, no
+              CLI override. Schema handling differs per backend, so
+              <span class="mono">coercion.ts</span> normalizes and repairs output.
+            </p>
+            <div class="adapters" style=${{ marginTop: "30px" }}>
+              ${ADAPTERS.map(
+                (a) =>
+                  html` <div key=${a.id} class="card ad">
+                    <div class="id">"${a.id}"</div>
+                    <h3>${a.name}</h3>
+                    <div
+                      class="mono"
+                      style=${{ fontSize: "12px", color: "var(--ink-faint)", marginTop: "2px" }}
+                    >
+                      ${a.note}
+                    </div>
+                    <ul>
+                      ${a.caps.map((c) => html`<li key=${c}>${c}</li>`)}
+                    </ul>
+                  </div>`,
+              )}
+            </div>
+            <div class="callout mono" style=${{ marginTop: "22px", fontSize: "13.5px" }}>
+              Process spawning goes through a <b>ProcessRunner</b> abstraction (real or fake). In
+              unit tests you inject the <b>FakeProcessRunner</b> and <b>createScriptedRunner()</b> —
+              never spawn a real CLI.
+            </div>
+          </div>
+        </section>`;
+      }
 
-// ───────────────────────── 10. CLI cheat sheet ─────────────────────────
-const CMDS = [
-  ["workflow run <script> [--args] [--detach] [--yes]", "Load, consent-gate, run. --detach spawns a headless child you tail with watch."],
-  ["workflow watch <id>", "Attach the Ink UI to a running or finished run."],
-  ["workflow list", "List runs — status, tokens, elapsed."],
-  ["workflow resume <id>", "Replay the journal, then run the rest live."],
-  ["workflow stop <id>", "Stop a backgrounded run (fires the AbortSignal)."],
-  ["workflow save <id>", "Save a run's script as a named workflow."],
-  ["workflow adapters", "List detected harnesses + their capabilities."],
-  ["workflow <name> [--args]", "Run a saved/bundled workflow by name."],
-];
-function Cli() {
-  return html`
-  <section id="cli"><div class="wrap">
-    <${Kicker} idx="09" title="Driving it: the workflow binary" />
-    <p class="lead"><span class="mono">dispatch(argv, deps)</span> is a pure router over injected
-      <span class="mono">AppDeps</span>. Runs persist under <span class="mono">~/.workflow/runs/{runId}/</span>
-      as events + journal JSONL — which is what powers watch, resume, and save.</p>
-    <div class="card" style=${{ marginTop: "28px", padding: "8px 18px" }}>
-      <table class="cmd-table"><tbody>
-        ${CMDS.map(([c, d]) => html`<tr key=${c}><td class="c">${c}</td><td class="d">${d}</td></tr>`)}
-      </tbody></table>
-    </div>
-    <div class="grid3" style=${{ marginTop: "22px" }}>
-      <div class="card feat"><div class="ic">consent.ts</div><h3>Gated execution</h3>
-        <p>Non-TTY/CI, <span class="mono">--yes</span>, or saved consent auto-allows. An interactive TTY prompts with the plan from <span class="mono">extractMeta</span>.</p></div>
-      <div class="card feat"><div class="ic">config.ts</div><h3>Layered config</h3>
-        <p>Merged from <span class="mono">~/.workflow/config.json</span>, then <span class="mono">./.workflow/config.json</span>. The harness is never overridable here.</p></div>
-      <div class="card feat"><div class="ic">registry.ts</div><h3>Durable runs</h3>
-        <p>Every event + journal entry is appended to JSONL on disk. That file is the source of truth for replay.</p></div>
-    </div>
-  </div></section>`;
-}
+      // ───────────────────────── 10. CLI cheat sheet ─────────────────────────
+      const CMDS = [
+        [
+          "workflow run <script> [--args] [--detach] [--yes]",
+          "Load, consent-gate, run. --detach spawns a headless child you tail with watch.",
+        ],
+        ["workflow watch <id>", "Attach the Ink UI to a running or finished run."],
+        ["workflow list", "List runs — status, tokens, elapsed."],
+        ["workflow resume <id>", "Replay the journal, then run the rest live."],
+        ["workflow stop <id>", "Stop a backgrounded run (fires the AbortSignal)."],
+        ["workflow save <id>", "Save a run's script as a named workflow."],
+        ["workflow adapters", "List detected harnesses + their capabilities."],
+        ["workflow <name> [--args]", "Run a saved/bundled workflow by name."],
+      ];
+      function Cli() {
+        return html` <section id="cli">
+          <div class="wrap">
+            <${Kicker} idx="09" title="Driving it: the workflow binary" />
+            <p class="lead">
+              <span class="mono">dispatch(argv, deps)</span> is a pure router over injected
+              <span class="mono">AppDeps</span>. Runs persist under
+              <span class="mono">~/.workflow/runs/{runId}/</span> as events + journal JSONL — which
+              is what powers watch, resume, and save.
+            </p>
+            <div class="card" style=${{ marginTop: "28px", padding: "8px 18px" }}>
+              <table class="cmd-table">
+                <tbody>
+                  ${CMDS.map(
+                    ([c, d]) =>
+                      html`<tr key=${c}>
+                        <td class="c">${c}</td>
+                        <td class="d">${d}</td>
+                      </tr>`,
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div class="grid3" style=${{ marginTop: "22px" }}>
+              <div class="card feat">
+                <div class="ic">consent.ts</div>
+                <h3>Gated execution</h3>
+                <p>
+                  Non-TTY/CI, <span class="mono">--yes</span>, or saved consent auto-allows. An
+                  interactive TTY prompts with the plan from <span class="mono">extractMeta</span>.
+                </p>
+              </div>
+              <div class="card feat">
+                <div class="ic">config.ts</div>
+                <h3>Layered config</h3>
+                <p>
+                  Merged from <span class="mono">~/.workflow/config.json</span>, then
+                  <span class="mono">./.workflow/config.json</span>. The harness is never
+                  overridable here.
+                </p>
+              </div>
+              <div class="card feat">
+                <div class="ic">registry.ts</div>
+                <h3>Durable runs</h3>
+                <p>
+                  Every event + journal entry is appended to JSONL on disk. That file is the source
+                  of truth for replay.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>`;
+      }
 
-function GetStarted() {
-  return html`
-  <section id="start"><div class="wrap">
-    <${Kicker} idx="10" title="Your first 20 minutes" />
-    <div class="grid2" style=${{ alignItems: "start" }}>
-      <${Code} lang="bash" fn="terminal" code=${`# build everything topologically
+      function GetStarted() {
+        return html` <section id="start">
+          <div class="wrap">
+            <${Kicker} idx="10" title="Your first 20 minutes" />
+            <div class="grid2" style=${{ alignItems: "start" }}>
+              <${Code}
+                lang="bash"
+                fn="terminal"
+                code=${`# build everything topologically
 pnpm build
 
 # run the minimal single-agent() example end-to-end
@@ -960,53 +2097,96 @@ pnpm test:watch
 pnpm vitest run packages/core/src/runtime.test.ts -t "nested"
 
 # before you commit (lefthook runs these too)
-pnpm lint && pnpm typecheck`} />
-      <div style=${{ display: "flex", flexDirection: "column", gap: "14px" }}>
-        <div class="card feat"><div class="ic">read first</div><h3>runtime.ts → sandbox.ts → journal.ts</h3>
-          <p>In that order. The 13-step <span class="mono">agent()</span> above is the spine; the rest hangs off it.</p></div>
-        <div class="card feat"><div class="ic">errors are values</div><h3>neverthrow everywhere</h3>
-          <p>Library code threads <span class="mono">Result&lt;T, E&gt;</span>; the runtime bridges a failed Result into a thrown <span class="mono">WorkflowThrow</span> so your script body can use try/catch. Match the surrounding style — no raw throw in Result code.</p></div>
-        <div class="card feat"><div class="ic">tests are colocated</div><h3>*.test.ts next to source</h3>
-          <p>Use <span class="mono">createScriptedRunner()</span> and <span class="mono">FakeProcessRunner</span>. e2e tests are gated behind <span class="mono">WORKFLOW_E2E=1</span> and spend real tokens.</p></div>
-        <div class="callout"><b>Golden rule:</b> new runtime behavior surfaces through <b>events</b>, and nothing nondeterministic enters the <b>sandbox</b>. Break either and you break replay.</div>
-      </div>
-    </div>
-  </div></section>`;
-}
+pnpm lint && pnpm typecheck`}
+              />
+              <div style=${{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div class="card feat">
+                  <div class="ic">read first</div>
+                  <h3>runtime.ts → sandbox.ts → journal.ts</h3>
+                  <p>
+                    In that order. The 13-step <span class="mono">agent()</span> above is the spine;
+                    the rest hangs off it.
+                  </p>
+                </div>
+                <div class="card feat">
+                  <div class="ic">errors are values</div>
+                  <h3>neverthrow everywhere</h3>
+                  <p>
+                    Library code threads <span class="mono">Result&lt;T, E&gt;</span>; the runtime
+                    bridges a failed Result into a thrown <span class="mono">WorkflowThrow</span> so
+                    your script body can use try/catch. Match the surrounding style — no raw throw
+                    in Result code.
+                  </p>
+                </div>
+                <div class="card feat">
+                  <div class="ic">tests are colocated</div>
+                  <h3>*.test.ts next to source</h3>
+                  <p>
+                    Use <span class="mono">createScriptedRunner()</span> and
+                    <span class="mono">FakeProcessRunner</span>. e2e tests are gated behind
+                    <span class="mono">WORKFLOW_E2E=1</span> and spend real tokens.
+                  </p>
+                </div>
+                <div class="callout">
+                  <b>Golden rule:</b> new runtime behavior surfaces through <b>events</b>, and
+                  nothing nondeterministic enters the <b>sandbox</b>. Break either and you break
+                  replay.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>`;
+      }
 
-function Nav() {
-  const links = [["model","mental model"],["lifecycle","agent()"],["resume","journal"],
-    ["concurrency","semaphore"],["flow","parallel/pipeline"],["events","events"],
-    ["sandbox","sandbox"],["adapters","adapters"],["cli","cli"],["start","start"]];
-  return html`
-  <nav>
-    <span class="brand"><span class="dot"></span>workflow<span style=${{ color: "var(--ink-faint)" }}>/under-the-hood</span></span>
-    <div class="links">${links.map(([h, l]) => html`<a key=${h} href=${"#" + h}>${l}</a>`)}</div>
-  </nav>`;
-}
+      function Nav() {
+        const links = [
+          ["model", "mental model"],
+          ["lifecycle", "agent()"],
+          ["resume", "journal"],
+          ["concurrency", "semaphore"],
+          ["flow", "parallel/pipeline"],
+          ["events", "events"],
+          ["sandbox", "sandbox"],
+          ["adapters", "adapters"],
+          ["cli", "cli"],
+          ["start", "start"],
+        ];
+        return html` <nav>
+          <span class="brand"
+            ><span class="dot"></span>workflow<span style=${{ color: "var(--ink-faint)" }}
+              >/under-the-hood</span
+            ></span
+          >
+          <div class="links">
+            ${links.map(([h, l]) => html`<a key=${h} href=${"#" + h}>${l}</a>`)}
+          </div>
+        </nav>`;
+      }
 
-function App() {
-  return html`<${React.Fragment}>
-    <${Nav} />
-    <${Hero} />
-    <${MentalModel} />
-    <${Lifecycle} />
-    <${ResumeSim} />
-    <${SemaphoreViz} />
-    <${ParallelPipeline} />
-    <${EventStream} />
-    <${Sandbox} />
-    <${Adapters} />
-    <${Cli} />
-    <${GetStarted} />
-    <footer>
-      built from the source of <b style=${{ color: "var(--ink-dim)" }}>@workflow/{schema,core,adapters,cli,ui}</b>
-      · deterministic multi-agent workflow engine · read the code, then break replay on purpose to feel why the rules exist
-    </footer>
-  <//>`;
-}
+      function App() {
+        return html`<${React.Fragment}>
+          <${Nav} />
+          <${Hero} />
+          <${MentalModel} />
+          <${Lifecycle} />
+          <${ResumeSim} />
+          <${SemaphoreViz} />
+          <${ParallelPipeline} />
+          <${EventStream} />
+          <${Sandbox} />
+          <${Adapters} />
+          <${Cli} />
+          <${GetStarted} />
+          <footer>
+            built from the source of
+            <b style=${{ color: "var(--ink-dim)" }}>@workflow/{schema,core,adapters,cli,ui}</b>
+            · deterministic multi-agent workflow engine · read the code, then break replay on
+            purpose to feel why the rules exist
+          </footer>
+        <//>`;
+      }
 
-createRoot(document.getElementById("app")).render(html`<${App} />`);
-</script>
-</body>
+      createRoot(document.getElementById("app")).render(html`<${App} />`);
+    </script>
+  </body>
 </html>

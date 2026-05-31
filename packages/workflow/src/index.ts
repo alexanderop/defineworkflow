@@ -1,5 +1,14 @@
 import { z } from "zod";
-import type { AgentOptions, Budget, Immutable, JsonValue, Profile, ProfileConfig, Runtime, WorkflowMeta } from "@workflow/core";
+import type {
+  AgentOptions,
+  Budget,
+  Immutable,
+  JsonValue,
+  Profile,
+  ProfileConfig,
+  Runtime,
+  WorkflowMeta,
+} from "@workflow/core";
 
 export type {
   /** Per-call options for {@link agent} — `label`, `phase`, `schema`, `model`, `instructions`, … */
@@ -172,11 +181,19 @@ function runtimeOnly(): never {
  * await agent(reviewer, "Review src/index.ts", { label: "review", phase: "audit" });
  * ```
  */
-export function agent<T>(profile: Profile, prompt: string, opts: AgentOptions & { schema: z.ZodType<T> }): Promise<T>;
+export function agent<T>(
+  profile: Profile,
+  prompt: string,
+  opts: AgentOptions & { schema: z.ZodType<T> },
+): Promise<T>;
 export function agent(profile: Profile, prompt: string, opts?: AgentOptions): Promise<unknown>;
 export function agent<T>(prompt: string, opts: AgentOptions & { schema: z.ZodType<T> }): Promise<T>;
 export function agent(prompt: string, opts?: AgentOptions): Promise<unknown>;
-export function agent(_a: string | Profile, _b?: string | AgentOptions, _c?: AgentOptions): Promise<unknown> {
+export function agent(
+  _a: string | Profile,
+  _b?: string | AgentOptions,
+  _c?: AgentOptions,
+): Promise<unknown> {
   return runtimeOnly();
 }
 

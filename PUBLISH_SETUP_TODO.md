@@ -82,15 +82,15 @@ manually cut `1.0.0`.
 
 ## Quick reference — what's already in the repo
 
-| File | Purpose |
-|------|---------|
-| `packages/workflow/` (`defineworkflow`) | the single published package; bundles `@workflow/*` internally |
-| `.github/workflows/release-please.yml` | maintains the release PR, calls release.yml on merge |
-| `.github/workflows/release.yml` | OIDC + provenance npm publish (reusable + manual dispatch) |
-| `.github/workflows/ci.yml` | lint / typecheck / affected tests, SHA-pinned, least-privilege |
-| `.github/workflows/zizmor.yml` | GitHub Actions security analysis |
-| `release-please-config.json` / `.release-please-manifest.json` | versioning config + current version |
-| `SECURITY.md`, `renovate.json`, `LICENSE` | disclosure policy, dep updates, license |
+| File                                                           | Purpose                                                        |
+| -------------------------------------------------------------- | -------------------------------------------------------------- |
+| `packages/workflow/` (`defineworkflow`)                        | the single published package; bundles `@workflow/*` internally |
+| `.github/workflows/release-please.yml`                         | maintains the release PR, calls release.yml on merge           |
+| `.github/workflows/release.yml`                                | OIDC + provenance npm publish (reusable + manual dispatch)     |
+| `.github/workflows/ci.yml`                                     | lint / typecheck / affected tests, SHA-pinned, least-privilege |
+| `.github/workflows/zizmor.yml`                                 | GitHub Actions security analysis                               |
+| `release-please-config.json` / `.release-please-manifest.json` | versioning config + current version                            |
+| `SECURITY.md`, `renovate.json`, `LICENSE`                      | disclosure policy, dep updates, license                        |
 
 Break-glass manual publish of an existing tag: GitHub → Actions → **release** →
 **Run workflow** → enter the tag (e.g. `v0.2.0`).

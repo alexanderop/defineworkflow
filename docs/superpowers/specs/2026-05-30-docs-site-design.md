@@ -12,7 +12,7 @@
 
 A polished, **showcase-grade** documentation site for the `workflow` library — a
 portable, harness-agnostic reimplementation of Claude Code's dynamic workflows. The
-site's job is to *sell the concept* of deterministic multi-agent orchestration in the
+site's job is to _sell the concept_ of deterministic multi-agent orchestration in the
 first three seconds and then teach it thoroughly. It is a flagship/portfolio piece, so
 look and feel are first-class requirements alongside correctness and completeness.
 
@@ -27,14 +27,14 @@ These are clean v2 additions and the architecture must not preclude them.
 
 ## 2. Decisions (resolved)
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| Framework | **VitePress** (latest) | Vue + Vite; powers Vue/Vite/Vitest/Pinia docs. Fully custom hero/home layout, Vue components in markdown, minimal to run — best fit for a showcase. |
-| Primary audience | **Showcase / portfolio** (adopters second) | Drives the diagram-forward hero and the "How it works" depth section. |
-| Hero direction | **Diagram-forward** | The hero *is* the `script → agents → result` fan-out graph, animated. Teaches the mental model before any reading. |
-| API reference | **Hybrid** | Hand-written primitive pages (the surface readers touch) + TypeDoc-generated long tail (types, options, errors, adapter interfaces). |
-| Hosting | **GitHub Pages** | Free, zero-config via a GitHub Action; standard for OSS. Custom domain is a one-line swap. |
-| Naming | **Placeholder, centralized** | `product.ts` holds name/scope/repo/domain/colors; rename is a single edit. |
+| Decision         | Choice                                     | Rationale                                                                                                                                           |
+| ---------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework        | **VitePress** (latest)                     | Vue + Vite; powers Vue/Vite/Vitest/Pinia docs. Fully custom hero/home layout, Vue components in markdown, minimal to run — best fit for a showcase. |
+| Primary audience | **Showcase / portfolio** (adopters second) | Drives the diagram-forward hero and the "How it works" depth section.                                                                               |
+| Hero direction   | **Diagram-forward**                        | The hero _is_ the `script → agents → result` fan-out graph, animated. Teaches the mental model before any reading.                                  |
+| API reference    | **Hybrid**                                 | Hand-written primitive pages (the surface readers touch) + TypeDoc-generated long tail (types, options, errors, adapter interfaces).                |
+| Hosting          | **GitHub Pages**                           | Free, zero-config via a GitHub Action; standard for OSS. Custom domain is a one-line swap.                                                          |
+| Naming           | **Placeholder, centralized**               | `product.ts` holds name/scope/repo/domain/colors; rename is a single edit.                                                                          |
 
 ## 3. Placement & stack
 
@@ -145,12 +145,12 @@ Guide, Patterns, API Reference, How it works, plus a GitHub link (from `product.
 
 ## 8. Risks & mitigations
 
-| Risk | Mitigation |
-|---|---|
-| `docs#build` slows or breaks library CI | `docs#build` is excluded from the default build; only the docs workflow/preview invoke it. |
-| API generation drifts from hand-written pages | Generated pages are clearly separated under `api/generated/` and rebuilt every docs build from source. |
-| Placeholder name leaks into many files | All naming flows from `product.ts`; content uses the product name via theme config, not hard-coded strings, wherever practical. |
-| Hero animation regresses silently | `agent-browser` smoke check asserts the hero renders in CI. |
+| Risk                                          | Mitigation                                                                                                                      |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `docs#build` slows or breaks library CI       | `docs#build` is excluded from the default build; only the docs workflow/preview invoke it.                                      |
+| API generation drifts from hand-written pages | Generated pages are clearly separated under `api/generated/` and rebuilt every docs build from source.                          |
+| Placeholder name leaks into many files        | All naming flows from `product.ts`; content uses the product name via theme config, not hard-coded strings, wherever practical. |
+| Hero animation regresses silently             | `agent-browser` smoke check asserts the hero renders in CI.                                                                     |
 
 ## 9. Open items deferred to the plan
 

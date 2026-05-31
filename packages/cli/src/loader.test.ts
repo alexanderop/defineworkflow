@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import type { RunId } from "@workflow/core";
-import { createRuntime, createScriptedRunner, createJournal, createSemaphore } from "@workflow/core";
+import {
+  createRuntime,
+  createScriptedRunner,
+  createJournal,
+  createSemaphore,
+} from "@workflow/core";
 import { loadMeta, loadWorkflow } from "./loader.js";
 
 const SCRIPT = `export const meta = { name: "demo", description: "d", harness: "claude", phases: [{ title: "Search" }] } as const
@@ -71,7 +76,8 @@ export default defineWorkflow({
   });
 
   it("routes askUserQuestion() to the runtime's askUser handler", async () => {
-    const loaded = loadWorkflow(`export const meta = { name: "q", description: "d", harness: "claude" }
+    const loaded =
+      loadWorkflow(`export const meta = { name: "q", description: "d", harness: "claude" }
 const ans = await askUserQuestion({ key: "deploy-target", question: "Where?" });
 return { ans };`);
 
@@ -168,6 +174,8 @@ return await agent("do it", { label: "a", schema: Out });`;
       now: () => 0,
     });
 
-    await expect(loaded.run(runtime, undefined)).rejects.toMatchObject({ workflowError: { kind: "SchemaValidation" } });
+    await expect(loaded.run(runtime, undefined)).rejects.toMatchObject({
+      workflowError: { kind: "SchemaValidation" },
+    });
   });
 });

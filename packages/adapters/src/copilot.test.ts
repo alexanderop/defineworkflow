@@ -21,7 +21,18 @@ describe("copilot adapter", () => {
 
     const progress: AgentProgress[] = [];
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", label: "a", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        label: "a",
+        signal: new AbortController().signal,
+      },
       { runId: "r" as RunId, seq: 0, onProgress: (p) => progress.push(p) },
     );
     expect(res._unsafeUnwrap().data).toEqual({ n: 7 });
@@ -41,10 +52,25 @@ describe("copilot adapter", () => {
 
   it("retries with feedback then errors as SchemaValidation after maxRetries", async () => {
     let n = 0;
-    const fake = createFakeProcessRunner({ copilot: () => { n++; return { stdout: resultStream('{"n":"bad"}'), code: 0 }; } });
+    const fake = createFakeProcessRunner({
+      copilot: () => {
+        n++;
+        return { stdout: resultStream('{"n":"bad"}'), code: 0 };
+      },
+    });
     const adapter = createCopilotAdapter({ processRunner: fake, maxRetries: 2 });
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        signal: new AbortController().signal,
+      },
       { runId: "r" as RunId, seq: 0 },
     );
     expect(res._unsafeUnwrapErr().kind).toBe("SchemaValidation");
@@ -55,7 +81,17 @@ describe("copilot adapter", () => {
     const fake = createFakeProcessRunner({ copilot: { stdout: "", stderr: "boom", code: 1 } });
     const adapter = createCopilotAdapter({ processRunner: fake });
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        signal: new AbortController().signal,
+      },
       { runId: "r" as RunId, seq: 0 },
     );
     expect(res.isErr()).toBe(true);

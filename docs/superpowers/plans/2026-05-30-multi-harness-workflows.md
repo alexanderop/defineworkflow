@@ -11,6 +11,7 @@
 **Spec:** `docs/feature-specs/multi-harness-workflows.md`
 
 **Before you start — read these for context:**
+
 - `packages/core/src/sandbox.ts` — `transformScript()` (TS→JS via esbuild) and `extractMeta()` (acorn parse + AST walk). The scanner mirrors this exactly.
 - `packages/cli/src/adapter-select.ts` — `resolveHarness`, `buildRunner`, `buildRunnerMap`.
 - `packages/cli/src/commands/run.ts` — the run command; pre-flight goes in here (it runs before both foreground and `--detach`).
@@ -41,6 +42,7 @@
 ## Task 1: Tighten `adapter` fields to `HarnessId`
 
 **Files:**
+
 - Modify: `packages/core/src/runtime.ts:7` (import) and `packages/core/src/runtime.ts:31` (field)
 - Modify: `packages/core/src/profile.ts:1-15`
 
@@ -105,6 +107,7 @@ git commit -m "feat(core): tighten agent/profile adapter to HarnessId literal un
 ## Task 2: Add `HarnessNotLiteral` and `HarnessUnavailable` error kinds
 
 **Files:**
+
 - Modify: `packages/core/src/errors.ts:4-18`
 - Modify: `packages/core/src/format-error.ts:6-29`
 
@@ -156,6 +159,7 @@ git commit -m "feat(core): add HarnessNotLiteral and HarnessUnavailable error ki
 ## Task 3: Build the AST harness scanner in `@workflow/core`
 
 **Files:**
+
 - Create: `packages/core/src/harness-scan.ts`
 - Test: `packages/core/src/harness-scan.test.ts`
 - Modify: `packages/core/src/index.ts:22`
@@ -178,7 +182,9 @@ const wrap = (body: string) =>
 
 describe("scanReferencedHarnesses", () => {
   it("collects literal adapter overrides from agent() options", () => {
-    const r = scanReferencedHarnesses(wrap(`await agent("draft", { adapter: "copilot", model: "gpt-5" });`));
+    const r = scanReferencedHarnesses(
+      wrap(`await agent("draft", { adapter: "copilot", model: "gpt-5" });`),
+    );
     expect(r.isOk() && r.value).toEqual(["copilot"]);
   });
 
@@ -191,7 +197,9 @@ describe("scanReferencedHarnesses", () => {
 
   it("dedupes repeated adapters and preserves first-seen order", () => {
     const r = scanReferencedHarnesses(
-      wrap(`await agent("a", { adapter: "copilot" });\nawait agent("b", { adapter: "claude" });\nawait agent("c", { adapter: "copilot" });`),
+      wrap(
+        `await agent("a", { adapter: "copilot" });\nawait agent("b", { adapter: "claude" });\nawait agent("c", { adapter: "copilot" });`,
+      ),
     );
     expect(r.isOk() && r.value).toEqual(["copilot", "claude"]);
   });
@@ -207,7 +215,9 @@ describe("scanReferencedHarnesses", () => {
   });
 
   it("errors HarnessNotLiteral on a computed adapter value", () => {
-    const r = scanReferencedHarnesses(wrap(`const h = "copilot";\nawait agent("x", { adapter: h });`));
+    const r = scanReferencedHarnesses(
+      wrap(`const h = "copilot";\nawait agent("x", { adapter: h });`),
+    );
     expect(r.isErr() && r.error.kind).toBe("HarnessNotLiteral");
   });
 
@@ -250,7 +260,9 @@ type AstNode = { type: string; [key: string]: unknown };
  * silently falling back to the default harness. The returned set does NOT include
  * `meta.harness` — the caller unions that in.
  */
-export function scanReferencedHarnesses(source: string): Result<readonly HarnessId[], WorkflowError> {
+export function scanReferencedHarnesses(
+  source: string,
+): Result<readonly HarnessId[], WorkflowError> {
   let program: AstNode;
   try {
     const js = transformScript(source);
@@ -347,6 +359,7 @@ git commit -m "feat(core): add scanReferencedHarnesses AST scanner with literal 
 ## Task 4: Add `validateHarnessesAvailable` to the CLI adapter selector
 
 **Files:**
+
 - Modify: `packages/cli/src/adapter-select.ts`
 - Test: `packages/cli/src/adapter-select.test.ts`
 
@@ -362,7 +375,12 @@ describe("validateHarnessesAvailable", () => {
   const deps = { processRunner: {} as ProcessRunner };
 
   it("passes when every referenced CLI harness is detected", () => {
-    const r = validateHarnessesAvailable(["claude", "copilot"], ["claude", "copilot", "codex"], cfg, deps);
+    const r = validateHarnessesAvailable(
+      ["claude", "copilot"],
+      ["claude", "copilot", "codex"],
+      cfg,
+      deps,
+    );
     expect(r.isOk()).toBe(true);
   });
 
@@ -373,7 +391,10 @@ describe("validateHarnessesAvailable", () => {
   });
 
   it("treats raw-api as available only when a completion fn is configured", () => {
-    const withKey = validateHarnessesAvailable(["raw-api"], [], cfg, { ...deps, complete: async () => ({}) as never });
+    const withKey = validateHarnessesAvailable(["raw-api"], [], cfg, {
+      ...deps,
+      complete: async () => ({}) as never,
+    });
     expect(withKey.isOk()).toBe(true);
     const noKey = validateHarnessesAvailable(["raw-api"], [], cfg, deps);
     expect(noKey.isErr() && noKey.error.kind).toBe("HarnessUnavailable");
@@ -409,12 +430,21 @@ export function validateHarnessesAvailable(
   for (const id of harnesses) {
     if (id === "raw-api") {
       if (!deps.complete) {
-        return err({ kind: "HarnessUnavailable", harness: id, reason: "no completion function is configured (set ANTHROPIC_API_KEY or pick a CLI harness)" });
+        return err({
+          kind: "HarnessUnavailable",
+          harness: id,
+          reason:
+            "no completion function is configured (set ANTHROPIC_API_KEY or pick a CLI harness)",
+        });
       }
       continue;
     }
     if (!detected.includes(id)) {
-      return err({ kind: "HarnessUnavailable", harness: id, reason: `its CLI was not found on PATH (install it, or change the harness)` });
+      return err({
+        kind: "HarnessUnavailable",
+        harness: id,
+        reason: `its CLI was not found on PATH (install it, or change the harness)`,
+      });
     }
   }
   return ok(undefined);
@@ -438,6 +468,7 @@ git commit -m "feat(cli): add validateHarnessesAvailable pre-flight check"
 ## Task 5: Wire the pre-flight scan + validation into the run command
 
 **Files:**
+
 - Modify: `packages/cli/src/commands/run.ts`
 - Test: `packages/cli/src/commands/commands.test.ts`
 
@@ -508,26 +539,26 @@ import { resolveHarness, buildRunner, validateHarnessesAvailable } from "../adap
 In `packages/cli/src/commands/run.ts`, locate the block that ends with `const adapter: AdapterId = harnessResult.value;` (around line 84). Immediately after that line, insert:
 
 ```typescript
-  // Fail-fast pre-flight for multi-harness runs: every harness this workflow references
-  // (the meta.harness default + per-call `adapter` overrides) must be runnable before the
-  // first agent starts, so an unavailable override never silently falls back to the default.
-  // --mock resolves every adapter to the fabricating runner, so there is nothing to validate.
-  if (!args.mock) {
-    const scanned = scanReferencedHarnesses(source);
-    if (scanned.isErr()) {
-      deps.ui.print(`error: ${formatError(scanned.error)}\n`);
-      return 1;
-    }
-    const referenced = [...new Set<AdapterId>([adapter, ...scanned.value])];
-    const availability = validateHarnessesAvailable(referenced, deps.adapters.detected, deps.config, {
-      processRunner: deps.adapters.processRunner,
-      complete: deps.adapters.complete,
-    });
-    if (availability.isErr()) {
-      deps.ui.print(`error: ${formatError(availability.error)}\n`);
-      return 1;
-    }
+// Fail-fast pre-flight for multi-harness runs: every harness this workflow references
+// (the meta.harness default + per-call `adapter` overrides) must be runnable before the
+// first agent starts, so an unavailable override never silently falls back to the default.
+// --mock resolves every adapter to the fabricating runner, so there is nothing to validate.
+if (!args.mock) {
+  const scanned = scanReferencedHarnesses(source);
+  if (scanned.isErr()) {
+    deps.ui.print(`error: ${formatError(scanned.error)}\n`);
+    return 1;
   }
+  const referenced = [...new Set<AdapterId>([adapter, ...scanned.value])];
+  const availability = validateHarnessesAvailable(referenced, deps.adapters.detected, deps.config, {
+    processRunner: deps.adapters.processRunner,
+    complete: deps.adapters.complete,
+  });
+  if (availability.isErr()) {
+    deps.ui.print(`error: ${formatError(availability.error)}\n`);
+    return 1;
+  }
+}
 ```
 
 `formatError` is already imported in `run.ts`; `AdapterId` is already imported from `@workflow/adapters`.
@@ -554,6 +585,7 @@ git commit -m "feat(cli): fail-fast pre-flight validation of per-step harnesses"
 ## Task 6: Add a runnable multi-harness example
 
 **Files:**
+
 - Create: `packages/examples/src/multi-harness.workflow.ts`
 
 The example mixes harnesses in one workflow: `meta.harness: "claude"` is the default; one step overrides to `copilot` via a `profile`, another uses a per-call `adapter`. It is a real `defineWorkflow` file, validated by `pnpm typecheck` (the example package is type-checked). It is not run in CI (it would spawn real agents).
@@ -579,13 +611,17 @@ export default defineWorkflow({
   ],
   async run() {
     phase("Draft");
-    const draft = await agent(drafter, "Write a TypeScript function `slugify(s: string): string`. Return only the code.");
+    const draft = await agent(
+      drafter,
+      "Write a TypeScript function `slugify(s: string): string`. Return only the code.",
+    );
 
     phase("Review");
-    const review = await agent(
-      `Review this implementation and rate it 1-5:\n\n${draft}`,
-      { adapter: "claude", model: "sonnet", schema: z.object({ rating: z.number(), notes: z.string() }) },
-    );
+    const review = await agent(`Review this implementation and rate it 1-5:\n\n${draft}`, {
+      adapter: "claude",
+      model: "sonnet",
+      schema: z.object({ rating: z.number(), notes: z.string() }),
+    });
 
     return { draft, review };
   },
@@ -614,6 +650,7 @@ git commit -m "docs(examples): add multi-harness workflow example"
 ## Task 7: Document the per-step harness pattern
 
 **Files:**
+
 - Modify: `apps/docs/guide/index.md`
 
 - [ ] **Step 1: Add a "Mixing harnesses" section**
@@ -674,6 +711,7 @@ Expected: exits non-zero, prints `error: HarnessUnavailable: this workflow uses 
 ## Self-Review (completed by plan author)
 
 **Spec coverage:**
+
 - "Default + override" → Task 1 (types) + existing runtime dispatch (no change needed). ✓
 - "Auto-discovery via literal scan" + "require literal harness strings" → Task 3 (`scanReferencedHarnesses`, `HarnessNotLiteral`). ✓
 - "Fail-fast pre-flight" → Task 4 (`validateHarnessesAvailable`) + Task 5 (wiring). ✓

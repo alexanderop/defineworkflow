@@ -30,7 +30,7 @@ per token** strings. Multiply by `1e6` to get USD per million tokens.
   yet.
 - No live FX lookup. The USD→EUR rate is a manually-edited constant (OpenRouter
   does not provide exchange rates, and a live lookup would be nondeterministic —
-  see the sandbox determinism rule in CLAUDE.md). It is *not* read inside a
+  see the sandbox determinism rule in CLAUDE.md). It is _not_ read inside a
   workflow sandbox anyway; cost is computed at the reporting boundary.
 - No separate cache-token pricing. The runtime tracks only a `cached: boolean`
   flag, not `cacheRead`/`cacheWrite` token counts, so cache-discounted input
@@ -72,10 +72,30 @@ export const USD_TO_EUR = 0.92;
 
 // <pricing-table:start> generated from openrouter.ai/api/v1/models — edit via the update-pricing skill
 export const MODEL_PRICES: readonly ModelPrice[] = [
-  { id: "anthropic/claude-opus-4.8",   aliases: ["claude-opus-4-8"],   inputPerMTokUsd: 5,  outputPerMTokUsd: 25 },
-  { id: "anthropic/claude-opus-4.7",   aliases: ["claude-opus-4-7"],   inputPerMTokUsd: 5,  outputPerMTokUsd: 25 },
-  { id: "anthropic/claude-sonnet-4.6", aliases: ["claude-sonnet-4-6"], inputPerMTokUsd: 3,  outputPerMTokUsd: 15 },
-  { id: "anthropic/claude-haiku-4.5",  aliases: ["claude-haiku-4-5"],  inputPerMTokUsd: 1,  outputPerMTokUsd: 5 },
+  {
+    id: "anthropic/claude-opus-4.8",
+    aliases: ["claude-opus-4-8"],
+    inputPerMTokUsd: 5,
+    outputPerMTokUsd: 25,
+  },
+  {
+    id: "anthropic/claude-opus-4.7",
+    aliases: ["claude-opus-4-7"],
+    inputPerMTokUsd: 5,
+    outputPerMTokUsd: 25,
+  },
+  {
+    id: "anthropic/claude-sonnet-4.6",
+    aliases: ["claude-sonnet-4-6"],
+    inputPerMTokUsd: 3,
+    outputPerMTokUsd: 15,
+  },
+  {
+    id: "anthropic/claude-haiku-4.5",
+    aliases: ["claude-haiku-4-5"],
+    inputPerMTokUsd: 1,
+    outputPerMTokUsd: 5,
+  },
   // …full Anthropic set from OpenRouter, including legacy models, seeded at build time
 ];
 // <pricing-table:end>
@@ -85,7 +105,7 @@ export const MODEL_PRICES: readonly ModelPrice[] = [
 models the current harnesses emit), so older/replayed run reports referencing
 legacy models still price correctly.
 
-**Codegen markers:** the `update-pricing` skill rewrites *only* the lines between
+**Codegen markers:** the `update-pricing` skill rewrites _only_ the lines between
 `<pricing-table:start>` and `<pricing-table:end>`. Everything else in the file —
 the type, `USD_TO_EUR`, the functions, and the `aliases` for already-known models —
 is preserved.
@@ -112,10 +132,16 @@ All pure, no I/O, deterministic.
 
 ```ts
 /** Per-call USD cost. undefined when the model isn't in the table. */
-function costUsd(modelId: string, usage: { inputTokens: number; outputTokens: number }): number | undefined;
+function costUsd(
+  modelId: string,
+  usage: { inputTokens: number; outputTokens: number },
+): number | undefined;
 
 /** Per-call EUR cost = costUsd × USD_TO_EUR. undefined when the model isn't priced. */
-function costEur(modelId: string, usage: { inputTokens: number; outputTokens: number }): number | undefined;
+function costEur(
+  modelId: string,
+  usage: { inputTokens: number; outputTokens: number },
+): number | undefined;
 
 /**
  * Run-level EUR rollup. Sums non-cached agents' costs; lists the distinct model ids

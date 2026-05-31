@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use references/subagent-driven-development/SKILL.md (recommended) or references/executing-plans/SKILL.md to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `transformScript` (and `extractMeta`/`runInSandbox`) locate the *real* `export default defineWorkflow(` / `export const meta` / `export default` statement, ignoring identical text that appears inside comments or string literals, so detect and replace operate on the same match.
+**Goal:** Make `transformScript` (and `extractMeta`/`runInSandbox`) locate the _real_ `export default defineWorkflow(` / `export const meta` / `export default` statement, ignoring identical text that appears inside comments or string literals, so detect and replace operate on the same match.
 
-**Architecture:** The transform rewrites workflow source via regex *before* esbuild strips TS, so we can't parse with acorn (it isn't JS yet). Instead, add a `maskNonCode(source)` scanner that returns a same-length copy of the source with the *contents* of comments and string/template literals blanked to spaces (delimiters & newlines preserved). Run the detection/location regexes against the **masked** copy to get match offsets, then splice the replacement into the **original** at those offsets via a `replaceFirstReal` helper. This guarantees detect and replace use the same (real) match and that comment/string text can never be mistaken for the export.
+**Architecture:** The transform rewrites workflow source via regex _before_ esbuild strips TS, so we can't parse with acorn (it isn't JS yet). Instead, add a `maskNonCode(source)` scanner that returns a same-length copy of the source with the _contents_ of comments and string/template literals blanked to spaces (delimiters & newlines preserved). Run the detection/location regexes against the **masked** copy to get match offsets, then splice the replacement into the **original** at those offsets via a `replaceFirstReal` helper. This guarantees detect and replace use the same (real) match and that comment/string text can never be mistaken for the export.
 
 **Tech Stack:** TypeScript (ESM, strict), esbuild `transformSync`, acorn (downstream of the transform only), vitest.
 
@@ -13,6 +13,7 @@
 ### Task 1: Mask non-code regions and rewrite against the same match
 
 **Files:**
+
 - Modify: `packages/core/src/sandbox.ts` (`transformScript` lines ~41-64; add `maskNonCode` + `replaceFirstReal` helpers)
 - Test: `packages/core/src/sandbox.test.ts`
 
@@ -105,29 +106,79 @@ function maskNonCode(source: string): string {
     const c = source[i];
     const next = i + 1 < n ? source[i + 1] : "";
     if (state === "code") {
-      if (c === "/" && next === "/") { state = "line"; i += 2; continue; }
-      if (c === "/" && next === "*") { state = "block"; i += 2; continue; }
-      if (c === "'") { state = "single"; i += 1; continue; }
-      if (c === '"') { state = "double"; i += 1; continue; }
-      if (c === "`") { state = "template"; i += 1; continue; }
+      if (c === "/" && next === "/") {
+        state = "line";
+        i += 2;
+        continue;
+      }
+      if (c === "/" && next === "*") {
+        state = "block";
+        i += 2;
+        continue;
+      }
+      if (c === "'") {
+        state = "single";
+        i += 1;
+        continue;
+      }
+      if (c === '"') {
+        state = "double";
+        i += 1;
+        continue;
+      }
+      if (c === "`") {
+        state = "template";
+        i += 1;
+        continue;
+      }
       i += 1;
       continue;
     }
     if (state === "line") {
-      if (c === "\n") { state = "code"; i += 1; continue; }
-      blank(i); i += 1; continue;
+      if (c === "\n") {
+        state = "code";
+        i += 1;
+        continue;
+      }
+      blank(i);
+      i += 1;
+      continue;
     }
     if (state === "block") {
-      if (c === "*" && next === "/") { blank(i); blank(i + 1); state = "code"; i += 2; continue; }
-      blank(i); i += 1; continue;
+      if (c === "*" && next === "/") {
+        blank(i);
+        blank(i + 1);
+        state = "code";
+        i += 2;
+        continue;
+      }
+      blank(i);
+      i += 1;
+      continue;
     }
     // string / template literal
-    if (c === "\\") { blank(i); blank(i + 1); i += 2; continue; }
-    if ((state === "single" && c === "'") || (state === "double" && c === '"') || (state === "template" && c === "`")) {
-      state = "code"; i += 1; continue;
+    if (c === "\\") {
+      blank(i);
+      blank(i + 1);
+      i += 2;
+      continue;
     }
-    if ((state === "single" || state === "double") && c === "\n") { state = "code"; i += 1; continue; }
-    blank(i); i += 1;
+    if (
+      (state === "single" && c === "'") ||
+      (state === "double" && c === '"') ||
+      (state === "template" && c === "`")
+    ) {
+      state = "code";
+      i += 1;
+      continue;
+    }
+    if ((state === "single" || state === "double") && c === "\n") {
+      state = "code";
+      i += 1;
+      continue;
+    }
+    blank(i);
+    i += 1;
   }
   return chars.join("");
 }
@@ -137,7 +188,12 @@ function maskNonCode(source: string): string {
  * twin of `source`) by splicing `replacement` into `source` at the same offset. Detect and replace
  * therefore act on the *same* real match; returns `source` unchanged when there is no real match.
  */
-function replaceFirstReal(source: string, masked: string, pattern: RegExp, replacement: string): string {
+function replaceFirstReal(
+  source: string,
+  masked: string,
+  pattern: RegExp,
+  replacement: string,
+): string {
   const m = pattern.exec(masked);
   if (!m) return source;
   return source.slice(0, m.index) + replacement + source.slice(m.index + m[0].length);
@@ -154,7 +210,9 @@ export function transformScript(source: string): string {
   const hasMeta = /export\s+const\s+meta\s*=/.test(masked);
   const hasDefineWorkflow = /\bexport\s+default\s+defineWorkflow\s*\(/.test(masked);
   if (!hasMeta && !hasDefineWorkflow) {
-    throw new Error("SandboxViolation: workflow script must export `const meta` or `export default defineWorkflow({ … })`");
+    throw new Error(
+      "SandboxViolation: workflow script must export `const meta` or `export default defineWorkflow({ … })`",
+    );
   }
   if (hasDefineWorkflow) {
     const safe = replaceFirstReal(
@@ -170,8 +228,18 @@ export function transformScript(source: string): string {
   // value onto a global for extraction — without needing to locate the end of the
   // meta literal. Robust to multi-line literals, `as const`, semicolons inside
   // strings, and a missing trailing semicolon.
-  const metaRenamed = replaceFirstReal(authoringSource, masked, /export\s+const\s+meta\s*=\s*/, "const meta = globalThis.__meta = ");
-  const safe = replaceFirstReal(metaRenamed, maskNonCode(metaRenamed), /\bexport\s+default\b/, "return");
+  const metaRenamed = replaceFirstReal(
+    authoringSource,
+    masked,
+    /export\s+const\s+meta\s*=\s*/,
+    "const meta = globalThis.__meta = ",
+  );
+  const safe = replaceFirstReal(
+    metaRenamed,
+    maskNonCode(metaRenamed),
+    /\bexport\s+default\b/,
+    "return",
+  );
   const wrapped = `(async () => {\n${safe}\n})()`;
   return transformSync(wrapped, { loader: "ts", format: "esm" }).code;
 }

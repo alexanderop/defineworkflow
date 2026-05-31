@@ -45,7 +45,9 @@ export function createWorktreeFactory(
             signal,
           });
           if (removed.code !== 0) {
-            deps.warn?.(`worktree cleanup failed for ${path} (git worktree remove exited ${removed.code})`);
+            deps.warn?.(
+              `worktree cleanup failed for ${path} (git worktree remove exited ${removed.code})`,
+            );
           }
         } catch (e) {
           deps.warn?.(`worktree cleanup error for ${path}: ${String(e)}`);

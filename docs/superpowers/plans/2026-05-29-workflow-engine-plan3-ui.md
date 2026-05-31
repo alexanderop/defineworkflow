@@ -11,6 +11,7 @@
 > **Naming note:** packages use the placeholder scope `@workflow/*`. Rename the scope before publishing.
 
 > **Strict-mode gotchas this plan honors:**
+>
 > - `verbatimModuleSyntax: true` → every type-only import MUST use `import type`. Value imports (`Box`, `Text`, `useInput`, hooks, `createElement`) stay regular.
 > - `exactOptionalPropertyTypes: true` → an optional prop a parent may pass `undefined` to must be typed `prop?: T | undefined`, not `prop?: T`. This plan types such props explicitly.
 > - `noUncheckedIndexedAccess: true` → array/tuple index access is `T | undefined`; guard every computed index with `?? fallback`.
@@ -71,6 +72,7 @@ The detail pane (spec §8) shows **PROMPT**, **TOOL CALLS**, and a streaming **R
 ### Task 1: Carry the agent prompt through the event model
 
 **Files:**
+
 - Modify: `packages/core/src/events.ts`
 - Modify: `packages/core/src/runtime.ts:62`
 - Test: `packages/core/src/events.test.ts` (add a case)
@@ -80,13 +82,20 @@ The detail pane (spec §8) shows **PROMPT**, **TOOL CALLS**, and a streaming **R
 Append this `it` block inside the existing `describe("event reducer", …)`:
 
 ```ts
-  it("stores the prompt from agent-queued on the agent state", () => {
-    const events: WorkflowEvent[] = [
-      { type: "agent-queued", key: "0", label: "a", phase: "Search", prompt: "Search the web for X", at: 0 },
-    ];
-    const state = events.reduce(reduce, initialRunState());
-    expect(state.agents.get("0")?.prompt).toBe("Search the web for X");
-  });
+it("stores the prompt from agent-queued on the agent state", () => {
+  const events: WorkflowEvent[] = [
+    {
+      type: "agent-queued",
+      key: "0",
+      label: "a",
+      phase: "Search",
+      prompt: "Search the web for X",
+      at: 0,
+    },
+  ];
+  const state = events.reduce(reduce, initialRunState());
+  expect(state.agents.get("0")?.prompt).toBe("Search the web for X");
+});
 ```
 
 - [ ] **Step 2: Run to verify it fails**
@@ -151,13 +160,13 @@ In the `agent-queued` reducer case, set both fields when creating the agent:
 Replace:
 
 ```ts
-    deps.emit({ type: "agent-queued", key, label, phase, at: deps.now() });
+deps.emit({ type: "agent-queued", key, label, phase, at: deps.now() });
 ```
 
 with:
 
 ```ts
-    deps.emit({ type: "agent-queued", key, label, phase, prompt, at: deps.now() });
+deps.emit({ type: "agent-queued", key, label, phase, prompt, at: deps.now() });
 ```
 
 (`prompt` is the first parameter of the `agent` function already in scope.)
@@ -177,6 +186,7 @@ git commit -m "feat(core): carry agent prompt through event model for UI detail 
 ### Task 2: Stream agent result text via an `agent-output` event
 
 **Files:**
+
 - Modify: `packages/core/src/events.ts`
 - Modify: `packages/core/src/runtime.ts` (cached path ~line 66, live path ~line 135)
 - Modify: `packages/core/src/runtime.test.ts:52` (event-sequence assertion)
@@ -187,15 +197,15 @@ git commit -m "feat(core): carry agent prompt through event model for UI detail 
 Append inside `describe("event reducer", …)`:
 
 ```ts
-  it("accumulates agent-output chunks into resultText", () => {
-    const events: WorkflowEvent[] = [
-      { type: "agent-queued", key: "0", label: "a", phase: "P", at: 0 },
-      { type: "agent-output", key: "0", chunk: "hello ", at: 1 },
-      { type: "agent-output", key: "0", chunk: "world", at: 2 },
-    ];
-    const state = events.reduce(reduce, initialRunState());
-    expect(state.agents.get("0")?.resultText).toBe("hello world");
-  });
+it("accumulates agent-output chunks into resultText", () => {
+  const events: WorkflowEvent[] = [
+    { type: "agent-queued", key: "0", label: "a", phase: "P", at: 0 },
+    { type: "agent-output", key: "0", chunk: "hello ", at: 1 },
+    { type: "agent-output", key: "0", chunk: "world", at: 2 },
+  ];
+  const state = events.reduce(reduce, initialRunState());
+  expect(state.agents.get("0")?.resultText).toBe("hello world");
+});
 ```
 
 - [ ] **Step 2: Run to verify it fails**
@@ -233,30 +243,42 @@ Expected: PASS.
 In `packages/core/src/runtime.ts`, the cached-resume branch (~line 66) currently reads:
 
 ```ts
-    const cached = deps.journal.lookup(mySeq);
-    if (cached) {
-      budget.record(cached.outputTokens);
-      deps.emit({ type: "agent-finished", key, usage: { inputTokens: 0, outputTokens: cached.outputTokens }, cached: true, at: deps.now() });
-      return cached.data ?? cached.text;
-    }
+const cached = deps.journal.lookup(mySeq);
+if (cached) {
+  budget.record(cached.outputTokens);
+  deps.emit({
+    type: "agent-finished",
+    key,
+    usage: { inputTokens: 0, outputTokens: cached.outputTokens },
+    cached: true,
+    at: deps.now(),
+  });
+  return cached.data ?? cached.text;
+}
 ```
 
 Insert an `agent-output` emit before the `agent-finished` emit so resumed agents populate the detail pane too:
 
 ```ts
-    const cached = deps.journal.lookup(mySeq);
-    if (cached) {
-      budget.record(cached.outputTokens);
-      deps.emit({ type: "agent-output", key, chunk: cached.text, at: deps.now() });
-      deps.emit({ type: "agent-finished", key, usage: { inputTokens: 0, outputTokens: cached.outputTokens }, cached: true, at: deps.now() });
-      return cached.data ?? cached.text;
-    }
+const cached = deps.journal.lookup(mySeq);
+if (cached) {
+  budget.record(cached.outputTokens);
+  deps.emit({ type: "agent-output", key, chunk: cached.text, at: deps.now() });
+  deps.emit({
+    type: "agent-finished",
+    key,
+    usage: { inputTokens: 0, outputTokens: cached.outputTokens },
+    cached: true,
+    at: deps.now(),
+  });
+  return cached.data ?? cached.text;
+}
 ```
 
 In the live branch, just before the final `agent-finished` emit (~line 136, after `deps.journal.record({ … })`), add:
 
 ```ts
-      deps.emit({ type: "agent-output", key, chunk: res.text, at: deps.now() });
+deps.emit({ type: "agent-output", key, chunk: res.text, at: deps.now() });
 ```
 
 so the ordering becomes `journal.record(...)` → `agent-output` → `agent-finished`.
@@ -268,13 +290,19 @@ so the ordering becomes `journal.record(...)` → `agent-output` → `agent-fini
 The "emits queued/started/finished events" test asserts the exact sequence. Replace:
 
 ```ts
-    expect(types).toEqual(["phase-started", "agent-queued", "agent-started", "agent-finished"]);
+expect(types).toEqual(["phase-started", "agent-queued", "agent-started", "agent-finished"]);
 ```
 
 with:
 
 ```ts
-    expect(types).toEqual(["phase-started", "agent-queued", "agent-started", "agent-output", "agent-finished"]);
+expect(types).toEqual([
+  "phase-started",
+  "agent-queued",
+  "agent-started",
+  "agent-output",
+  "agent-finished",
+]);
 ```
 
 - [ ] **Step 7: Run the full core suite to confirm nothing else regressed**
@@ -296,6 +324,7 @@ git commit -m "feat(core): agent-output event accumulating resultText for UI det
 ### Task 3: Package skeleton + JSX wiring
 
 **Files:**
+
 - Create: `packages/ui/package.json`
 - Create: `packages/ui/tsconfig.json`
 - Create: `packages/ui/src/index.ts`
@@ -382,6 +411,7 @@ git commit -m "chore(ui): scaffold @workflow/ui package + vitest JSX wiring"
 ### Task 4: Formatting helpers + spinner frames + status glyphs
 
 **Files:**
+
 - Create: `packages/ui/src/format.ts`
 - Test: `packages/ui/src/format.test.ts`
 
@@ -475,6 +505,7 @@ git commit -m "feat(ui): token/elapsed formatting + status glyphs + spinner fram
 ### Task 5: Selectors over `RunState`
 
 **Files:**
+
 - Create: `packages/ui/src/selectors.ts`
 - Test: `packages/ui/src/selectors.test.ts`
 
@@ -489,10 +520,23 @@ const events: WorkflowEvent[] = [
   { type: "run-started", runId: "r1", name: "demo", at: 100 },
   { type: "phase-started", phase: "Scope", at: 110 },
   { type: "phase-started", phase: "Search", at: 120 },
-  { type: "agent-queued", key: "k0", label: "angle-0", phase: "Search", prompt: "find a\nfind b", at: 130 },
+  {
+    type: "agent-queued",
+    key: "k0",
+    label: "angle-0",
+    phase: "Search",
+    prompt: "find a\nfind b",
+    at: 130,
+  },
   { type: "agent-tool", key: "k0", tool: { name: "WebSearch" }, at: 140 },
   { type: "agent-output", key: "k0", chunk: "result line 1", at: 150 },
-  { type: "agent-finished", key: "k0", usage: { inputTokens: 1, outputTokens: 9 }, cached: false, at: 160 },
+  {
+    type: "agent-finished",
+    key: "k0",
+    usage: { inputTokens: 1, outputTokens: 9 },
+    cached: false,
+    at: 160,
+  },
 ];
 const state = events.reduce(reduce, initialRunState());
 
@@ -582,6 +626,7 @@ git commit -m "feat(ui): pure selectors (phases, agents-of-phase, detail lines, 
 ### Task 6: Navigation state machine
 
 **Files:**
+
 - Create: `packages/ui/src/navigation.ts`
 - Test: `packages/ui/src/navigation.test.ts`
 
@@ -608,7 +653,11 @@ describe("navReducer", () => {
   });
 
   it("changing the phase resets agent selection and scroll", () => {
-    const moved = navReducer({ focus: "phases", phaseIndex: 0, agentIndex: 3, scroll: 2 }, { type: "down" }, ctx);
+    const moved = navReducer(
+      { focus: "phases", phaseIndex: 0, agentIndex: 3, scroll: 2 },
+      { type: "down" },
+      ctx,
+    );
     expect(moved).toMatchObject({ phaseIndex: 1, agentIndex: 0, scroll: 0 });
   });
 
@@ -634,7 +683,10 @@ describe("navReducer", () => {
   it("scrollDown/scrollUp move and clamp the detail scroll within maxScroll", () => {
     const s1 = navReducer(initialNav, { type: "scrollDown" }, ctx);
     expect(s1.scroll).toBe(1);
-    const max = [...Array(10)].reduce((s) => navReducer(s, { type: "scrollDown" }, ctx), initialNav);
+    const max = [...Array(10)].reduce(
+      (s) => navReducer(s, { type: "scrollDown" }, ctx),
+      initialNav,
+    );
     expect(max.scroll).toBe(4); // clamped at maxScroll
     expect(navReducer(initialNav, { type: "scrollUp" }, ctx).scroll).toBe(0); // clamped at 0
   });
@@ -681,15 +733,33 @@ export function navReducer(state: NavState, action: NavAction, ctx: NavCtx): Nav
   switch (action.type) {
     case "up":
       if (state.focus === "phases")
-        return { ...state, phaseIndex: clamp(state.phaseIndex - 1, 0, Math.max(0, ctx.phaseCount - 1)), agentIndex: 0, scroll: 0 };
+        return {
+          ...state,
+          phaseIndex: clamp(state.phaseIndex - 1, 0, Math.max(0, ctx.phaseCount - 1)),
+          agentIndex: 0,
+          scroll: 0,
+        };
       if (state.focus === "agents")
-        return { ...state, agentIndex: clamp(state.agentIndex - 1, 0, Math.max(0, ctx.agentCount - 1)), scroll: 0 };
+        return {
+          ...state,
+          agentIndex: clamp(state.agentIndex - 1, 0, Math.max(0, ctx.agentCount - 1)),
+          scroll: 0,
+        };
       return state;
     case "down":
       if (state.focus === "phases")
-        return { ...state, phaseIndex: clamp(state.phaseIndex + 1, 0, Math.max(0, ctx.phaseCount - 1)), agentIndex: 0, scroll: 0 };
+        return {
+          ...state,
+          phaseIndex: clamp(state.phaseIndex + 1, 0, Math.max(0, ctx.phaseCount - 1)),
+          agentIndex: 0,
+          scroll: 0,
+        };
       if (state.focus === "agents")
-        return { ...state, agentIndex: clamp(state.agentIndex + 1, 0, Math.max(0, ctx.agentCount - 1)), scroll: 0 };
+        return {
+          ...state,
+          agentIndex: clamp(state.agentIndex + 1, 0, Math.max(0, ctx.agentCount - 1)),
+          scroll: 0,
+        };
       return state;
     case "right":
       if (state.focus === "phases") return { ...state, focus: "agents" };
@@ -724,6 +794,7 @@ git commit -m "feat(ui): pure navigation state machine (columns/selection/scroll
 ### Task 7: Line-log fallback formatter
 
 **Files:**
+
 - Create: `packages/ui/src/line-log.ts`
 - Test: `packages/ui/src/line-log.test.ts`
 
@@ -736,19 +807,48 @@ import { lineLogLine } from "./line-log.js";
 
 describe("lineLogLine", () => {
   it("renders one line for human-meaningful events", () => {
-    expect(lineLogLine({ type: "run-started", runId: "r1", name: "demo", at: 0 })).toBe("▶ demo (r1)");
+    expect(lineLogLine({ type: "run-started", runId: "r1", name: "demo", at: 0 })).toBe(
+      "▶ demo (r1)",
+    );
     expect(lineLogLine({ type: "phase-started", phase: "Search", at: 0 })).toBe("# Search");
-    expect(lineLogLine({ type: "agent-finished", key: "k0", usage: { inputTokens: 1, outputTokens: 9 }, cached: false, at: 0 })).toBe("  ✓ k0 (9 tok)");
-    expect(lineLogLine({ type: "agent-finished", key: "k0", usage: { inputTokens: 0, outputTokens: 9 }, cached: true, at: 0 })).toBe("  ✓ k0 (9 tok, cached)");
-    expect(lineLogLine({ type: "agent-failed", key: "k0", error: { kind: "BudgetExhausted", spent: 5, total: 5 }, at: 0 })).toBe("  ✗ k0 [BudgetExhausted]");
+    expect(
+      lineLogLine({
+        type: "agent-finished",
+        key: "k0",
+        usage: { inputTokens: 1, outputTokens: 9 },
+        cached: false,
+        at: 0,
+      }),
+    ).toBe("  ✓ k0 (9 tok)");
+    expect(
+      lineLogLine({
+        type: "agent-finished",
+        key: "k0",
+        usage: { inputTokens: 0, outputTokens: 9 },
+        cached: true,
+        at: 0,
+      }),
+    ).toBe("  ✓ k0 (9 tok, cached)");
+    expect(
+      lineLogLine({
+        type: "agent-failed",
+        key: "k0",
+        error: { kind: "BudgetExhausted", spent: 5, total: 5 },
+        at: 0,
+      }),
+    ).toBe("  ✗ k0 [BudgetExhausted]");
     expect(lineLogLine({ type: "log", message: "hi", at: 0 })).toBe("  hi");
     expect(lineLogLine({ type: "run-finished", runId: "r1", at: 0 })).toBe("■ done");
   });
 
   it("returns null for noisy events that don't warrant a line", () => {
-    expect(lineLogLine({ type: "agent-queued", key: "k0", label: "a", phase: "P", at: 0 })).toBeNull();
+    expect(
+      lineLogLine({ type: "agent-queued", key: "k0", label: "a", phase: "P", at: 0 }),
+    ).toBeNull();
     expect(lineLogLine({ type: "agent-output", key: "k0", chunk: "x", at: 0 })).toBeNull();
-    expect(lineLogLine({ type: "agent-tool", key: "k0", tool: { name: "WebSearch" }, at: 0 })).toBeNull();
+    expect(
+      lineLogLine({ type: "agent-tool", key: "k0", tool: { name: "WebSearch" }, at: 0 }),
+    ).toBeNull();
   });
 });
 ```
@@ -806,6 +906,7 @@ git commit -m "feat(ui): non-TTY line-log event formatter"
 ### Task 8: Re-render throttle (injectable clock)
 
 **Files:**
+
 - Create: `packages/ui/src/throttle.ts`
 - Test: `packages/ui/src/throttle.test.ts`
 
@@ -833,7 +934,11 @@ function fakeDeps() {
   };
   const advance = (ms: number) => {
     clock += ms;
-    for (const t of [...timers]) if (t.at <= clock) { timers.splice(timers.indexOf(t), 1); t.fn(); }
+    for (const t of [...timers])
+      if (t.at <= clock) {
+        timers.splice(timers.indexOf(t), 1);
+        t.fn();
+      }
   };
   return { deps, advance, setClock: (n: number) => (clock = n) };
 }
@@ -939,6 +1044,7 @@ git commit -m "feat(ui): leading-edge re-render throttle with injectable clock"
 ### Task 9: Spinner + Header
 
 **Files:**
+
 - Create: `packages/ui/src/Spinner.tsx`
 - Create: `packages/ui/src/Header.tsx`
 - Test: `packages/ui/src/Header.test.tsx`
@@ -951,11 +1057,19 @@ import { render } from "ink-testing-library";
 import { reduce, initialRunState, type WorkflowEvent } from "@workflow/core";
 import { Header } from "./Header.js";
 
-const state = ([
-  { type: "run-started", runId: "r1", name: "deep-research", at: 0 },
-  { type: "agent-queued", key: "k", label: "a", phase: "Search", at: 1 },
-  { type: "agent-finished", key: "k", usage: { inputTokens: 0, outputTokens: 318000 }, cached: false, at: 2 },
-] satisfies WorkflowEvent[]).reduce(reduce, initialRunState());
+const state = (
+  [
+    { type: "run-started", runId: "r1", name: "deep-research", at: 0 },
+    { type: "agent-queued", key: "k", label: "a", phase: "Search", at: 1 },
+    {
+      type: "agent-finished",
+      key: "k",
+      usage: { inputTokens: 0, outputTokens: 318000 },
+      cached: false,
+      at: 2,
+    },
+  ] satisfies WorkflowEvent[]
+).reduce(reduce, initialRunState());
 
 describe("Header", () => {
   it("shows name, status, abbreviated tokens, elapsed and adapter", () => {
@@ -1037,6 +1151,7 @@ git commit -m "feat(ui): Spinner + Header summary bar components"
 ### Task 10: PhasesColumn
 
 **Files:**
+
 - Create: `packages/ui/src/PhasesColumn.tsx`
 - Test: `packages/ui/src/PhasesColumn.test.tsx`
 
@@ -1055,7 +1170,9 @@ const phases: PhaseState[] = [
 
 describe("PhasesColumn", () => {
   it("renders the PHASES header and each phase with done/total counts", () => {
-    const { lastFrame } = render(<PhasesColumn phases={phases} selectedIndex={0} focused frame={0} />);
+    const { lastFrame } = render(
+      <PhasesColumn phases={phases} selectedIndex={0} focused frame={0} />,
+    );
     const frame = lastFrame() ?? "";
     expect(frame).toContain("PHASES");
     expect(frame).toContain("Scope 1/1");
@@ -1085,7 +1202,13 @@ export interface PhasesColumnProps {
 
 export function PhasesColumn({ phases, selectedIndex, focused, frame }: PhasesColumnProps) {
   return (
-    <Box flexDirection="column" width={24} borderStyle="round" borderColor={focused ? "cyan" : "gray"} paddingX={1}>
+    <Box
+      flexDirection="column"
+      width={24}
+      borderStyle="round"
+      borderColor={focused ? "cyan" : "gray"}
+      paddingX={1}
+    >
       <Text bold>PHASES</Text>
       {phases.map((p, i) => (
         <Box key={p.title}>
@@ -1115,6 +1238,7 @@ git commit -m "feat(ui): PhasesColumn with selection + running spinner"
 ### Task 11: AgentsColumn (windowed/virtualized)
 
 **Files:**
+
 - Create: `packages/ui/src/AgentsColumn.tsx`
 - Test: `packages/ui/src/AgentsColumn.test.tsx`
 
@@ -1127,13 +1251,24 @@ import type { AgentState } from "@workflow/core";
 import { AgentsColumn } from "./AgentsColumn.js";
 
 function agent(label: string, status: AgentState["status"], tokens = 0): AgentState {
-  return { key: label, label, phase: "Search", prompt: "", resultText: "", status, tokens, tools: [] };
+  return {
+    key: label,
+    label,
+    phase: "Search",
+    prompt: "",
+    resultText: "",
+    status,
+    tokens,
+    tools: [],
+  };
 }
 
 describe("AgentsColumn", () => {
   it("shows the phase title and glyph+tokens per agent", () => {
     const agents = [agent("angle-0", "done", 18000), agent("angle-1", "running")];
-    const { lastFrame } = render(<AgentsColumn agents={agents} selectedIndex={0} focused phaseTitle="Search" frame={0} />);
+    const { lastFrame } = render(
+      <AgentsColumn agents={agents} selectedIndex={0} focused phaseTitle="Search" frame={0} />,
+    );
     const frame = lastFrame() ?? "";
     expect(frame).toContain("AGENTS (Search)");
     expect(frame).toContain("✓ angle-0 18k");
@@ -1143,7 +1278,14 @@ describe("AgentsColumn", () => {
   it("virtualizes: renders at most maxVisible rows, windowed around the selection", () => {
     const agents = Array.from({ length: 100 }, (_, i) => agent(`a${i}`, "queued"));
     const { lastFrame } = render(
-      <AgentsColumn agents={agents} selectedIndex={50} focused phaseTitle="Search" frame={0} maxVisible={5} />,
+      <AgentsColumn
+        agents={agents}
+        selectedIndex={50}
+        focused
+        phaseTitle="Search"
+        frame={0}
+        maxVisible={5}
+      />,
     );
     const frame = lastFrame() ?? "";
     expect(frame).toContain("a50"); // selection visible
@@ -1176,11 +1318,27 @@ export interface AgentsColumnProps {
   readonly maxVisible?: number;
 }
 
-export function AgentsColumn({ agents, selectedIndex, focused, phaseTitle, frame, maxVisible = 10 }: AgentsColumnProps) {
-  const start = Math.max(0, Math.min(selectedIndex - Math.floor(maxVisible / 2), Math.max(0, agents.length - maxVisible)));
+export function AgentsColumn({
+  agents,
+  selectedIndex,
+  focused,
+  phaseTitle,
+  frame,
+  maxVisible = 10,
+}: AgentsColumnProps) {
+  const start = Math.max(
+    0,
+    Math.min(selectedIndex - Math.floor(maxVisible / 2), Math.max(0, agents.length - maxVisible)),
+  );
   const visible = agents.slice(start, start + maxVisible);
   return (
-    <Box flexDirection="column" width={30} borderStyle="round" borderColor={focused ? "cyan" : "gray"} paddingX={1}>
+    <Box
+      flexDirection="column"
+      width={30}
+      borderStyle="round"
+      borderColor={focused ? "cyan" : "gray"}
+      paddingX={1}
+    >
       <Text bold>AGENTS ({phaseTitle})</Text>
       {visible.map((a, i) => {
         const index = start + i;
@@ -1210,6 +1368,7 @@ git commit -m "feat(ui): AgentsColumn with windowed virtualization + status glyp
 ### Task 12: DetailPane (scrollable)
 
 **Files:**
+
 - Create: `packages/ui/src/DetailPane.tsx`
 - Test: `packages/ui/src/DetailPane.test.tsx`
 
@@ -1254,7 +1413,9 @@ describe("DetailPane", () => {
   });
 
   it("shows a placeholder when no agent is selected", () => {
-    const { lastFrame } = render(<DetailPane agent={undefined} scroll={0} rows={5} focused={false} />);
+    const { lastFrame } = render(
+      <DetailPane agent={undefined} scroll={0} rows={5} focused={false} />,
+    );
     expect(lastFrame() ?? "").toContain("no agent selected");
   });
 });
@@ -1283,7 +1444,13 @@ export function DetailPane({ agent, scroll, rows, focused }: DetailPaneProps) {
   const lines = agent ? detailLines(agent) : ["(no agent selected)"];
   const visible = lines.slice(scroll, scroll + rows);
   return (
-    <Box flexDirection="column" flexGrow={1} borderStyle="round" borderColor={focused ? "cyan" : "gray"} paddingX={1}>
+    <Box
+      flexDirection="column"
+      flexGrow={1}
+      borderStyle="round"
+      borderColor={focused ? "cyan" : "gray"}
+      paddingX={1}
+    >
       {visible.map((line, i) => (
         <Text key={scroll + i}>{line === "" ? " " : line}</Text>
       ))}
@@ -1309,6 +1476,7 @@ git commit -m "feat(ui): scrollable DetailPane (prompt/tools/result)"
 ### Task 13: App — compose columns + keybindings
 
 **Files:**
+
 - Create: `packages/ui/src/App.tsx`
 - Test: `packages/ui/src/App.test.tsx`
 
@@ -1327,7 +1495,13 @@ const events: WorkflowEvent[] = [
   { type: "agent-queued", key: "k0", label: "angle-0", phase: "Search", prompt: "Search X", at: 3 },
   { type: "agent-started", key: "k0", at: 4 },
   { type: "agent-output", key: "k0", chunk: "found stuff", at: 5 },
-  { type: "agent-finished", key: "k0", usage: { inputTokens: 1, outputTokens: 17 }, cached: false, at: 6 },
+  {
+    type: "agent-finished",
+    key: "k0",
+    usage: { inputTokens: 1, outputTokens: 17 },
+    cached: false,
+    at: 6,
+  },
 ];
 
 const KEY = { down: "[B", up: "[A", right: "[C", left: "[D", esc: "" };
@@ -1355,7 +1529,9 @@ describe("App", () => {
 
   it("emits pause/stop/save actions via onAction", () => {
     const actions: UiAction[] = [];
-    const { stdin } = render(<App events={events} animate={false} onAction={(a) => actions.push(a)} />);
+    const { stdin } = render(
+      <App events={events} animate={false} onAction={(a) => actions.push(a)} />,
+    );
     stdin.write("p");
     stdin.write("x"); // focus is phases → stop whole run
     stdin.write("s");
@@ -1368,7 +1544,9 @@ describe("App", () => {
 
   it("stop targets the selected agent when focus is on agents/detail", () => {
     const actions: UiAction[] = [];
-    const { stdin } = render(<App events={events} animate={false} onAction={(a) => actions.push(a)} />);
+    const { stdin } = render(
+      <App events={events} animate={false} onAction={(a) => actions.push(a)} />,
+    );
     stdin.write(KEY.down); // Search
     stdin.write(KEY.right); // focus agents (selects angle-0 = key k0)
     stdin.write("x");
@@ -1398,7 +1576,12 @@ import { navReducer, initialNav, type NavState, type NavCtx } from "./navigation
 
 export type UiAction =
   | { readonly type: "pause" }
-  | { readonly type: "stop"; readonly target: { readonly scope: "run" } | { readonly scope: "agent"; readonly key: string } }
+  | {
+      readonly type: "stop";
+      readonly target:
+        | { readonly scope: "run" }
+        | { readonly scope: "agent"; readonly key: string };
+    }
   | { readonly type: "restart"; readonly key: string }
   | { readonly type: "save" };
 
@@ -1454,7 +1637,8 @@ export function App({ events, adapter, detailRows = 12, onAction, animate = true
     else if (input === "p") onAction?.({ type: "pause" });
     else if (input === "x") {
       const agentKey = selectedAgentKeyRef.current;
-      if (navRef.current.focus !== "phases" && agentKey) onAction?.({ type: "stop", target: { scope: "agent", key: agentKey } });
+      if (navRef.current.focus !== "phases" && agentKey)
+        onAction?.({ type: "stop", target: { scope: "agent", key: agentKey } });
       else onAction?.({ type: "stop", target: { scope: "run" } });
     } else if (input === "r") {
       const agentKey = selectedAgentKeyRef.current;
@@ -1466,7 +1650,12 @@ export function App({ events, adapter, detailRows = 12, onAction, animate = true
     <Box flexDirection="column">
       <Header state={state} elapsedMs={elapsedMs(events)} adapter={adapter} />
       <Box>
-        <PhasesColumn phases={phases} selectedIndex={nav.phaseIndex} focused={nav.focus === "phases"} frame={frame} />
+        <PhasesColumn
+          phases={phases}
+          selectedIndex={nav.phaseIndex}
+          focused={nav.focus === "phases"}
+          frame={frame}
+        />
         <AgentsColumn
           agents={agents}
           selectedIndex={nav.agentIndex}
@@ -1474,7 +1663,12 @@ export function App({ events, adapter, detailRows = 12, onAction, animate = true
           phaseTitle={selectedPhase?.title ?? ""}
           frame={frame}
         />
-        <DetailPane agent={selectedAgent} scroll={nav.scroll} rows={detailRows} focused={nav.focus === "detail"} />
+        <DetailPane
+          agent={selectedAgent}
+          scroll={nav.scroll}
+          rows={detailRows}
+          focused={nav.focus === "detail"}
+        />
       </Box>
     </Box>
   );
@@ -1505,6 +1699,7 @@ git commit -m "feat(ui): App composing Miller columns + full keybinding parity"
 ### Task 14: `startUi` entry (TTY → Ink, non-TTY → line-log) + public API + full gate
 
 **Files:**
+
 - Create: `packages/ui/src/render.ts`
 - Test: `packages/ui/src/render.test.ts`
 - Modify: `packages/ui/src/index.ts`
@@ -1591,9 +1786,13 @@ export function startUi(opts: StartUiOptions): UiHandle {
   }
 
   let events: WorkflowEvent[] = [...initial];
-  const instance = render(createElement(App, { events, adapter: opts.adapter, onAction: opts.onAction }));
+  const instance = render(
+    createElement(App, { events, adapter: opts.adapter, onAction: opts.onAction }),
+  );
   const rerenderNow = (): void => {
-    instance.rerender(createElement(App, { events: [...events], adapter: opts.adapter, onAction: opts.onAction }));
+    instance.rerender(
+      createElement(App, { events: [...events], adapter: opts.adapter, onAction: opts.onAction }),
+    );
   };
   const throttled = throttle(rerenderNow, 100, {
     now: () => Date.now(),
@@ -1702,6 +1901,7 @@ git commit -m "feat(ui): startUi entry (TTY/ink + non-TTY line-log) + public API
 ## Self-Review (completed against the spec §8)
 
 **Spec coverage (Plan 3 / §8 portion):**
+
 - Miller-columns / master-detail, persistent side-by-side panes → `App` (Header + `PhasesColumn` + `AgentsColumn` + `DetailPane`), Task 13.
 - Left phases column, always visible, live counts + spinner; `↑`/`↓` selects → `PhasesColumn` (Task 10) + `navReducer` (Task 6).
 - Middle agents column updates with phase selection; `→` focuses, `↑`/`↓` selects → `AgentsColumn` (Task 11) + nav (Task 6) + `App` wiring (Task 13).
@@ -1726,4 +1926,7 @@ git commit -m "feat(ui): startUi entry (TTY/ink + non-TTY line-log) + public API
 ## Next plan (after Plan 3 is green)
 
 - **Plan 4 — `@workflow/cli`:** `workflow` bin (`run/watch/list/resume/stop/save/adapters`), detached spawning + fs-backed run registry, `events.jsonl` tail → `startUi({ subscribe })`, wiring `UiAction` to the runner's `AbortController` (pause/stop/restart) and the save dialog, consent prompt + permission modes, config files, bundled `deep-research` + `vue-newsletter`, opt-in `pnpm test:e2e`.
+
+```
+
 ```

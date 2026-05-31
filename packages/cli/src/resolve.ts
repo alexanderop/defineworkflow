@@ -17,15 +17,16 @@ export interface ResolvedWorkflow {
  *   2. personal `~/.workflow/workflows/` (`.ts` beats `.js`)
  *   3. bundled `${bundledDir}/` (`.ts` beats `.js`), when `bundledDir` is provided
  */
-export function resolveSavedWorkflow(name: string, deps: ResolveDeps): ResolvedWorkflow | undefined {
+export function resolveSavedWorkflow(
+  name: string,
+  deps: ResolveDeps,
+): ResolvedWorkflow | undefined {
   const candidates = [
     `${deps.cwd}/.workflow/workflows/${name}.ts`,
     `${deps.cwd}/.workflow/workflows/${name}.js`,
     `${deps.homeDir}/.workflow/workflows/${name}.ts`,
     `${deps.homeDir}/.workflow/workflows/${name}.js`,
-    ...(deps.bundledDir
-      ? [`${deps.bundledDir}/${name}.ts`, `${deps.bundledDir}/${name}.js`]
-      : []),
+    ...(deps.bundledDir ? [`${deps.bundledDir}/${name}.ts`, `${deps.bundledDir}/${name}.js`] : []),
   ];
   for (const path of candidates) {
     const source = deps.readFile(path);

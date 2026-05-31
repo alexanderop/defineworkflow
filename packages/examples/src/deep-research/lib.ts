@@ -28,6 +28,12 @@ export const impRank: Record<"central" | "supporting" | "tangential", number> = 
   tangential: 2,
 };
 
-export const qualRank: Record<string, number> = { primary: 0, secondary: 1, blog: 2, forum: 3, unreliable: 4 };
+export const qualRank: Record<string, number> = {
+  primary: 0,
+  secondary: 1,
+  blog: 2,
+  forum: 3,
+  unreliable: 4,
+};
 
 export const confRank: Record<"high" | "medium" | "low", number> = { high: 0, medium: 1, low: 2 };

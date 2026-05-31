@@ -13,8 +13,19 @@ export interface AgentsColumnProps {
   readonly maxVisible?: number;
 }
 
-export function AgentsColumn({ agents, selectedIndex, focused, phaseTitle, frame, now, maxVisible = 10 }: AgentsColumnProps) {
-  const start = Math.max(0, Math.min(selectedIndex - Math.floor(maxVisible / 2), Math.max(0, agents.length - maxVisible)));
+export function AgentsColumn({
+  agents,
+  selectedIndex,
+  focused,
+  phaseTitle,
+  frame,
+  now,
+  maxVisible = 10,
+}: AgentsColumnProps) {
+  const start = Math.max(
+    0,
+    Math.min(selectedIndex - Math.floor(maxVisible / 2), Math.max(0, agents.length - maxVisible)),
+  );
   const visible = agents.slice(start, start + maxVisible);
   return (
     <Box flexDirection="column" flexGrow={1} paddingX={1}>
@@ -26,14 +37,22 @@ export function AgentsColumn({ agents, selectedIndex, focused, phaseTitle, frame
         const index = start + i;
         const row = agentRow(a, now);
         const glyph = statusGlyph(a.status, frame);
-        const metrics = [row.tokens ? `${row.tokens} tok` : "", row.toolCount > 0 ? `${row.toolCount} tools` : "", row.elapsed]
+        const metrics = [
+          row.tokens ? `${row.tokens} tok` : "",
+          row.toolCount > 0 ? `${row.toolCount} tools` : "",
+          row.elapsed,
+        ]
           .filter((s) => s !== "")
           .join(" · ");
         return (
           <Box key={a.key} justifyContent="space-between">
-            <Text {...(index === selectedIndex && focused ? { color: "blueBright" as const } : {})} wrap="truncate">
+            <Text
+              {...(index === selectedIndex && focused ? { color: "blueBright" as const } : {})}
+              wrap="truncate"
+            >
               {index === selectedIndex ? "›" : " "}{" "}
-              <Text {...(a.status === "done" ? { color: "green" as const } : {})}>{glyph}</Text> {row.label}
+              <Text {...(a.status === "done" ? { color: "green" as const } : {})}>{glyph}</Text>{" "}
+              {row.label}
             </Text>
             <Text dimColor wrap="truncate">
               {row.model}

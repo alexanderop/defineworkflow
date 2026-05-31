@@ -8,23 +8,60 @@ const build = (events: WorkflowEvent[]) => events.reduce(reduce, initialRunState
 describe("selectRunReport", () => {
   it("rolls up totals, phases and agents from a finished run", () => {
     const state = build([
-      { type: "run-started", runId: "r1" as RunId, name: "refactor-imports", budgetTotal: 500_000, at: 0 },
+      {
+        type: "run-started",
+        runId: "r1" as RunId,
+        name: "refactor-imports",
+        budgetTotal: 500_000,
+        at: 0,
+      },
       { type: "phase-started", phase: "Discover", at: 0 },
       { type: "phase-started", phase: "Transform", at: 0 },
       // Discover: one agent
       { type: "agent-queued", key: "0:Discover:scan", label: "scan", phase: "Discover", at: 100 },
       { type: "agent-started", key: "0:Discover:scan", at: 200 },
       { type: "agent-tool", key: "0:Discover:scan", tool: { name: "Grep" }, at: 250 },
-      { type: "agent-finished", key: "0:Discover:scan", usage: { inputTokens: 22_000, outputTokens: 4_000 }, cached: false, model: "claude-opus-4-8[1m]", at: 18_200 },
+      {
+        type: "agent-finished",
+        key: "0:Discover:scan",
+        usage: { inputTokens: 22_000, outputTokens: 4_000 },
+        cached: false,
+        model: "claude-opus-4-8[1m]",
+        at: 18_200,
+      },
       // Transform: two agents
-      { type: "agent-queued", key: "1:Transform:a", label: "review:a.ts", phase: "Transform", at: 300 },
+      {
+        type: "agent-queued",
+        key: "1:Transform:a",
+        label: "review:a.ts",
+        phase: "Transform",
+        at: 300,
+      },
       { type: "agent-started", key: "1:Transform:a", at: 400 },
       { type: "agent-tool", key: "1:Transform:a", tool: { name: "Edit" }, at: 500 },
       { type: "agent-tool", key: "1:Transform:a", tool: { name: "Edit" }, at: 600 },
-      { type: "agent-finished", key: "1:Transform:a", usage: { inputTokens: 21_000, outputTokens: 6_200 }, cached: false, at: 14_400 },
-      { type: "agent-queued", key: "2:Transform:b", label: "review:b.ts", phase: "Transform", at: 700 },
+      {
+        type: "agent-finished",
+        key: "1:Transform:a",
+        usage: { inputTokens: 21_000, outputTokens: 6_200 },
+        cached: false,
+        at: 14_400,
+      },
+      {
+        type: "agent-queued",
+        key: "2:Transform:b",
+        label: "review:b.ts",
+        phase: "Transform",
+        at: 700,
+      },
       { type: "agent-started", key: "2:Transform:b", at: 800 },
-      { type: "agent-finished", key: "2:Transform:b", usage: { inputTokens: 10_000, outputTokens: 2_000 }, cached: false, at: 20_000 },
+      {
+        type: "agent-finished",
+        key: "2:Transform:b",
+        usage: { inputTokens: 10_000, outputTokens: 2_000 },
+        cached: false,
+        at: 20_000,
+      },
       { type: "run-finished", runId: "r1" as RunId, at: 22_000 },
     ]);
 
@@ -71,9 +108,21 @@ describe("selectRunReport", () => {
       { type: "run-started", runId: "r" as RunId, name: "d", at: 0 },
       { type: "agent-queued", key: "0", label: "fresh", phase: "P", at: 0 },
       { type: "agent-started", key: "0", at: 1 },
-      { type: "agent-finished", key: "0", usage: { inputTokens: 100, outputTokens: 50 }, cached: false, at: 2 },
+      {
+        type: "agent-finished",
+        key: "0",
+        usage: { inputTokens: 100, outputTokens: 50 },
+        cached: false,
+        at: 2,
+      },
       { type: "agent-queued", key: "1", label: "replayed", phase: "P", at: 0 },
-      { type: "agent-finished", key: "1", usage: { inputTokens: 0, outputTokens: 40 }, cached: true, at: 1 },
+      {
+        type: "agent-finished",
+        key: "1",
+        usage: { inputTokens: 0, outputTokens: 40 },
+        cached: true,
+        at: 1,
+      },
       { type: "run-finished", runId: "r" as RunId, at: 3 },
     ]);
     const report = selectRunReport(state);
@@ -99,7 +148,13 @@ describe("selectRunReport", () => {
     const state = build([
       { type: "run-started", runId: "r" as RunId, name: "d", at: 0 },
       { type: "agent-queued", key: "0", label: "a", phase: "P", at: 0 },
-      { type: "agent-finished", key: "0", usage: { inputTokens: 5, outputTokens: 5, approximate: true }, cached: false, at: 1 },
+      {
+        type: "agent-finished",
+        key: "0",
+        usage: { inputTokens: 5, outputTokens: 5, approximate: true },
+        cached: false,
+        at: 1,
+      },
     ]);
     expect(selectRunReport(state).totals.approximate).toBe(true);
   });
@@ -120,7 +175,12 @@ describe("selectRunReport", () => {
       { type: "run-started", runId: "r" as RunId, name: "d", at: 0 },
       { type: "agent-queued", key: "0", label: "a", phase: "P", at: 0 },
       { type: "agent-started", key: "0", at: 1 },
-      { type: "agent-failed", key: "0", error: { kind: "AdapterSpawn", adapter: "claude", cause: "boom" }, at: 2 },
+      {
+        type: "agent-failed",
+        key: "0",
+        error: { kind: "AdapterSpawn", adapter: "claude", cause: "boom" },
+        at: 2,
+      },
       { type: "run-finished", runId: "r" as RunId, at: 3 },
     ]);
     const report = selectRunReport(state, { status: "failed" });
@@ -138,7 +198,13 @@ describe("selectRunReport", () => {
       { type: "phase-started", phase: "Verify", at: 0 },
       { type: "agent-queued", key: "0", label: "a", phase: "Transform", at: 1 },
       { type: "agent-started", key: "0", at: 2 },
-      { type: "agent-finished", key: "0", usage: { inputTokens: 1, outputTokens: 1 }, cached: false, at: 3 },
+      {
+        type: "agent-finished",
+        key: "0",
+        usage: { inputTokens: 1, outputTokens: 1 },
+        cached: false,
+        at: 3,
+      },
       { type: "run-finished", runId: "r" as RunId, at: 4 },
     ]);
     expect(selectRunReport(state).phases.map((p) => p.title)).toEqual(["Transform"]);

@@ -32,7 +32,10 @@ describe("parallel", () => {
   });
 
   it("maps a failing thunk to null instead of rejecting the whole call", async () => {
-    const r = rt({ a: { text: "A" }, b: { fail: { kind: "AdapterSpawn", adapter: "x", cause: "boom" } } });
+    const r = rt({
+      a: { text: "A" },
+      b: { fail: { kind: "AdapterSpawn", adapter: "x", cause: "boom" } },
+    });
     const out = await r.parallel([
       () => r.agent("p", { label: "a" }),
       () => r.agent("p", { label: "b" }),

@@ -29,9 +29,18 @@ export function RunReport({ report, maxAgents }: RunReportProps) {
       {lines.map((line, i) => {
         const kind = lineKind(line, i);
         if (line === "") return <Text key={i}> </Text>;
-        if (kind === "title") return <Text key={i} bold color="blueBright">{line}</Text>;
+        if (kind === "title")
+          return (
+            <Text key={i} bold color="blueBright">
+              {line}
+            </Text>
+          );
         const dim = kind === "rule" || kind === "header" || kind === "dim";
-        return <Text key={i} dimColor={dim}>{line}</Text>;
+        return (
+          <Text key={i} dimColor={dim}>
+            {line}
+          </Text>
+        );
       })}
     </Box>
   );

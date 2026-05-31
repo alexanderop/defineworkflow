@@ -86,8 +86,9 @@ describe("startUi (TTY)", () => {
     });
     handle.unmount();
 
-    const finalEvents = (inkMock.frames.at(-1)?.props as { events?: readonly WorkflowEvent[] } | undefined)
-      ?.events as readonly WorkflowEvent[];
+    const finalEvents = (
+      inkMock.frames.at(-1)?.props as { events?: readonly WorkflowEvent[] } | undefined
+    )?.events as readonly WorkflowEvent[];
     expect(finalEvents.at(-1)?.type).toBe("agent-finished");
 
     vi.useRealTimers();
@@ -103,14 +104,21 @@ describe("startUi (TTY)", () => {
         { type: "run-started", runId: "r1" as RunId, name: "done-run", at: 0 },
         { type: "agent-queued", key: "k0", label: "writer", phase: "Write", at: 1 },
         { type: "agent-started", key: "k0", at: 2 },
-        { type: "agent-finished", key: "k0", usage: { inputTokens: 10, outputTokens: 5 }, cached: false, at: 3 },
+        {
+          type: "agent-finished",
+          key: "k0",
+          usage: { inputTokens: 10, outputTokens: 5 },
+          cached: false,
+          at: 3,
+        },
         { type: "run-finished", runId: "r1" as RunId, at: 4 },
       ],
       subscribe: () => () => {},
     });
 
     const element = inkMock.frames.at(-1);
-    const report = (element?.props as { report?: { name: string; status: string } } | undefined)?.report;
+    const report = (element?.props as { report?: { name: string; status: string } } | undefined)
+      ?.report;
     expect(report).toBeDefined();
     expect(report?.name).toBe("done-run");
     expect(report?.status).toBe("finished");

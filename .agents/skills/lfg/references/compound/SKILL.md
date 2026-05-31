@@ -24,10 +24,10 @@ is discoverable, so the Discoverability Check below is mandatory.
 
 ## Modes
 
-| Mode | When | Behavior |
-|------|------|----------|
-| **Interactive** (default) | no `mode:headless` token | Ask Full vs Lightweight, end with a "What's next?" prompt. |
-| **Headless** | `mode:headless` in `$ARGUMENTS` | No questions. Run Full. Apply the discoverability edit silently if needed. End with a structured terminal report. |
+| Mode                      | When                            | Behavior                                                                                                          |
+| ------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Interactive** (default) | no `mode:headless` token        | Ask Full vs Lightweight, end with a "What's next?" prompt.                                                        |
+| **Headless**              | `mode:headless` in `$ARGUMENTS` | No questions. Run Full. Apply the discoverability edit silently if needed. End with a structured terminal report. |
 
 Strip `mode:headless` from `$ARGUMENTS` before treating the remainder as the brief context hint.
 
@@ -72,7 +72,7 @@ contract without cross-skill paths.
    - **High** = 4-5 match (same problem solved again)
    - **Moderate** = 2-3 match (same area, different angle)
    - **Low** = 0-1 match.
-   Return links, relationships, and the overlap score + matched dimensions.
+     Return links, relationships, and the overlap score + matched dimensions.
 
 ### Phase 2 — Assemble & write
 
@@ -86,7 +86,7 @@ WAIT for all Phase 1 subagents to finish, then the orchestrator (main context):
    | **Moderate** | Create the new doc; note the related doc for a future consolidation pass. |
    | **Low / none** | Create the new doc. |
 3. Assemble the markdown from `assets/solution-template.md` (preserve section order).
-4. Validate frontmatter against `references/schema.md`. Quote any scalar value containing ` # `
+4. Validate frontmatter against `references/schema.md`. Quote any scalar value containing `#`
    or `: ` and quote every array item — these silently corrupt YAML parsing.
 5. `mkdir -p docs/solutions/<category>/` and write the file.
 
@@ -113,6 +113,7 @@ The store only compounds value if agents can find it.
    "relevant when implementing or debugging in documented areas," never "always search first."
 
    Example line for a directory/architecture listing:
+
    ```
    docs/solutions/  # documented solutions to past problems (bugs + knowledge), by category, with YAML frontmatter (module, tags, problem_type)
    ```
@@ -136,6 +137,7 @@ Lightweight.
 ## Output
 
 ### Headless
+
 ```
 ✓ Documentation complete (headless mode)
 
@@ -146,7 +148,9 @@ Instruction-file edit: <none needed | applied to <path>>
 
 Documentation complete
 ```
+
 If nothing was written (e.g. trivial / unsolved):
+
 ```
 ✗ Documentation skipped (headless mode)
 Reason: <one sentence>
@@ -154,6 +158,7 @@ Documentation skipped
 ```
 
 ### Interactive
+
 Report the file written, the track/category, overlap result, and any discoverability edit, then
 present a "What's next?" prompt via `AskUserQuestion`.
 

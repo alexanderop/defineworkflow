@@ -71,21 +71,22 @@ Let a script pick a harness per `agent()` call without changing the run default.
 **Files:** Modify `packages/core/src/runtime.ts`; test `packages/core/src/runtime.test.ts`.
 
 - [ ] **Step 1 (red):** In `runtime.test.ts`, build a runtime with `deps.runner` = scripted
-  runner A and `deps.resolveRunner = (id) => id === "b" ? runnerB : undefined`. Assert
-  `agent("p", { label: "x", adapter: "b" })` routes to `runnerB` (its `callCount` increments,
-  A's stays 0), and that an unknown adapter id falls back to `deps.runner`.
+      runner A and `deps.resolveRunner = (id) => id === "b" ? runnerB : undefined`. Assert
+      `agent("p", { label: "x", adapter: "b" })` routes to `runnerB` (its `callCount` increments,
+      A's stays 0), and that an unknown adapter id falls back to `deps.runner`.
 
 - [ ] **Step 2:** Run → FAIL (`resolveRunner` not on `RuntimeDeps`).
 
 - [ ] **Step 3 (green):** Add `readonly resolveRunner?: ((id: string) => AgentRunner | undefined) | undefined;`
-  to `RuntimeDeps`. In `agent()`, just before `deps.runner.run(...)` (`runtime.ts:132`):
+      to `RuntimeDeps`. In `agent()`, just before `deps.runner.run(...)` (`runtime.ts:132`):
+
   ```ts
   const runner = opts.adapter ? (deps.resolveRunner?.(opts.adapter) ?? deps.runner) : deps.runner;
   const result = await runner.run(request, { runId: deps.runId, seq: mySeq });
   ```
 
 - [ ] **Step 4–5:** Run new test + `pnpm vitest run packages/core` → green. Commit
-  `feat(core): per-call adapter dispatch via resolveRunner`.
+      `feat(core): per-call adapter dispatch via resolveRunner`.
 
 ### Task 2: Agent-scoped control (`AgentControl`: stop + restart a single agent)
 
@@ -96,8 +97,8 @@ agent on a restart request.
 **Files:** Modify `packages/core/src/runtime.ts`, export a new `control.ts`; tests in `packages/core/src/runtime.control.test.ts`.
 
 - [ ] **Step 1 (red):** New `runtime.control.test.ts` using a **deferred** scripted runner
-  (`createScriptedRunner(resp, { delayMs })` or a controllable runner) so the agent is
-  observably in-flight:
+      (`createScriptedRunner(resp, { delayMs })` or a controllable runner) so the agent is
+      observably in-flight:
   - `control.stopAgent(key)` aborts that agent → its `agent()` rejects with
     `{kind:"AdapterSpawn", cause:"agent stopped"}`, emits `agent-failed`, and **other**
     in-flight agents are unaffected.
@@ -108,6 +109,7 @@ agent on a restart request.
 - [ ] **Step 2:** Run → FAIL.
 
 - [ ] **Step 3 (green):** Add `control.ts`:
+
   ```ts
   export interface AgentControl {
     stopAgent(key: string): void;
@@ -116,36 +118,43 @@ agent on a restart request.
   export interface ControlRegistry extends AgentControl {
     register(key: string, controller: AbortController, requestRestart: () => void): () => void;
   }
-  export function createControlRegistry(): ControlRegistry { /* Map<key,{controller,requestRestart}> */ }
+  export function createControlRegistry(): ControlRegistry {
+    /* Map<key,{controller,requestRestart}> */
+  }
   ```
+
   Add `readonly control?: ControlRegistry | undefined;` to `RuntimeDeps`. Rework the
   in-flight section of `agent()` (around `runtime.ts:118–155`) into a restart loop:
+
   ```ts
   for (;;) {
     const controller = new AbortController();
     let restart = false;
     const signal = deps.signal ? anySignal([deps.signal, controller.signal]) : controller.signal;
-    const unregister = deps.control?.register(key, controller, () => { restart = true; });
+    const unregister = deps.control?.register(key, controller, () => {
+      restart = true;
+    });
     deps.emit({ type: "agent-started", key, at: deps.now() });
     try {
       const result = await runner.run({ ...request, signal }, { runId: deps.runId, seq: mySeq });
       // …existing success path (tools, validate, budget, journal, agent-output, agent-finished)…
       return value;
     } catch (e) {
-      if (restart) continue;            // restartAgent: re-run, same key/seq
-      throw e;                           // stop/real failure: propagate (parallel nulls it)
+      if (restart) continue; // restartAgent: re-run, same key/seq
+      throw e; // stop/real failure: propagate (parallel nulls it)
     } finally {
       unregister?.();
     }
   }
   ```
+
   `anySignal` = `AbortSignal.any` (Node ≥20) wrapped in a tiny helper. `stopAgent`
   aborts without setting `restart` (→ throws); `restartAgent` sets the flag then aborts
   (→ loops). Keep the `agent-started` emit inside the loop so a restart re-emits start.
 
 - [ ] **Step 4–5:** New tests + full `pnpm vitest run packages/core` green. Export
-  `AgentControl`/`createControlRegistry` from `packages/core/src/index.ts`. Commit
-  `feat(core): per-agent stop/restart via AgentControl registry`.
+      `AgentControl`/`createControlRegistry` from `packages/core/src/index.ts`. Commit
+      `feat(core): per-agent stop/restart via AgentControl registry`.
 
 > **Note:** restart is only meaningful **while the agent is in flight** (the script is
 > still awaiting it). A completed/journaled agent cannot be restarted from the UI in 4b;
@@ -159,17 +168,17 @@ with git.
 **Files:** Modify `packages/core/src/runtime.ts`; test `packages/core/src/runtime.test.ts`.
 
 - [ ] **Step 1 (red):** Assert that with `deps.makeIsolatedCwd = async (key) => ({ cwd:"/wt/"+key, cleanup })`,
-  an `agent("p", { label:"a", isolation:"worktree" })` call passes `cwd:"/wt/0:default:a"`
-  to the runner (capture via a runner that records `req.cwd`) and calls `cleanup` once
-  after finishing. Without `isolation`, the runner sees `deps.cwd` and `cleanup` is never built.
+      an `agent("p", { label:"a", isolation:"worktree" })` call passes `cwd:"/wt/0:default:a"`
+      to the runner (capture via a runner that records `req.cwd`) and calls `cleanup` once
+      after finishing. Without `isolation`, the runner sees `deps.cwd` and `cleanup` is never built.
 
 - [ ] **Step 2:** Run → FAIL.
 
 - [ ] **Step 3 (green):** Add
-  `readonly makeIsolatedCwd?: ((key: string) => Promise<{ cwd: string; cleanup: () => Promise<void> }>) | undefined;`
-  to `RuntimeDeps`. In `agent()`, when `opts.isolation === "worktree" && deps.makeIsolatedCwd`,
-  acquire `{cwd, cleanup}` after the semaphore, use `cwd` in the `AgentRequest`, and
-  `await cleanup()` in a `finally`. Otherwise use `deps.cwd` as today.
+      `readonly makeIsolatedCwd?: ((key: string) => Promise<{ cwd: string; cleanup: () => Promise<void> }>) | undefined;`
+      to `RuntimeDeps`. In `agent()`, when `opts.isolation === "worktree" && deps.makeIsolatedCwd`,
+      acquire `{cwd, cleanup}` after the semaphore, use `cwd` in the `AgentRequest`, and
+      `await cleanup()` in a `finally`. Otherwise use `deps.cwd` as today.
 
 - [ ] **Step 4–5:** Green + full core suite. Commit `feat(core): worktree isolation hook (makeIsolatedCwd)`.
 
@@ -180,28 +189,29 @@ with git.
 ### Task 4: Wire the nested-workflow resolver into every run
 
 Make `workflow()` work by giving the runtime a resolver built from `resolveSavedWorkflow`
-+ `loadWorkflow`.
+
+- `loadWorkflow`.
 
 **Files:** Modify `packages/cli/src/execute.ts` (both run paths), add `packages/cli/src/resolve-workflow.ts`; test `packages/cli/src/resolve-workflow.test.ts`.
 
 - [ ] Add `buildWorkflowResolver(deps): RuntimeDeps["resolveWorkflow"]` that, given a name,
-  calls `resolveSavedWorkflow(name, { homeDir, cwd, readFile: deps.readTextFile })`
-  (plus the bundled dir from Task 8), and returns `loadWorkflow(resolved.source)`; throws a
-  clear error on miss. Pass it as `resolveWorkflow` in both `runForeground` and
-  `runHeadless` `runWorkflow({...})` calls. Test with a fake `readTextFile` + a
-  `ScriptedRunner`: a parent script that calls `await workflow("child")` runs the child
-  and returns its value (one real engine integration, no model).
+      calls `resolveSavedWorkflow(name, { homeDir, cwd, readFile: deps.readTextFile })`
+      (plus the bundled dir from Task 8), and returns `loadWorkflow(resolved.source)`; throws a
+      clear error on miss. Pass it as `resolveWorkflow` in both `runForeground` and
+      `runHeadless` `runWorkflow({...})` calls. Test with a fake `readTextFile` + a
+      `ScriptedRunner`: a parent script that calls `await workflow("child")` runs the child
+      and returns its value (one real engine integration, no model).
 
 ### Task 5: Per-call adapter map (`resolveRunner`) in the CLI
 
 **Files:** Modify `packages/cli/src/adapter-select.ts`, `packages/cli/src/execute.ts`; tests alongside.
 
 - [ ] Add `buildRunnerMap(detected, cfg, deps): { resolveRunner, ids }` that lazily
-  builds (and memoises) a runner per adapter id via `buildRunner`, skipping ones that
-  error (e.g. raw-api without a key). Thread `resolveRunner` into both `runWorkflow` calls
-  in `execute.ts`, and restore the per-call branch of design §6 in `selectAdapterId`'s
-  doc (the run default still comes from meta/CLI/config/detect; per-call now overrides via
-  the map). Test: a runner map routes id→runner; an un-buildable id is absent.
+      builds (and memoises) a runner per adapter id via `buildRunner`, skipping ones that
+      error (e.g. raw-api without a key). Thread `resolveRunner` into both `runWorkflow` calls
+      in `execute.ts`, and restore the per-call branch of design §6 in `selectAdapterId`'s
+      doc (the run default still comes from meta/CLI/config/detect; per-call now overrides via
+      the map). Test: a runner map routes id→runner; an un-buildable id is absent.
 
 ### Task 6: Agent stop/restart UI actions
 
@@ -210,25 +220,25 @@ Replace 4a's "not supported yet" log lines with real control.
 **Files:** Modify `packages/cli/src/execute.ts`; extend `packages/cli/src/commands/commands.test.ts`.
 
 - [ ] In `runForeground`, create `const control = createControlRegistry()` and pass it in
-  `runWorkflow({ ..., control })` (thread `control` through `RunWorkflowDeps` →
-  `createRuntime`). The UI `onAction` already carries the agent `key` for
-  `stop {scope:'agent', key}` and `restart {key}`; map them to `control.stopAgent(key)` /
-  `control.restartAgent(key)` (keep `stop {scope:'run'}` → `controller.abort()`). Test via
-  a scripted/deferred runner that an agent-scope stop fails just that agent (others
-  finish) and a restart yields a second runner call.
+      `runWorkflow({ ..., control })` (thread `control` through `RunWorkflowDeps` →
+      `createRuntime`). The UI `onAction` already carries the agent `key` for
+      `stop {scope:'agent', key}` and `restart {key}`; map them to `control.stopAgent(key)` /
+      `control.restartAgent(key)` (keep `stop {scope:'run'}` → `controller.abort()`). Test via
+      a scripted/deferred runner that an agent-scope stop fails just that agent (others
+      finish) and a restart yields a second runner call.
 
 ### Task 7: Git worktree implementation (`makeIsolatedCwd`)
 
 **Files:** Add `packages/cli/src/worktree.ts`; test `packages/cli/src/worktree.test.ts`; wire in `packages/cli/src/execute.ts` + `node-deps.ts`.
 
 - [ ] `createWorktreeFactory({ processRunner, baseCwd, tmpRoot, runId })` returns
-  `makeIsolatedCwd(key)` that runs `git -C <baseCwd> worktree add --detach <tmpRoot>/<runId>/<safeKey>`
-  via the injected `ProcessRunner`, returning `{ cwd, cleanup }` where `cleanup` runs
-  `git worktree remove --force <path>`. Test argv construction + cleanup with a
-  `FakeProcessRunner` (assert the exact `git worktree add/remove` commands; no real git).
-  Thread `makeIsolatedCwd` into `runWorkflow` (foreground + headless) and build it in
-  `node-deps.ts` (tmp root under `os.tmpdir()`). Gracefully degrade (warn + use base cwd)
-  when `baseCwd` is not a git repo.
+      `makeIsolatedCwd(key)` that runs `git -C <baseCwd> worktree add --detach <tmpRoot>/<runId>/<safeKey>`
+      via the injected `ProcessRunner`, returning `{ cwd, cleanup }` where `cleanup` runs
+      `git worktree remove --force <path>`. Test argv construction + cleanup with a
+      `FakeProcessRunner` (assert the exact `git worktree add/remove` commands; no real git).
+      Thread `makeIsolatedCwd` into `runWorkflow` (foreground + headless) and build it in
+      `node-deps.ts` (tmp root under `os.tmpdir()`). Gracefully degrade (warn + use base cwd)
+      when `baseCwd` is not a git repo.
 
 ---
 
@@ -241,16 +251,16 @@ Replace 4a's "not supported yet" log lines with real control.
 `packages/cli/src/resolve.ts` to add a bundled fallback; test `packages/cli/src/resolve.test.ts`.
 
 - [ ] Port both workflows from the design post (design §9): `deep-research` =
-  scope → parallel search → dedupe → adversarial 3-vote verify → synthesize, using
-  `phase`/`agent`/`parallel`/budget loops and Zod schemas (importable types only — they run
-  as injected globals). `vue-newsletter` = the multi-source aggregation shape. Keep them
-  determinism-clean (no `Date.now`/`Math.random`).
+      scope → parallel search → dedupe → adversarial 3-vote verify → synthesize, using
+      `phase`/`agent`/`parallel`/budget loops and Zod schemas (importable types only — they run
+      as injected globals). `vue-newsletter` = the multi-source aggregation shape. Keep them
+      determinism-clean (no `Date.now`/`Math.random`).
 - [ ] Extend `resolveSavedWorkflow` precedence to: project `.workflow/workflows/` →
-  personal `~/.workflow/workflows/` → **bundled** (`<pkgRoot>/examples/<name>.{ts,js}`).
-  Inject the bundled dir path (resolved from the CLI's install location) so it's testable.
-  Test: a bundled name resolves when no project/personal copy exists; project still wins.
+      personal `~/.workflow/workflows/` → **bundled** (`<pkgRoot>/examples/<name>.{ts,js}`).
+      Inject the bundled dir path (resolved from the CLI's install location) so it's testable.
+      Test: a bundled name resolves when no project/personal copy exists; project still wins.
 - [ ] Manual: `workflow deep-research --args '{"question":"…"}' --yes` runs against a
-  detected adapter (small/cheap), and `workflow list` shows it.
+      detected adapter (small/cheap), and `workflow list` shows it.
 
 ---
 
@@ -261,16 +271,16 @@ Replace 4a's "not supported yet" log lines with real control.
 **Files:** Add `packages/cli/src/e2e.e2e.test.ts` (matched by the existing `e2e` vitest project).
 
 - [ ] For each id in `await detectAdapters()` (auto-skip with `it.skipIf` when absent and
-  when `process.env.WORKFLOW_E2E !== "1"`), run a tiny 1-agent workflow through the real
-  CLI path (build real `AppDeps` or invoke `dist/cli.js` via `child_process`) and assert:
+      when `process.env.WORKFLOW_E2E !== "1"`), run a tiny 1-agent workflow through the real
+      CLI path (build real `AppDeps` or invoke `dist/cli.js` via `child_process`) and assert:
   - structured output validates against a Zod schema (use a schema-bearing agent),
   - `~/.workflow/runs/<id>/journal.jsonl` is written,
   - a `stop` → `resume` reuses cached results (second run makes no new adapter spawn —
     assert via elapsed/no-new-tokens or a journal-hit marker),
   - `workflow adapters` lists the present harness.
-  Use the cheapest model and minimal tokens. Document `pnpm test:e2e` in the package README.
+    Use the cheapest model and minimal tokens. Document `pnpm test:e2e` in the package README.
 - [ ] (Optional) `WORKFLOW_RECORD=1` helper to capture adapter golden fixtures (design §13)
-  — note as a follow-up if not done here.
+      — note as a follow-up if not done here.
 
 ---
 

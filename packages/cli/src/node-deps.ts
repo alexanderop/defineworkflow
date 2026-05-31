@@ -78,7 +78,10 @@ export async function buildNodeDeps(cliPath: string): Promise<AppDeps> {
   const registry = createRegistry({ root: path.join(homeDir, ".workflow", "runs"), fs: nodeFs });
   const config = loadConfig({ readFile: tryRead, homeDir, cwd, cores, env: vars });
   const detected = await detectAdapters();
-  const complete = createAnthropicComplete(vars["ANTHROPIC_API_KEY"], config.adapters?.["raw-api"]?.model);
+  const complete = createAnthropicComplete(
+    vars["ANTHROPIC_API_KEY"],
+    config.adapters?.["raw-api"]?.model,
+  );
 
   return {
     registry,
@@ -118,7 +121,10 @@ export async function buildNodeDeps(cliPath: string): Promise<AppDeps> {
     },
     proc: {
       spawnDetached: (runId) => {
-        const child = spawn(process.execPath, [cliPath, "__run-detached", runId], { detached: true, stdio: "ignore" });
+        const child = spawn(process.execPath, [cliPath, "__run-detached", runId], {
+          detached: true,
+          stdio: "ignore",
+        });
         child.unref();
         return child.pid ?? 0;
       },

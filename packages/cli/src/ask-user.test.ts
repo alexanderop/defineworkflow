@@ -30,7 +30,9 @@ describe("createHeadlessAskUser", () => {
 
   it("falls back to the question's default when no answer is supplied", async () => {
     const ask = createHeadlessAskUser({});
-    await expect(ask({ key: "deploy-target", question: "?", default: "staging" })).resolves.toBe("staging");
+    await expect(ask({ key: "deploy-target", question: "?", default: "staging" })).resolves.toBe(
+      "staging",
+    );
   });
 
   it("prefers a supplied answer over the default", async () => {

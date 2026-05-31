@@ -19,7 +19,9 @@ describe("stopCommand", () => {
 
   it("SIGTERMs the recorded pid and marks the run stopped", () => {
     const killed: Array<{ pid: number; sig: string }> = [];
-    const { deps, out } = fakeDeps({ proc: { kill: (pid, sig) => void killed.push({ pid, sig }) } });
+    const { deps, out } = fakeDeps({
+      proc: { kill: (pid, sig) => void killed.push({ pid, sig }) },
+    });
     deps.registry.init(runMeta({ runId: "r1" as RunId, status: "running", pid: 555 }), "src");
 
     expect(stopCommand("r1", deps)).toBe(0);

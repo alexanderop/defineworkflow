@@ -225,11 +225,11 @@ patching. Never fake a gate to advance.
 
 ## Red Flags
 
-| Thought | Reality |
-|---------|---------|
-| "I'll skip the plan and just code" | Step 2 is a hard gate. No plan file → no implementation. |
-| "Tests are slow, I'll assume green" | Step 5 requires real output. Evidence before assertions. |
-| "CI is flaky, I'll just merge" | Fix the real cause or record the residual. Never weaken a test. |
-| "This is too small to compound" | Run Step 8; it will skip-with-reason if truly trivial. |
-| "Let me ask the user which option" | This is autopilot. Choose the PR path. Never prompt. |
-| "I'll invoke the superpowers skill instead" | This skill is standalone. Read the bundled `references/` file. |
+| Thought                                     | Reality                                                         |
+| ------------------------------------------- | --------------------------------------------------------------- |
+| "I'll skip the plan and just code"          | Step 2 is a hard gate. No plan file → no implementation.        |
+| "Tests are slow, I'll assume green"         | Step 5 requires real output. Evidence before assertions.        |
+| "CI is flaky, I'll just merge"              | Fix the real cause or record the residual. Never weaken a test. |
+| "This is too small to compound"             | Run Step 8; it will skip-with-reason if truly trivial.          |
+| "Let me ask the user which option"          | This is autopilot. Choose the PR path. Never prompt.            |
+| "I'll invoke the superpowers skill instead" | This skill is standalone. Read the bundled `references/` file.  |

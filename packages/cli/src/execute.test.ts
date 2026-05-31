@@ -62,7 +62,18 @@ describe("runForeground with --mock", () => {
   it("runs a workflow to completion using the mock runner without spawning processes", async () => {
     const registry = createRegistry({ root: "/tmp/runs", fs: memRegistryFs() });
     const runId = "mocktest-1" as RunId;
-    const meta: RunMeta = { runId, name: "mocktest", scriptPath: "s.ts", args: null, adapter: "claude", status: "running", startedAt: 0, endedAt: null, pid: null, scriptHash: "h" as ScriptHash };
+    const meta: RunMeta = {
+      runId,
+      name: "mocktest",
+      scriptPath: "s.ts",
+      args: null,
+      adapter: "claude",
+      status: "running",
+      startedAt: 0,
+      endedAt: null,
+      pid: null,
+      scriptHash: "h" as ScriptHash,
+    };
     registry.init(meta, SOURCE);
     const events: WorkflowEvent[] = [];
     const deps = fakeDeps(registry, events);
@@ -88,14 +99,33 @@ describe("runForeground with --mock", () => {
   it("prints a run report when the foreground run finishes", async () => {
     const registry = createRegistry({ root: "/tmp/runs", fs: memRegistryFs() });
     const runId = "mocktest-2" as RunId;
-    const meta: RunMeta = { runId, name: "mocktest", scriptPath: "s.ts", args: null, adapter: "claude", status: "running", startedAt: 0, endedAt: null, pid: null, scriptHash: "h" as ScriptHash };
+    const meta: RunMeta = {
+      runId,
+      name: "mocktest",
+      scriptPath: "s.ts",
+      args: null,
+      adapter: "claude",
+      status: "running",
+      startedAt: 0,
+      endedAt: null,
+      pid: null,
+      scriptHash: "h" as ScriptHash,
+    };
     registry.init(meta, SOURCE);
     const events: WorkflowEvent[] = [];
     const prints: string[] = [];
     const base = fakeDeps(registry, events);
     const deps = { ...base, ui: { ...base.ui, print: (t: string) => void prints.push(t) } };
 
-    await runForeground(deps, { runId, source: SOURCE, args: null, runner: createMockRunner(), adapter: "mock", seed: [], mock: true });
+    await runForeground(deps, {
+      runId,
+      source: SOURCE,
+      args: null,
+      runner: createMockRunner(),
+      adapter: "mock",
+      seed: [],
+      mock: true,
+    });
 
     const out = prints.join("");
     expect(out).toContain("Run  mocktest");
@@ -116,7 +146,18 @@ describe("saveRun", () => {
 
     const registry = createRegistry({ root: "/tmp/runs", fs: memRegistryFs() });
     const runId = "run-1" as RunId;
-    const meta: RunMeta = { runId, name: "mf", scriptPath: "s.ts", args: null, adapter: "claude", status: "finished", startedAt: 0, endedAt: 1, pid: null, scriptHash: "h" as ScriptHash };
+    const meta: RunMeta = {
+      runId,
+      name: "mf",
+      scriptPath: "s.ts",
+      args: null,
+      adapter: "claude",
+      status: "finished",
+      startedAt: 0,
+      endedAt: 1,
+      pid: null,
+      scriptHash: "h" as ScriptHash,
+    };
     registry.init(meta, bundled);
 
     let captured: { p: string; d: string } | undefined;
@@ -151,13 +192,31 @@ describe("runHeadless", () => {
   it("finishes the run, persists status=finished, and records events via the registry", async () => {
     const registry = createRegistry({ root: "/tmp/runs", fs: memRegistryFs() });
     const runId = "hl-1" as RunId;
-    const meta: RunMeta = { runId, name: "hl", scriptPath: "s.ts", args: null, adapter: "claude", status: "running", startedAt: 0, endedAt: null, pid: 4242, scriptHash: "h" as ScriptHash };
+    const meta: RunMeta = {
+      runId,
+      name: "hl",
+      scriptPath: "s.ts",
+      args: null,
+      adapter: "claude",
+      status: "running",
+      startedAt: 0,
+      endedAt: null,
+      pid: 4242,
+      scriptHash: "h" as ScriptHash,
+    };
     registry.init(meta, HEADLESS_SRC);
     const { deps } = makeFakeDeps({ registry });
 
     const code = await runHeadless(
       deps,
-      { runId, source: HEADLESS_SRC, args: null, runner: createMockRunner(), adapter: "mock", seed: [] },
+      {
+        runId,
+        source: HEADLESS_SRC,
+        args: null,
+        runner: createMockRunner(),
+        adapter: "mock",
+        seed: [],
+      },
       new AbortController(),
     );
 
@@ -169,7 +228,18 @@ describe("runHeadless", () => {
   it("returns exit 1, marks status=stopped, and writes no artifacts when pre-aborted", async () => {
     const registry = createRegistry({ root: "/tmp/runs", fs: memRegistryFs() });
     const runId = "hl-2" as RunId;
-    const meta: RunMeta = { runId, name: "hl", scriptPath: "s.ts", args: null, adapter: "claude", status: "running", startedAt: 0, endedAt: null, pid: 4242, scriptHash: "h" as ScriptHash };
+    const meta: RunMeta = {
+      runId,
+      name: "hl",
+      scriptPath: "s.ts",
+      args: null,
+      adapter: "claude",
+      status: "running",
+      startedAt: 0,
+      endedAt: null,
+      pid: 4242,
+      scriptHash: "h" as ScriptHash,
+    };
     registry.init(meta, HEADLESS_SRC);
     const prints: string[] = [];
     const base = makeFakeDeps({ registry }).deps;
@@ -180,7 +250,14 @@ describe("runHeadless", () => {
 
     const code = await runHeadless(
       deps,
-      { runId, source: HEADLESS_SRC, args: null, runner: createMockRunner(), adapter: "mock", seed: [] },
+      {
+        runId,
+        source: HEADLESS_SRC,
+        args: null,
+        runner: createMockRunner(),
+        adapter: "mock",
+        seed: [],
+      },
       controller,
     );
 

@@ -35,14 +35,36 @@ export type AgentUsage = Immutable<AgentUsageShape>;
 type WorkflowEventShape =
   | { type: "run-started"; runId: RunId; name: string; budgetTotal?: number | null; at: number }
   | { type: "phase-started"; phase: string; at: number }
-  | { type: "agent-queued"; key: string; label: string; phase: string; prompt?: string; overrides?: string[]; at: number }
+  | {
+      type: "agent-queued";
+      key: string;
+      label: string;
+      phase: string;
+      prompt?: string;
+      overrides?: string[];
+      at: number;
+    }
   | { type: "agent-started"; key: string; at: number }
   | { type: "agent-tool"; key: string; tool: ToolEventShape; at: number }
   | { type: "agent-progress"; key: string; tokens?: number; model?: string; at: number }
   | { type: "agent-output"; key: string; chunk: string; at: number }
-  | { type: "agent-finished"; key: string; usage: AgentUsageShape; cached: boolean; model?: string; at: number }
+  | {
+      type: "agent-finished";
+      key: string;
+      usage: AgentUsageShape;
+      cached: boolean;
+      model?: string;
+      at: number;
+    }
   | { type: "agent-failed"; key: string; error: WorkflowError; at: number }
-  | { type: "question-asked"; key: string; question: string; choices?: string[]; allowOther?: boolean; at: number }
+  | {
+      type: "question-asked";
+      key: string;
+      question: string;
+      choices?: string[];
+      allowOther?: boolean;
+      at: number;
+    }
   | { type: "question-answered"; key: string; answer: string; cached: boolean; at: number }
   | { type: "log"; message: string; at: number }
   | { type: "run-finished"; runId: RunId; at: number };
@@ -146,7 +168,15 @@ function upsertPhase(
   patch: (p: PhaseState) => PhaseState,
 ): Map<string, PhaseState> {
   const next = new Map(phases);
-  const current = next.get(title) ?? { title, total: 0, done: 0, running: 0, tokens: 0, inputTokens: 0, outputTokens: 0 };
+  const current = next.get(title) ?? {
+    title,
+    total: 0,
+    done: 0,
+    running: 0,
+    tokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+  };
   next.set(title, patch(current));
   return next;
 }
@@ -209,7 +239,8 @@ export function reduce(state: RunState, event: WorkflowEvent): RunState {
       if (!a) return state;
       const agents = new Map(state.agents);
       // Tokens are monotonic — never let a late/out-of-order update lower the count.
-      const liveTokens = event.tokens !== undefined ? Math.max(a.liveTokens ?? 0, event.tokens) : a.liveTokens;
+      const liveTokens =
+        event.tokens !== undefined ? Math.max(a.liveTokens ?? 0, event.tokens) : a.liveTokens;
       agents.set(event.key, {
         ...a,
         ...(event.model !== undefined ? { model: event.model } : {}),
@@ -265,7 +296,10 @@ export function reduce(state: RunState, event: WorkflowEvent): RunState {
       return {
         ...state,
         agents,
-        phases: upsertPhase(state.phases, a.phase, (p) => ({ ...p, running: Math.max(0, p.running - 1) })),
+        phases: upsertPhase(state.phases, a.phase, (p) => ({
+          ...p,
+          running: Math.max(0, p.running - 1),
+        })),
       };
     }
     case "question-asked": {

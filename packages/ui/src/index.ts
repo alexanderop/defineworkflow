@@ -10,7 +10,14 @@ export { Spinner, type SpinnerProps } from "./Spinner.js";
 export { createLineLogger } from "./line-log.js";
 export { renderReportText, type RenderReportOptions } from "./report-text.js";
 export { RunReport, type RunReportProps } from "./RunReport.js";
-export { formatTokens, formatElapsed, formatDuration, formatModel, statusGlyph, SPINNER_FRAMES } from "./format.js";
+export {
+  formatTokens,
+  formatElapsed,
+  formatDuration,
+  formatModel,
+  statusGlyph,
+  SPINNER_FRAMES,
+} from "./format.js";
 export {
   orderedPhases,
   agentsInPhase,

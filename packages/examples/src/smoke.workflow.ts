@@ -29,12 +29,13 @@ export default defineWorkflow({
     log(`asking ${TOPICS.length} agents in parallel…`);
 
     const answers = await parallel(
-      TOPICS.map((topic) => () =>
-        agent(
-          `In ONE sentence, describe "${topic}". Answer from your own knowledge — no tools, no web. ` +
-            `Output only the sentence, nothing else.`,
-          { label: `gather:${topic}`, phase: "Gather" },
-        ),
+      TOPICS.map(
+        (topic) => () =>
+          agent(
+            `In ONE sentence, describe "${topic}". Answer from your own knowledge — no tools, no web. ` +
+              `Output only the sentence, nothing else.`,
+            { label: `gather:${topic}`, phase: "Gather" },
+          ),
       ),
     );
 

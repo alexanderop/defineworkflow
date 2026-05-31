@@ -48,5 +48,10 @@ export async function runWithSchemaRetry(
 
   // Surface what the model actually returned so a schema miss is debuggable
   // (especially weaker models that answer in prose instead of JSON).
-  return err({ kind: "SchemaValidation", issues: lastIssues, attempts, rawOutput: truncateRawOutput(lastText) });
+  return err({
+    kind: "SchemaValidation",
+    issues: lastIssues,
+    attempts,
+    rawOutput: truncateRawOutput(lastText),
+  });
 }

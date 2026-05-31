@@ -22,10 +22,22 @@
 //   workflow run packages/examples/src/deep-research/deep-research.workflow.ts --mock
 
 import { agent, args, defineWorkflow, log, parallel, phase, pipeline, z } from "defineworkflow";
-import { SCOPE_SCHEMA, SEARCH_SCHEMA, EXTRACT_SCHEMA, VERDICT_SCHEMA, REPORT_SCHEMA } from "./schemas.js";
+import {
+  SCOPE_SCHEMA,
+  SEARCH_SCHEMA,
+  EXTRACT_SCHEMA,
+  VERDICT_SCHEMA,
+  REPORT_SCHEMA,
+} from "./schemas.js";
 import type { SearchHit, AngleResults, FetchedSource } from "./types.js";
 import { hostOf, normURL, relRank, impRank, qualRank, confRank } from "./lib.js";
-import { scopePrompt, searchPrompt, fetchPrompt, verifyPrompt, synthesizePrompt } from "./prompts.js";
+import {
+  scopePrompt,
+  searchPrompt,
+  fetchPrompt,
+  verifyPrompt,
+  synthesizePrompt,
+} from "./prompts.js";
 
 export default defineWorkflow({
   name: "deep-research",
@@ -65,11 +77,17 @@ export default defineWorkflow({
     // ── Phase 0: Scope — decompose the question into search angles ────────────────
     phase("Scope");
     log(`Q: ${QUESTION.slice(0, 80)}${QUESTION.length > 80 ? "…" : ""}`);
-    const scope = await agent(scopePrompt(QUESTION), { label: "scope", phase: "Scope", schema: SCOPE_SCHEMA });
+    const scope = await agent(scopePrompt(QUESTION), {
+      label: "scope",
+      phase: "Scope",
+      schema: SCOPE_SCHEMA,
+    });
     if (!scope) {
       return { error: "Scope agent returned no result — cannot decompose the research question." };
     }
-    log(`Decomposed into ${scope.angles.length} angles: ${scope.angles.map((a) => a.label).join(", ")}`);
+    log(
+      `Decomposed into ${scope.angles.length} angles: ${scope.angles.map((a) => a.label).join(", ")}`,
+    );
 
     // ── Dedup state — accumulates across searchers as they complete ───────────────
     const seen = new Map<string, { angle: string; title: string }>();
@@ -98,7 +116,9 @@ export default defineWorkflow({
       // stage 1's return (AngleResults | null) — the typed pipeline threads it here.
       async (searchResult): Promise<Array<FetchedSource | null>> => {
         if (!searchResult) return [];
-        const sorted = searchResult.results.toSorted((a, b) => relRank[a.relevance] - relRank[b.relevance]);
+        const sorted = searchResult.results.toSorted(
+          (a, b) => relRank[a.relevance] - relRank[b.relevance],
+        );
         const novel = sorted.filter((r) => {
           const key = normURL(r.url);
           if (seen.has(key)) {
@@ -172,7 +192,9 @@ export default defineWorkflow({
       )
       .slice(0, MAX_VERIFY_CLAIMS);
 
-    log(`Fetched ${allSources.length} sources → ${allClaims.length} claims → verifying top ${rankedClaims.length}`);
+    log(
+      `Fetched ${allSources.length} sources → ${allClaims.length} claims → verifying top ${rankedClaims.length}`,
+    );
 
     if (rankedClaims.length === 0) {
       return {
@@ -181,7 +203,12 @@ export default defineWorkflow({
         findings: [],
         refuted: [],
         sources: allSources.map((s) => ({ url: s.url, quality: s.sourceQuality })),
-        stats: { angles: scope.angles.length, sources: allSources.length, claims: 0, dupes: dupes.length },
+        stats: {
+          angles: scope.angles.length,
+          sources: allSources.length,
+          claims: 0,
+          dupes: dupes.length,
+        },
       };
     }
 
@@ -193,12 +220,14 @@ export default defineWorkflow({
       await parallel(
         rankedClaims.map((claim) => async () => {
           const verdicts = await parallel(
-            Array.from({ length: VOTES_PER_CLAIM }, (_unused, v) => () =>
-              agent(verifyPrompt(claim, v, QUESTION, VOTES_PER_CLAIM, REFUTATIONS_REQUIRED), {
-                label: `v${v}:${claim.claim.slice(0, 40)}`,
-                phase: "Verify",
-                schema: VERDICT_SCHEMA,
-              }),
+            Array.from(
+              { length: VOTES_PER_CLAIM },
+              (_unused, v) => () =>
+                agent(verifyPrompt(claim, v, QUESTION, VOTES_PER_CLAIM, REFUTATIONS_REQUIRED), {
+                  label: `v${v}:${claim.claim.slice(0, 40)}`,
+                  phase: "Verify",
+                  schema: VERDICT_SCHEMA,
+                }),
             ),
           );
           // A vote can be null (user-skip or agent error) — treat as abstain.
@@ -220,7 +249,9 @@ export default defineWorkflow({
 
     const confirmed = voted.filter((c) => c.survives);
     const killed = voted.filter((c) => !c.survives);
-    log(`Verify done: ${voted.length} claims → ${confirmed.length} confirmed, ${killed.length} killed`);
+    log(
+      `Verify done: ${voted.length} claims → ${confirmed.length} confirmed, ${killed.length} killed`,
+    );
 
     const refutedReport = killed.map((c) => ({
       claim: c.claim,
@@ -234,7 +265,11 @@ export default defineWorkflow({
         summary: `All ${voted.length} claims refuted by adversarial verification. Research inconclusive — sources may be low-quality or claims overstated.`,
         findings: [],
         refuted: refutedReport,
-        sources: allSources.map((s) => ({ url: s.url, quality: s.sourceQuality, claimCount: s.claims.length })),
+        sources: allSources.map((s) => ({
+          url: s.url,
+          quality: s.sourceQuality,
+          claimCount: s.claims.length,
+        })),
         stats: {
           angles: scope.angles.length,
           sources: allSources.length,
@@ -253,7 +288,8 @@ export default defineWorkflow({
         const best =
           c.verdicts
             .filter((v) => !v.refuted)
-            .toSorted((a, b) => confRank[a.confidence] - confRank[b.confidence])[0] ?? c.verdicts[0];
+            .toSorted((a, b) => confRank[a.confidence] - confRank[b.confidence])[0] ??
+          c.verdicts[0];
         return (
           `### [${i}] ${c.claim}\n` +
           `Vote: ${c.verdicts.length - c.refutedVotes}-${c.refutedVotes} · Source: ${c.sourceUrl} (${c.sourceQuality})\n` +
@@ -266,7 +302,10 @@ export default defineWorkflow({
       killed.length > 0
         ? `\n## Refuted claims (for transparency)\n` +
           killed
-            .map((c) => `- "${c.claim}" (${c.sourceUrl}, vote ${c.verdicts.length - c.refutedVotes}-${c.refutedVotes})`)
+            .map(
+              (c) =>
+                `- "${c.claim}" (${c.sourceUrl}, vote ${c.verdicts.length - c.refutedVotes}-${c.refutedVotes})`,
+            )
             .join("\n")
         : "";
 
@@ -289,7 +328,11 @@ export default defineWorkflow({
           vote: `${c.verdicts.length - c.refutedVotes}-${c.refutedVotes}`,
         })),
         refuted: refutedReport,
-        sources: allSources.map((s) => ({ url: s.url, quality: s.sourceQuality, claimCount: s.claims.length })),
+        sources: allSources.map((s) => ({
+          url: s.url,
+          quality: s.sourceQuality,
+          claimCount: s.claims.length,
+        })),
         stats: {
           angles: scope.angles.length,
           sources: allSources.length,
@@ -322,7 +365,8 @@ export default defineWorkflow({
         afterSynthesis: report.findings.length,
         urlDupes: dupes.length,
         budgetDropped: budgetDropped.length,
-        agentCalls: 1 + scope.angles.length + allSources.length + voted.length * VOTES_PER_CLAIM + 1,
+        agentCalls:
+          1 + scope.angles.length + allSources.length + voted.length * VOTES_PER_CLAIM + 1,
       },
     };
   },

@@ -76,7 +76,7 @@ LLM agents are non-deterministic and expensive to call. A long, multi-step
 agentic process that dies halfway through shouldn't have to start over — and
 re-running it shouldn't re-spend tokens on work that already succeeded.
 
-`defineworkflow` makes the *orchestration* deterministic while the *agents* stay
+`defineworkflow` makes the _orchestration_ deterministic while the _agents_ stay
 probabilistic:
 
 - **Durable & crash-safe** — each `agent()` result is appended to a per-run
@@ -101,17 +101,17 @@ A workflow is a TS file whose default export is `defineWorkflow({ ..., run() })`
 The runtime hands `run()` these primitives (also importable from
 `defineworkflow` for editor types and autocomplete):
 
-| Primitive | Purpose |
-| --- | --- |
-| `agent(prompt, opts?)` | Invoke a coding agent; returns its text, or a typed object when `opts.schema` is given |
-| `parallel(thunks)` | Run agent calls concurrently (barrier — awaits all) |
-| `pipeline(items, ...stages)` | Run each item through staged agent calls, no barrier between stages |
-| `phase(title)` | Group subsequent agents under a phase in the UI |
-| `log(message)` | Emit a progress line to the user |
-| `askUserQuestion(opts)` | Ask the human a question mid-run and await the answer (journaled, so resume never re-asks) |
-| `workflow(name, args?)` | Run another workflow inline (one level deep; shares the budget) |
-| `budget` | Token budget: `total`, `spent()`, `remaining()` |
-| `args` | The value passed via `--args` |
+| Primitive                    | Purpose                                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------ |
+| `agent(prompt, opts?)`       | Invoke a coding agent; returns its text, or a typed object when `opts.schema` is given     |
+| `parallel(thunks)`           | Run agent calls concurrently (barrier — awaits all)                                        |
+| `pipeline(items, ...stages)` | Run each item through staged agent calls, no barrier between stages                        |
+| `phase(title)`               | Group subsequent agents under a phase in the UI                                            |
+| `log(message)`               | Emit a progress line to the user                                                           |
+| `askUserQuestion(opts)`      | Ask the human a question mid-run and await the answer (journaled, so resume never re-asks) |
+| `workflow(name, args?)`      | Run another workflow inline (one level deep; shares the budget)                            |
+| `budget`                     | Token budget: `total`, `spent()`, `remaining()`                                            |
+| `args`                       | The value passed via `--args`                                                              |
 
 These exist as importable stubs purely for TypeScript/editor support. At
 execution time the CLI strips the `import … from "defineworkflow"` line and
@@ -144,7 +144,7 @@ runs both the same way (`defineworkflow run <path>`).
 **Single file** — everything in one `*.workflow.ts`. Best for small workflows;
 this is the `haiku.workflow.ts` shown at the top of this README.
 
-**Multi-file** — a slim *entry* file that exports `defineWorkflow({...})`, plus
+**Multi-file** — a slim _entry_ file that exports `defineWorkflow({...})`, plus
 local helper files (schemas, prompts, …) imported with **relative paths**, so the
 entry reads like a table of contents:
 

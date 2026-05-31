@@ -28,7 +28,9 @@ export function parseAnswers(json: string | undefined): Result<AnswerMap, string
  * Pre-supplied answers win, then the question's own `default`; otherwise the run fails fast with
  * `UnansweredQuestion` — a non-interactive run must never hang waiting on a prompt nobody can see.
  */
-export function createHeadlessAskUser(answers: AnswerMap): (req: QuestionRequest) => Promise<string> {
+export function createHeadlessAskUser(
+  answers: AnswerMap,
+): (req: QuestionRequest) => Promise<string> {
   return async (req) => {
     const supplied = answers[req.key];
     if (supplied !== undefined) return supplied;

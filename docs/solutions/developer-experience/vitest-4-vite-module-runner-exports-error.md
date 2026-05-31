@@ -6,7 +6,21 @@ category: developer-experience
 problem_type: "dependency_resolution_failure"
 module: "monorepo-root"
 component: "vitest"
-tags: ["vitest", "vite", "vitepress", "pnpm", "lockfile", "module-runner", "exports", "dependabot", "peer-dependency", "monorepo", "test-harness", "migration"]
+tags:
+  [
+    "vitest",
+    "vite",
+    "vitepress",
+    "pnpm",
+    "lockfile",
+    "module-runner",
+    "exports",
+    "dependabot",
+    "peer-dependency",
+    "monorepo",
+    "test-harness",
+    "migration",
+  ]
 applies_when: "upgrading vitest to 4.x in a pnpm + Turbo monorepo that also has vitepress (or another consumer pinning vite 5)"
 ---
 
@@ -31,6 +45,7 @@ Error [ERR_PACKAGE_PATH_NOT_EXPORTED]: Package subpath './module-runner' is not 
 in vite ≥ 6**. With vite 5.4.21 wired in, the subpath isn't exported → hard crash.
 
 Diagnostic confirmation:
+
 - `pnpm why vite` showed a **single** `vite@5.4.21` shared by **both** `vitepress` and `vitest` — the
   smoking gun.
 - vitest's installed `package.json` declares `vite: "^6.0.0 || ^7.0.0 || ^8.0.0"` in **both**
@@ -46,8 +61,8 @@ Diagnostic confirmation:
   `package.json`, so nothing re-resolved.
 - **`rm pnpm-lock.yaml && pnpm install`** — regenerated the lockfile (and usefully dropped the stale
   vitest@2 / coverage-v8@2.1.9 cruft) but **still** pinned vitest → vite@5.4.21. Because vite 5 was
-  the *only* vite in the tree (vitepress's), pnpm satisfied vitest's vite from it rather than fetching
-  a fresh in-range copy. Regenerating alone is not enough — you must *introduce* a valid version.
+  the _only_ vite in the tree (vitepress's), pnpm satisfied vitest's vite from it rather than fetching
+  a fresh in-range copy. Regenerating alone is not enough — you must _introduce_ a valid version.
 
 ## Solution
 
@@ -81,7 +96,9 @@ Error loading vitest.workspace.ts ((0 , _config.defineWorkspace) is not a functi
 - import { defineWorkspace } from "vitest/config";
 - export default defineWorkspace([ { test: { name: "unit", ... } }, { test: { name: "e2e", ... } } ]);
 ```
+
 Config already lives in `vitest.config.ts`:
+
 ```ts
 export default defineConfig({
   test: {
@@ -92,6 +109,7 @@ export default defineConfig({
   },
 });
 ```
+
 Also update the doc references that pointed at `vitest.workspace.ts` (CLAUDE.md, README.md).
 
 ## Why This Works
@@ -108,7 +126,7 @@ still resolves its own `vite@5.4.21`, and there is no `vitest@2.1.9` / `@vitest/
 ## Prevention
 
 - **A green `pnpm test` after a major bump isn't proof the bump is clean.** Here vitest silently
-  ignored a stale, broken `vitest.workspace.ts`; only knip caught it. Conversely, a *startup* crash
+  ignored a stale, broken `vitest.workspace.ts`; only knip caught it. Conversely, a _startup_ crash
   (`ERR_PACKAGE_PATH_NOT_EXPORTED` on a vite subpath) is usually a transitive peer/dedupe issue, not a
   bug in the bumped package.
 - **Treat dependabot lockfile edits as partial.** Regenerate and diff `pnpm-lock.yaml` rather than

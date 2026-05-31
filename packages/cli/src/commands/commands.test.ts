@@ -11,8 +11,19 @@ import { fakeDeps, runMeta } from "../test-support.js";
 const GREET_BODY = `phase("Greet");
 const msg = await agent("say hi", { label: "greeter" });
 return { msg };`;
-const HELLO = workflowSource({ name: "hello", description: "say hi", harness: "raw-api", phases: [{ title: "Greet" }], body: GREET_BODY });
-const HELLO_NO_HARNESS = workflowSource({ name: "hello", description: "say hi", phases: [{ title: "Greet" }], body: GREET_BODY });
+const HELLO = workflowSource({
+  name: "hello",
+  description: "say hi",
+  harness: "raw-api",
+  phases: [{ title: "Greet" }],
+  body: GREET_BODY,
+});
+const HELLO_NO_HARNESS = workflowSource({
+  name: "hello",
+  description: "say hi",
+  phases: [{ title: "Greet" }],
+  body: GREET_BODY,
+});
 
 describe("dispatch routing", () => {
   it("prints usage and exits non-zero with no command", async () => {
@@ -79,11 +90,19 @@ describe("dispatch run (end-to-end, line-log)", () => {
 
   const ASK_BODY = `const env = await askUserQuestion({ key: "deploy-target", question: "Where to deploy?", choices: ["staging", "production"] });
 return { env };`;
-  const ASK = workflowSource({ name: "ask", description: "asks", harness: "raw-api", body: ASK_BODY });
+  const ASK = workflowSource({
+    name: "ask",
+    description: "asks",
+    harness: "raw-api",
+    body: ASK_BODY,
+  });
 
   it("resolves askUserQuestion from --answers in a non-interactive run", async () => {
     const { deps } = fakeDeps({ _files: { "/a.ts": ASK } });
-    const code = await dispatch(["run", "/a.ts", "--yes", "--answers", '{"deploy-target":"staging"}'], deps);
+    const code = await dispatch(
+      ["run", "/a.ts", "--yes", "--answers", '{"deploy-target":"staging"}'],
+      deps,
+    );
     expect(code).toBe(0);
     expect(deps.registry.listRuns()[0]!.status).toBe("finished");
   });
@@ -158,7 +177,14 @@ return r;`;
     deps.registry.init(runMeta({ runId: "r1" as RunId, name: "t" }), SOURCE);
 
     const runner = createControllableRunner();
-    const p = runForeground(deps, { runId: "r1" as RunId, source: SOURCE, args: {}, runner, adapter: "codex", seed: [] });
+    const p = runForeground(deps, {
+      runId: "r1" as RunId,
+      source: SOURCE,
+      args: {},
+      runner,
+      adapter: "codex",
+      seed: [],
+    });
     await flush();
 
     expect(runner.callCount("a")).toBe(1);
@@ -192,7 +218,14 @@ return v;`;
     deps.registry.init(runMeta({ runId: "r2" as RunId, name: "t" }), SOURCE2);
 
     const runner = createControllableRunner();
-    const p = runForeground(deps, { runId: "r2" as RunId, source: SOURCE2, args: {}, runner, adapter: "codex", seed: [] });
+    const p = runForeground(deps, {
+      runId: "r2" as RunId,
+      source: SOURCE2,
+      args: {},
+      runner,
+      adapter: "codex",
+      seed: [],
+    });
     await flush();
 
     expect(runner.callCount("a")).toBe(1);

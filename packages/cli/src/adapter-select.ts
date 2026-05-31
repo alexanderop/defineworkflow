@@ -27,7 +27,10 @@ export function resolveHarness(harness: unknown): Result<AdapterId, WorkflowErro
   if (isAdapterId(harness)) {
     return ok(harness);
   }
-  return err({ kind: "HarnessNotDeclared", found: typeof harness === "string" ? harness : undefined });
+  return err({
+    kind: "HarnessNotDeclared",
+    found: typeof harness === "string" ? harness : undefined,
+  });
 }
 
 export interface BuildRunnerDeps {
@@ -35,7 +38,11 @@ export interface BuildRunnerDeps {
   readonly complete?: RawApiAdapterDeps["complete"] | undefined;
 }
 
-export function buildRunner(id: AdapterId, cfg: WorkflowConfig, deps: BuildRunnerDeps): Result<AgentRunner, WorkflowError> {
+export function buildRunner(
+  id: AdapterId,
+  cfg: WorkflowConfig,
+  deps: BuildRunnerDeps,
+): Result<AgentRunner, WorkflowError> {
   const bin = cfg.adapters?.[id]?.bin;
   const binDep = bin ? { bin } : {};
   switch (id) {
@@ -47,7 +54,11 @@ export function buildRunner(id: AdapterId, cfg: WorkflowConfig, deps: BuildRunne
       return ok(createCopilotAdapter({ processRunner: deps.processRunner, ...binDep }));
     case "raw-api":
       if (!deps.complete) {
-        return err({ kind: "AdapterSpawn", adapter: "raw-api", cause: "no completion function configured (set ANTHROPIC_API_KEY or pick a CLI adapter)" });
+        return err({
+          kind: "AdapterSpawn",
+          adapter: "raw-api",
+          cause: "no completion function configured (set ANTHROPIC_API_KEY or pick a CLI adapter)",
+        });
       }
       return ok(createRawApiAdapter({ complete: deps.complete }));
     default:

@@ -65,7 +65,11 @@ export function createCopilotTranslator(): StreamTranslator {
         const tokens = typeof data.outputTokens === "number" ? data.outputTokens : undefined;
         if (tokens !== undefined) {
           cumulativeOutput += tokens;
-          out.push(model !== undefined ? { tokens: cumulativeOutput, model } : { tokens: cumulativeOutput });
+          out.push(
+            model !== undefined
+              ? { tokens: cumulativeOutput, model }
+              : { tokens: cumulativeOutput },
+          );
         }
         return out;
       }

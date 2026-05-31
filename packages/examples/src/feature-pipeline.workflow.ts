@@ -42,7 +42,8 @@ interface Refactor {
 
 export default defineWorkflow({
   name: "feature-pipeline",
-  description: "Drive a feature from PRD through real on-disk per-subtask TDD, review, refactor, then clean up /tmp",
+  description:
+    "Drive a feature from PRD through real on-disk per-subtask TDD, review, refactor, then clean up /tmp",
   whenToUse:
     'Probe whether a real software pipeline works end-to-end with this engine. Pass {"feature":"…","workdir":"/tmp/…"}; with no args it builds a demo rate-limiter under /tmp/workflow-feature-pipeline and deletes it at the end.',
   harness: "claude",
@@ -72,7 +73,9 @@ export default defineWorkflow({
       subtasks: z
         .array(
           z.object({
-            id: z.string().describe("short kebab-case id, safe as a folder name, e.g. token-bucket-core"),
+            id: z
+              .string()
+              .describe("short kebab-case id, safe as a folder name, e.g. token-bucket-core"),
             title: z.string(),
             description: z.string().describe("what to build, as a vertical slice"),
             acceptance: z.array(z.string()).describe("how we know this subtask is done"),
@@ -84,15 +87,21 @@ export default defineWorkflow({
       dir: z.string().describe("absolute path of the subtask's working directory"),
       files: z.array(z.string()).describe("paths of files created/modified, relative to dir"),
       testCommand: z.string().describe("the exact command used to run the tests"),
-      redConfirmed: z.boolean().describe("true if tests were observed FAILING before the implementation"),
-      greenConfirmed: z.boolean().describe("true if tests were observed PASSING after the implementation"),
+      redConfirmed: z
+        .boolean()
+        .describe("true if tests were observed FAILING before the implementation"),
+      greenConfirmed: z
+        .boolean()
+        .describe("true if tests were observed PASSING after the implementation"),
       notes: z.string().describe("design decisions, the final test output summary, assumptions"),
     });
     const ReviewSchema = z.object({
       verdict: z.enum(["approve", "request-changes"]),
       testsPass: z.boolean().describe("true if the reviewer re-ran the tests and they passed"),
       findings: z
-        .array(z.object({ severity: z.enum(["blocker", "major", "minor", "nit"]), note: z.string() }))
+        .array(
+          z.object({ severity: z.enum(["blocker", "major", "minor", "nit"]), note: z.string() }),
+        )
         .describe("concrete, actionable review comments"),
       summary: z.string(),
     });

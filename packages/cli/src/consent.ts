@@ -43,7 +43,11 @@ function phaseTitles(meta: WorkflowMetaLike): string {
 }
 
 /** Interactive consent prompt (parity with Claude Code's run consent). IO is injected for testing. */
-export async function promptConsent(meta: WorkflowMetaLike, source: string, io: ConsentIO): Promise<ConsentResult> {
+export async function promptConsent(
+  meta: WorkflowMetaLike,
+  source: string,
+  io: ConsentIO,
+): Promise<ConsentResult> {
   io.write(`\nWorkflow: ${meta.name}\n`);
   io.write(`  ${meta.description}\n`);
   io.write(`  harness: ${meta.harness ?? "(none declared)"}\n`);
@@ -51,12 +55,17 @@ export async function promptConsent(meta: WorkflowMetaLike, source: string, io: 
   io.write(`  ⚠ this will spawn agents and may consume a significant number of tokens.\n`);
 
   for (;;) {
-    const answer = (await io.question("Run this workflow? [y]es / [a]lways for this project / [v]iew script / [n]o: "))
+    const answer = (
+      await io.question(
+        "Run this workflow? [y]es / [a]lways for this project / [v]iew script / [n]o: ",
+      )
+    )
       .trim()
       .toLowerCase();
     if (answer === "y" || answer === "yes") return { allow: true, remember: false };
     if (answer === "a" || answer === "always") return { allow: true, remember: true };
-    if (answer === "n" || answer === "no" || answer === "") return { allow: false, remember: false };
+    if (answer === "n" || answer === "no" || answer === "")
+      return { allow: false, remember: false };
     if (answer === "v" || answer === "view") {
       io.write(`\n${source}\n\n`);
       continue;

@@ -22,7 +22,11 @@ import type {
 // oxlint-disable-next-line typescript/consistent-type-assertions -- minting a branded nominal type requires one cast
 const asRunId = (s: string): RunId => s as RunId;
 
-export const usage = (o: Partial<AgentUsage> = {}): AgentUsage => ({ inputTokens: 0, outputTokens: 0, ...o });
+export const usage = (o: Partial<AgentUsage> = {}): AgentUsage => ({
+  inputTokens: 0,
+  outputTokens: 0,
+  ...o,
+});
 
 export const toolEvent = (o: Partial<ToolEvent> = {}): ToolEvent => ({ name: "tool", ...o });
 
@@ -53,8 +57,17 @@ const EVENT_BASES: { [T in WorkflowEvent["type"]]: Omit<EventOf<T>, "type"> } = 
   "agent-tool": { key: "0:Work:a", tool: { name: "tool" }, at: 0 },
   "agent-progress": { key: "0:Work:a", at: 0 },
   "agent-output": { key: "0:Work:a", chunk: "", at: 0 },
-  "agent-finished": { key: "0:Work:a", usage: { inputTokens: 0, outputTokens: 0 }, cached: false, at: 0 },
-  "agent-failed": { key: "0:Work:a", error: { kind: "AdapterSpawn", adapter: "test", cause: "boom" }, at: 0 },
+  "agent-finished": {
+    key: "0:Work:a",
+    usage: { inputTokens: 0, outputTokens: 0 },
+    cached: false,
+    at: 0,
+  },
+  "agent-failed": {
+    key: "0:Work:a",
+    error: { kind: "AdapterSpawn", adapter: "test", cause: "boom" },
+    at: 0,
+  },
   "question-asked": { key: "deploy-target", question: "Where?", at: 0 },
   "question-answered": { key: "deploy-target", answer: "staging", cached: false, at: 0 },
   log: { message: "log", at: 0 },
@@ -66,7 +79,10 @@ const EVENT_BASES: { [T in WorkflowEvent["type"]]: Omit<EventOf<T>, "type"> } = 
  * are checked against that variant's fields:
  *   event("agent-finished", { usage: usage({ outputTokens: 9 }), at: 3 })
  */
-export function event<T extends WorkflowEvent["type"]>(type: T, overrides: Partial<EventOf<T>> = {}): EventOf<T> {
+export function event<T extends WorkflowEvent["type"]>(
+  type: T,
+  overrides: Partial<EventOf<T>> = {},
+): EventOf<T> {
   const built: Record<string, unknown> = { type, ...EVENT_BASES[type], ...overrides };
   // Spreading a generically-indexed base + Partial can't be re-narrowed to the precise member by
   // TS; the field shapes above guarantee correctness for each variant.

@@ -13,7 +13,17 @@ describe("raw-api adapter", () => {
     expect(adapter.id).toBe("raw-api");
     expect(adapter.capabilities.reportsTokens).toBe(true);
     const res = await adapter.run(
-      { prompt: "give n", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"], additionalProperties: false }, cwd: "/tmp", signal: new AbortController().signal },
+      {
+        prompt: "give n",
+        schema: {
+          type: "object",
+          properties: { n: { type: "number" } },
+          required: ["n"],
+          additionalProperties: false,
+        },
+        cwd: "/tmp",
+        signal: new AbortController().signal,
+      },
       { runId: "r" as RunId, seq: 0 },
     );
     expect(res._unsafeUnwrap().data).toEqual({ n: 7 });
@@ -21,8 +31,15 @@ describe("raw-api adapter", () => {
   });
 
   it("maps a thrown completion error to AdapterSpawn", async () => {
-    const adapter = createRawApiAdapter({ complete: async () => { throw new Error("no api key"); } });
-    const res = await adapter.run({ prompt: "x", cwd: "/tmp", signal: new AbortController().signal }, { runId: "r" as RunId, seq: 0 });
+    const adapter = createRawApiAdapter({
+      complete: async () => {
+        throw new Error("no api key");
+      },
+    });
+    const res = await adapter.run(
+      { prompt: "x", cwd: "/tmp", signal: new AbortController().signal },
+      { runId: "r" as RunId, seq: 0 },
+    );
     expect(res._unsafeUnwrapErr().kind).toBe("AdapterSpawn");
   });
 });

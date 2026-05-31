@@ -1,6 +1,13 @@
 import { ok, err } from "neverthrow";
 import type { Result } from "neverthrow";
-import type { AgentRunner, AgentRequest, AgentResult, JsonSchema, RunCtx, WorkflowError } from "@workflow/core";
+import type {
+  AgentRunner,
+  AgentRequest,
+  AgentResult,
+  JsonSchema,
+  RunCtx,
+  WorkflowError,
+} from "@workflow/core";
 import { CAPABILITIES } from "./detect.js";
 
 export interface CompletionRequest {

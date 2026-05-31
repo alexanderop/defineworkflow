@@ -7,15 +7,33 @@ const detail: KeymapCtx = { focus: "detail", agentKey: "build#0" };
 
 describe("resolveKey", () => {
   it("maps arrow keys to nav move/focus actions", () => {
-    expect(resolveKey("", { upArrow: true }, phases)).toEqual({ kind: "nav", action: { type: "up" } });
-    expect(resolveKey("", { downArrow: true }, phases)).toEqual({ kind: "nav", action: { type: "down" } });
-    expect(resolveKey("", { rightArrow: true }, phases)).toEqual({ kind: "nav", action: { type: "right" } });
-    expect(resolveKey("", { leftArrow: true }, phases)).toEqual({ kind: "nav", action: { type: "left" } });
+    expect(resolveKey("", { upArrow: true }, phases)).toEqual({
+      kind: "nav",
+      action: { type: "up" },
+    });
+    expect(resolveKey("", { downArrow: true }, phases)).toEqual({
+      kind: "nav",
+      action: { type: "down" },
+    });
+    expect(resolveKey("", { rightArrow: true }, phases)).toEqual({
+      kind: "nav",
+      action: { type: "right" },
+    });
+    expect(resolveKey("", { leftArrow: true }, phases)).toEqual({
+      kind: "nav",
+      action: { type: "left" },
+    });
   });
 
   it("maps escape to esc and return to toggleExpand", () => {
-    expect(resolveKey("", { escape: true }, detail)).toEqual({ kind: "nav", action: { type: "esc" } });
-    expect(resolveKey("", { return: true }, detail)).toEqual({ kind: "nav", action: { type: "toggleExpand" } });
+    expect(resolveKey("", { escape: true }, detail)).toEqual({
+      kind: "nav",
+      action: { type: "esc" },
+    });
+    expect(resolveKey("", { return: true }, detail)).toEqual({
+      kind: "nav",
+      action: { type: "toggleExpand" },
+    });
   });
 
   it("maps j/k to detail scroll", () => {
@@ -54,7 +72,10 @@ describe("resolveKey", () => {
   });
 
   it("r restarts the selected agent, but is inert with no selection", () => {
-    expect(resolveKey("r", {}, agents)).toEqual({ kind: "ui", action: { type: "restart", key: "build#0" } });
+    expect(resolveKey("r", {}, agents)).toEqual({
+      kind: "ui",
+      action: { type: "restart", key: "build#0" },
+    });
     expect(resolveKey("r", {}, { focus: "agents", agentKey: undefined })).toBeNull();
   });
 

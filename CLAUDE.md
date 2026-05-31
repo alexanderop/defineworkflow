@@ -65,7 +65,7 @@ fakes), so it must **not** introduce a workspace dependency cycle: a cycle puts 
 passed locally with a warm `dist/`). Concretely: **`@workflow/core` must never depend on
 `@workflow/test-support`** — `core` is the foundation the helpers are built on. The one `core` test
 that needs leaf factories (`scripted-runner.test.ts`) defines its own local `agentRequest`/`runCtx`
-mirroring the shared ones. Packages *above* `core` (`adapters` tests aside — `ui`, `cli`, …) consume
+mirroring the shared ones. Packages _above_ `core` (`adapters` tests aside — `ui`, `cli`, …) consume
 `test-support` freely.
 
 ## TypeScript conventions
@@ -144,7 +144,7 @@ Key invariants when editing the runtime:
   cheaply (used for the consent gate before a real run — for a `defineWorkflow` file it reads the
   metadata object passed in). `Date.now()`, `Math.random()`, and argless `new Date()` are **forbidden**
   inside the sandbox — they would break journal replay. Don't add nondeterministic globals.
-- **Budget** is a *soft* gate, not a reservation — under concurrency a run can overshoot because
+- **Budget** is a _soft_ gate, not a reservation — under concurrency a run can overshoot because
   several agents read `remaining()` before any records. `remaining()` is `Infinity` when no cap is set.
 - **Nested workflows** are one level deep only: `workflow()` creates a child runtime that **shares the
   parent's budget** but whose own `workflow()` throws.
@@ -197,12 +197,13 @@ layered from `~/.workflow/config.json` then `./.workflow/config.json` (`config.t
 
 React + **Ink** terminal dashboard. `startUi({ subscribe, … })` subscribes to the event stream; on a
 TTY it renders a throttled (100ms) three-pane layout (phases / agents / detail) driven by `RunState`
-+ pure `selectors.ts`, with `navReducer` handling arrow/vim navigation. Non-TTY falls back to
-plain-text log lines (`line-log.ts`). UI interactions are emitted back through an `onAction` callback.
-When `RunState.pendingQuestion` is set (an `askUserQuestion()` is waiting), `App.tsx` swaps to
-`QuestionPrompt.tsx` — markdown question + arrow-selectable choices + an optional "Other" free-text
-input — and routes keypresses there; submitting dispatches a `{type:'answer'}` action. The non-TTY
-log renders questions as `?`/`↳` lines.
+
+- pure `selectors.ts`, with `navReducer` handling arrow/vim navigation. Non-TTY falls back to
+  plain-text log lines (`line-log.ts`). UI interactions are emitted back through an `onAction` callback.
+  When `RunState.pendingQuestion` is set (an `askUserQuestion()` is waiting), `App.tsx` swaps to
+  `QuestionPrompt.tsx` — markdown question + arrow-selectable choices + an optional "Other" free-text
+  input — and routes keypresses there; submitting dispatches a `{type:'answer'}` action. The non-TTY
+  log renders questions as `?`/`↳` lines.
 
 ### `packages/workflow` — the authoring entrypoint
 
@@ -231,7 +232,7 @@ each top-level string field is also extracted to its own file (`<key>.<ext>`, ex
 content); when omitted, the return value is only printed to the terminal. Either way the CLI always
 prints the returned object on completion (`artifacts.ts` + `emitArtifacts` in `execute.ts`).
 
-**Multi-file workflows.** A workflow may be a single file *or* a folder: a slim **entry** file that
+**Multi-file workflows.** A workflow may be a single file _or_ a folder: a slim **entry** file that
 exports `defineWorkflow({...})` plus local helper files (schemas, prompts) imported with relative
 paths, so the entry reads like a table of contents:
 
@@ -262,8 +263,8 @@ multi-file counterpart (entry + sibling `schemas.ts`/`prompts.ts`), run via `pnp
 
 ### `packages/test-support`
 
-Private, test-only package — the shared home for deterministic test helpers (see *Test layout &
-conventions* above). `src/factories.ts` holds the leaf data factories (`event`, `agentResult`,
+Private, test-only package — the shared home for deterministic test helpers (see _Test layout &
+conventions_ above). `src/factories.ts` holds the leaf data factories (`event`, `agentResult`,
 `usage`, `agentRequest`, `runCtx`, `workflowSource`); `src/index.ts` also re-exports the engine's
 reusable fakes so tests have one import path. Never imported by production code.
 

@@ -1,516 +1,791 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>workflow · Flue ideas decision map</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
-<style>
-:root{
-  --bg:#0a0b0d;
-  --panel:#13161b;
-  --panel-2:#171b21;
-  --ink:#e7e3d8;
-  --ink-dim:#9aa0a8;
-  --ink-faint:#5b6168;
-  --line:#23282f;
-  --line-bright:#313842;
-  --amber:#ffb000;
-  --amber-soft:#ffce6b;
-  --cyan:#5ad1e0;
-  --green:#67e08a;
-  --red:#ff5d54;
-  --violet:#b69cff;
-  --grid:rgba(255,176,0,.035);
-}
-*{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{
-  margin:0;
-  background:
-    radial-gradient(1100px 600px at 82% -10%, rgba(90,209,224,.07), transparent 60%),
-    radial-gradient(900px 520px at -8% 105%, rgba(255,176,0,.06), transparent 56%),
-    var(--bg);
-  color:var(--ink);
-  font-family:"Spectral",Georgia,serif;
-  font-size:17px;
-  line-height:1.65;
-  -webkit-font-smoothing:antialiased;
-}
-body::before{
-  content:"";
-  position:fixed;
-  inset:0;
-  pointer-events:none;
-  z-index:0;
-  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
-  background-size:46px 46px;
-  mask-image:radial-gradient(circle at 50% 30%,#000,transparent 95%);
-}
-body::after{
-  content:"";
-  position:fixed;
-  inset:0;
-  pointer-events:none;
-  z-index:0;
-  opacity:.04;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-.page{position:relative;z-index:1}
-.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
-.display,h1,h2,h3{font-family:"Big Shoulders Display",sans-serif;font-weight:900;letter-spacing:.01em;line-height:.95}
-.eyebrow{
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:12px;
-  letter-spacing:.34em;
-  text-transform:uppercase;
-  color:var(--amber);
-  font-weight:500;
-}
-nav{
-  position:sticky;
-  top:0;
-  z-index:20;
-  display:flex;
-  align-items:center;
-  gap:22px;
-  padding:14px 30px;
-  background:rgba(10,11,13,.78);
-  backdrop-filter:blur(14px);
-  border-bottom:1px solid var(--line);
-}
-nav .brand{
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-weight:600;
-  font-size:15px;
-  color:var(--ink);
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 16px rgba(255,176,0,.55)}
-nav a{
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:12px;
-  letter-spacing:.04em;
-  color:var(--ink-dim);
-  text-decoration:none;
-  padding:6px 10px;
-  border-radius:8px;
-}
-nav a:hover{color:var(--amber);background:var(--panel)}
-main{max-width:1180px;margin:0 auto;padding:70px 30px 90px}
-section{padding:70px 0;border-top:1px solid var(--line)}
-section:first-of-type{border-top:0}
-.hero{min-height:76vh;display:grid;align-content:center}
-.hero h1{font-size:clamp(56px,10vw,138px);margin:18px 0 0}
-.hero h1 .glow{color:var(--amber);text-shadow:0 0 38px rgba(255,176,0,.35)}
-.hero .sub{font-size:22px;color:var(--ink-dim);max-width:66ch;margin-top:26px}
-.lead{color:var(--ink-dim);max-width:70ch;font-size:18.5px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-.card{
-  border:1px solid var(--line);
-  background:linear-gradient(180deg,rgba(255,255,255,.015),transparent),var(--panel);
-  border-radius:14px;
-  padding:22px;
-  box-shadow:0 20px 60px rgba(0,0,0,.22);
-}
-.card h3{font-size:25px;margin-bottom:8px}
-.card p{margin:0;color:var(--ink-dim)}
-.tag{
-  display:inline-block;
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:11px;
-  letter-spacing:.08em;
-  text-transform:uppercase;
-  padding:3px 8px;
-  border-radius:5px;
-  border:1px solid var(--line-bright);
-  color:var(--cyan);
-  margin-bottom:12px;
-}
-.tag.key{color:var(--amber)}
-.tag.ok{color:var(--green)}
-.tag.warn{color:var(--red)}
-.tag.violet{color:var(--violet)}
-.score{
-  display:flex;
-  gap:8px;
-  align-items:center;
-  flex-wrap:wrap;
-  margin-top:16px;
-}
-.pill{
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:11px;
-  color:var(--ink-dim);
-  border:1px solid var(--line-bright);
-  border-radius:999px;
-  padding:5px 9px;
-  background:var(--panel-2);
-}
-.pill.good{color:var(--green);border-color:rgba(103,224,138,.4);background:rgba(103,224,138,.07)}
-.pill.mid{color:var(--amber);border-color:rgba(255,176,0,.42);background:rgba(255,176,0,.08)}
-.pill.risk{color:var(--red);border-color:rgba(255,93,84,.42);background:rgba(255,93,84,.07)}
-.callout{
-  border-left:3px solid var(--amber);
-  padding:15px 18px;
-  background:var(--panel);
-  border-radius:0 10px 10px 0;
-  color:var(--ink-dim);
-  font-size:15px;
-}
-.callout b{color:var(--ink)}
-.diagram{
-  display:grid;
-  grid-template-columns:1fr 44px 1fr 44px 1fr;
-  align-items:center;
-  gap:12px;
-  margin-top:28px;
-}
-.node{
-  border:1px solid var(--line-bright);
-  border-radius:12px;
-  background:var(--panel);
-  padding:18px;
-  min-height:112px;
-}
-.node .k{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.12em}
-.node .v{font-family:"Big Shoulders Display",sans-serif;font-weight:900;font-size:30px;margin-top:6px}
-.node p{margin:6px 0 0;color:var(--ink-dim);font-size:15px}
-.arrow{font-family:"IBM Plex Mono",ui-monospace,monospace;color:var(--amber);font-size:24px;text-align:center}
-.matrix{display:grid;gap:14px;margin-top:26px}
-.row{
-  display:grid;
-  grid-template-columns:1.1fr 1.25fr 1.25fr .8fr;
-  gap:14px;
-  align-items:stretch;
-}
-.cell{
-  border:1px solid var(--line);
-  background:var(--panel);
-  border-radius:12px;
-  padding:16px;
-}
-.cell.head{
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.14em;
-  color:var(--amber);
-  background:transparent;
-  border-color:transparent;
-  padding-bottom:6px;
-}
-.cell b{color:var(--ink)}
-.cell p{margin:6px 0 0;color:var(--ink-dim);font-size:15px}
-.prio{
-  font-family:"Big Shoulders Display",sans-serif;
-  font-size:38px;
-  font-weight:900;
-  color:var(--amber);
-  line-height:1;
-}
-.code{
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:13px;
-  line-height:1.58;
-  color:var(--ink-dim);
-  border:1px solid var(--line);
-  border-radius:12px;
-  background:#0d0f13;
-  padding:18px;
-  overflow:auto;
-}
-.code .kw{color:var(--amber)}
-.code .ty{color:var(--cyan)}
-.code .ok{color:var(--green)}
-.code .cm{color:var(--ink-faint)}
-.timeline{display:grid;gap:14px;margin-top:26px}
-.step{display:grid;grid-template-columns:90px 1fr;gap:16px;align-items:start}
-.step .num{
-  font-family:"Big Shoulders Display",sans-serif;
-  font-weight:900;
-  font-size:44px;
-  color:var(--amber);
-  line-height:1;
-}
-.step .body{border-left:1px solid var(--line-bright);padding-left:18px}
-.step h3{font-size:24px;margin-bottom:4px}
-.step p{margin:0;color:var(--ink-dim)}
-table{width:100%;border-collapse:separate;border-spacing:0 10px;margin-top:22px}
-th{
-  text-align:left;
-  color:var(--amber);
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:11px;
-  letter-spacing:.12em;
-  text-transform:uppercase;
-  font-weight:500;
-  padding:0 12px 4px;
-}
-td{
-  background:var(--panel);
-  border-top:1px solid var(--line);
-  border-bottom:1px solid var(--line);
-  padding:14px 12px;
-  color:var(--ink-dim);
-  vertical-align:top;
-}
-td:first-child{border-left:1px solid var(--line);border-radius:10px 0 0 10px;color:var(--ink)}
-td:last-child{border-right:1px solid var(--line);border-radius:0 10px 10px 0}
-footer{padding:48px 30px 70px;text-align:center;color:var(--ink-faint);font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px}
-@media (max-width:900px){
-  nav{overflow:auto}
-  main{padding:44px 18px 70px}
-  .grid2,.grid3{grid-template-columns:1fr}
-  .diagram{grid-template-columns:1fr}
-  .arrow{transform:rotate(90deg)}
-  .row{grid-template-columns:1fr}
-  .cell.head{display:none}
-  .step{grid-template-columns:58px 1fr}
-}
-</style>
-</head>
-<body>
-<div class="page">
-  <nav>
-    <span class="brand"><span class="dot"></span>workflow<span style="color:var(--ink-faint)">/decision-map</span></span>
-    <a href="#summary">summary</a>
-    <a href="#now">now</a>
-    <a href="#ideas">ideas</a>
-    <a href="#roadmap">roadmap</a>
-    <a href="#decision">decision</a>
-  </nav>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>workflow · Flue ideas decision map</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0a0b0d;
+        --panel: #13161b;
+        --panel-2: #171b21;
+        --ink: #e7e3d8;
+        --ink-dim: #9aa0a8;
+        --ink-faint: #5b6168;
+        --line: #23282f;
+        --line-bright: #313842;
+        --amber: #ffb000;
+        --amber-soft: #ffce6b;
+        --cyan: #5ad1e0;
+        --green: #67e08a;
+        --red: #ff5d54;
+        --violet: #b69cff;
+        --grid: rgba(255, 176, 0, 0.035);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background:
+          radial-gradient(1100px 600px at 82% -10%, rgba(90, 209, 224, 0.07), transparent 60%),
+          radial-gradient(900px 520px at -8% 105%, rgba(255, 176, 0, 0.06), transparent 56%),
+          var(--bg);
+        color: var(--ink);
+        font-family: "Spectral", Georgia, serif;
+        font-size: 17px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        background-image:
+          linear-gradient(var(--grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+        background-size: 46px 46px;
+        mask-image: radial-gradient(circle at 50% 30%, #000, transparent 95%);
+      }
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        opacity: 0.04;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+      .page {
+        position: relative;
+        z-index: 1;
+      }
+      .mono {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+      }
+      .display,
+      h1,
+      h2,
+      h3 {
+        font-family: "Big Shoulders Display", sans-serif;
+        font-weight: 900;
+        letter-spacing: 0.01em;
+        line-height: 0.95;
+      }
+      .eyebrow {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
+        color: var(--amber);
+        font-weight: 500;
+      }
+      nav {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        padding: 14px 30px;
+        background: rgba(10, 11, 13, 0.78);
+        backdrop-filter: blur(14px);
+        border-bottom: 1px solid var(--line);
+      }
+      nav .brand {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-weight: 600;
+        font-size: 15px;
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--amber);
+        box-shadow: 0 0 16px rgba(255, 176, 0, 0.55);
+      }
+      nav a {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        color: var(--ink-dim);
+        text-decoration: none;
+        padding: 6px 10px;
+        border-radius: 8px;
+      }
+      nav a:hover {
+        color: var(--amber);
+        background: var(--panel);
+      }
+      main {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 70px 30px 90px;
+      }
+      section {
+        padding: 70px 0;
+        border-top: 1px solid var(--line);
+      }
+      section:first-of-type {
+        border-top: 0;
+      }
+      .hero {
+        min-height: 76vh;
+        display: grid;
+        align-content: center;
+      }
+      .hero h1 {
+        font-size: clamp(56px, 10vw, 138px);
+        margin: 18px 0 0;
+      }
+      .hero h1 .glow {
+        color: var(--amber);
+        text-shadow: 0 0 38px rgba(255, 176, 0, 0.35);
+      }
+      .hero .sub {
+        font-size: 22px;
+        color: var(--ink-dim);
+        max-width: 66ch;
+        margin-top: 26px;
+      }
+      .lead {
+        color: var(--ink-dim);
+        max-width: 70ch;
+        font-size: 18.5px;
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+      .grid3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+      }
+      .card {
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent), var(--panel);
+        border-radius: 14px;
+        padding: 22px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+      }
+      .card h3 {
+        font-size: 25px;
+        margin-bottom: 8px;
+      }
+      .card p {
+        margin: 0;
+        color: var(--ink-dim);
+      }
+      .tag {
+        display: inline-block;
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        border-radius: 5px;
+        border: 1px solid var(--line-bright);
+        color: var(--cyan);
+        margin-bottom: 12px;
+      }
+      .tag.key {
+        color: var(--amber);
+      }
+      .tag.ok {
+        color: var(--green);
+      }
+      .tag.warn {
+        color: var(--red);
+      }
+      .tag.violet {
+        color: var(--violet);
+      }
+      .score {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 16px;
+      }
+      .pill {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--ink-dim);
+        border: 1px solid var(--line-bright);
+        border-radius: 999px;
+        padding: 5px 9px;
+        background: var(--panel-2);
+      }
+      .pill.good {
+        color: var(--green);
+        border-color: rgba(103, 224, 138, 0.4);
+        background: rgba(103, 224, 138, 0.07);
+      }
+      .pill.mid {
+        color: var(--amber);
+        border-color: rgba(255, 176, 0, 0.42);
+        background: rgba(255, 176, 0, 0.08);
+      }
+      .pill.risk {
+        color: var(--red);
+        border-color: rgba(255, 93, 84, 0.42);
+        background: rgba(255, 93, 84, 0.07);
+      }
+      .callout {
+        border-left: 3px solid var(--amber);
+        padding: 15px 18px;
+        background: var(--panel);
+        border-radius: 0 10px 10px 0;
+        color: var(--ink-dim);
+        font-size: 15px;
+      }
+      .callout b {
+        color: var(--ink);
+      }
+      .diagram {
+        display: grid;
+        grid-template-columns: 1fr 44px 1fr 44px 1fr;
+        align-items: center;
+        gap: 12px;
+        margin-top: 28px;
+      }
+      .node {
+        border: 1px solid var(--line-bright);
+        border-radius: 12px;
+        background: var(--panel);
+        padding: 18px;
+        min-height: 112px;
+      }
+      .node .k {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--ink-faint);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+      .node .v {
+        font-family: "Big Shoulders Display", sans-serif;
+        font-weight: 900;
+        font-size: 30px;
+        margin-top: 6px;
+      }
+      .node p {
+        margin: 6px 0 0;
+        color: var(--ink-dim);
+        font-size: 15px;
+      }
+      .arrow {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        color: var(--amber);
+        font-size: 24px;
+        text-align: center;
+      }
+      .matrix {
+        display: grid;
+        gap: 14px;
+        margin-top: 26px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1.1fr 1.25fr 1.25fr 0.8fr;
+        gap: 14px;
+        align-items: stretch;
+      }
+      .cell {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .cell.head {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--amber);
+        background: transparent;
+        border-color: transparent;
+        padding-bottom: 6px;
+      }
+      .cell b {
+        color: var(--ink);
+      }
+      .cell p {
+        margin: 6px 0 0;
+        color: var(--ink-dim);
+        font-size: 15px;
+      }
+      .prio {
+        font-family: "Big Shoulders Display", sans-serif;
+        font-size: 38px;
+        font-weight: 900;
+        color: var(--amber);
+        line-height: 1;
+      }
+      .code {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 13px;
+        line-height: 1.58;
+        color: var(--ink-dim);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #0d0f13;
+        padding: 18px;
+        overflow: auto;
+      }
+      .code .kw {
+        color: var(--amber);
+      }
+      .code .ty {
+        color: var(--cyan);
+      }
+      .code .ok {
+        color: var(--green);
+      }
+      .code .cm {
+        color: var(--ink-faint);
+      }
+      .timeline {
+        display: grid;
+        gap: 14px;
+        margin-top: 26px;
+      }
+      .step {
+        display: grid;
+        grid-template-columns: 90px 1fr;
+        gap: 16px;
+        align-items: start;
+      }
+      .step .num {
+        font-family: "Big Shoulders Display", sans-serif;
+        font-weight: 900;
+        font-size: 44px;
+        color: var(--amber);
+        line-height: 1;
+      }
+      .step .body {
+        border-left: 1px solid var(--line-bright);
+        padding-left: 18px;
+      }
+      .step h3 {
+        font-size: 24px;
+        margin-bottom: 4px;
+      }
+      .step p {
+        margin: 0;
+        color: var(--ink-dim);
+      }
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0 10px;
+        margin-top: 22px;
+      }
+      th {
+        text-align: left;
+        color: var(--amber);
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-weight: 500;
+        padding: 0 12px 4px;
+      }
+      td {
+        background: var(--panel);
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        padding: 14px 12px;
+        color: var(--ink-dim);
+        vertical-align: top;
+      }
+      td:first-child {
+        border-left: 1px solid var(--line);
+        border-radius: 10px 0 0 10px;
+        color: var(--ink);
+      }
+      td:last-child {
+        border-right: 1px solid var(--line);
+        border-radius: 0 10px 10px 0;
+      }
+      footer {
+        padding: 48px 30px 70px;
+        text-align: center;
+        color: var(--ink-faint);
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+      }
+      @media (max-width: 900px) {
+        nav {
+          overflow: auto;
+        }
+        main {
+          padding: 44px 18px 70px;
+        }
+        .grid2,
+        .grid3 {
+          grid-template-columns: 1fr;
+        }
+        .diagram {
+          grid-template-columns: 1fr;
+        }
+        .arrow {
+          transform: rotate(90deg);
+        }
+        .row {
+          grid-template-columns: 1fr;
+        }
+        .cell.head {
+          display: none;
+        }
+        .step {
+          grid-template-columns: 58px 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <nav>
+        <span class="brand"
+          ><span class="dot"></span>workflow<span style="color: var(--ink-faint)"
+            >/decision-map</span
+          ></span
+        >
+        <a href="#summary">summary</a>
+        <a href="#now">now</a>
+        <a href="#ideas">ideas</a>
+        <a href="#roadmap">roadmap</a>
+        <a href="#decision">decision</a>
+      </nav>
 
-  <main>
-    <section class="hero">
-      <div class="eyebrow">Flue comparison · improvement decision map</div>
-      <h1>what to steal,<br><span class="glow">what to leave</span></h1>
-      <p class="sub">
-        Flue is close enough to be useful, but different enough that copying it wholesale would blur
-        workflow's strongest idea: deterministic, journaled, replayable multi-agent scripts.
-        This page separates practical improvements from architecture drift.
-      </p>
-      <div class="diagram" aria-label="workflow decision framing">
-        <div class="node">
-          <div class="k">today</div>
-          <div class="v">deterministic runs</div>
-          <p>Plain TS workflows, journal replay, event stream, adapters, concurrency, UI.</p>
-        </div>
-        <div class="arrow">→</div>
-        <div class="node">
-          <div class="k">borrow</div>
-          <div class="v" style="color:var(--amber)">extension contracts</div>
-          <p>Profiles, sandbox connector spec, structured-result protocol, installable guides.</p>
-        </div>
-        <div class="arrow">→</div>
-        <div class="node">
-          <div class="k">avoid</div>
-          <div class="v">server-first rewrite</div>
-          <p>Do not turn workflow into a long-lived agent app framework before the core is sharper.</p>
-        </div>
-      </div>
-    </section>
-
-    <section id="summary">
-      <div class="eyebrow">executive summary</div>
-      <h2 style="font-size:44px;margin-top:12px">The best path is evolutionary.</h2>
-      <p class="lead">
-        Flue's strongest reusable ideas are not its branding or server architecture. They are its
-        clean contracts around agents, tools, sandboxes, connectors, and schema-backed results.
-        workflow can adopt those ideas while keeping its current identity: deterministic orchestration
-        over coding harnesses.
-      </p>
-      <div class="grid3" style="margin-top:28px">
-        <div class="card">
-          <span class="tag key">do first</span>
-          <h3>Agent profiles</h3>
-          <p>Reduce repetition in workflow scripts by naming reusable model, adapter, isolation, and instruction presets.</p>
-          <div class="score"><span class="pill good">high value</span><span class="pill good">low risk</span></div>
-        </div>
-        <div class="card">
-          <span class="tag ok">do next</span>
-          <h3>Sandbox connector contract</h3>
-          <p>Document one provider-neutral interface for remote files, shell, timeout, and cancellation.</p>
-          <div class="score"><span class="pill good">high leverage</span><span class="pill mid">medium work</span></div>
-        </div>
-        <div class="card">
-          <span class="tag warn">defer</span>
-          <h3>Persistent agent server</h3>
-          <p>Useful later, but it changes the product center from finite replayable runs to addressable sessions.</p>
-          <div class="score"><span class="pill risk">high drift</span><span class="pill mid">later</span></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="now">
-      <div class="eyebrow">how workflow works now</div>
-      <h2 style="font-size:44px;margin-top:12px">Current architecture strengths and gaps.</h2>
-      <div class="grid2" style="margin-top:28px">
-        <div class="card">
-          <span class="tag ok">strength</span>
-          <h3>Deterministic workflow scripts</h3>
-          <p>
-            A run walks a JS/TS script top-to-bottom. Each <span class="mono">agent()</span>
-            call receives a sequence number, which makes journal replay simple and defensible.
+      <main>
+        <section class="hero">
+          <div class="eyebrow">Flue comparison · improvement decision map</div>
+          <h1>what to steal,<br /><span class="glow">what to leave</span></h1>
+          <p class="sub">
+            Flue is close enough to be useful, but different enough that copying it wholesale would
+            blur workflow's strongest idea: deterministic, journaled, replayable multi-agent
+            scripts. This page separates practical improvements from architecture drift.
           </p>
-        </div>
-        <div class="card">
-          <span class="tag ok">strength</span>
-          <h3>Crash-safe journal replay</h3>
-          <p>
-            Cached sequence entries return without respawning models. This is the core differentiator:
-            restart and resume are cheap, observable, and understandable.
+          <div class="diagram" aria-label="workflow decision framing">
+            <div class="node">
+              <div class="k">today</div>
+              <div class="v">deterministic runs</div>
+              <p>Plain TS workflows, journal replay, event stream, adapters, concurrency, UI.</p>
+            </div>
+            <div class="arrow">→</div>
+            <div class="node">
+              <div class="k">borrow</div>
+              <div class="v" style="color: var(--amber)">extension contracts</div>
+              <p>
+                Profiles, sandbox connector spec, structured-result protocol, installable guides.
+              </p>
+            </div>
+            <div class="arrow">→</div>
+            <div class="node">
+              <div class="k">avoid</div>
+              <div class="v">server-first rewrite</div>
+              <p>
+                Do not turn workflow into a long-lived agent app framework before the core is
+                sharper.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section id="summary">
+          <div class="eyebrow">executive summary</div>
+          <h2 style="font-size: 44px; margin-top: 12px">The best path is evolutionary.</h2>
+          <p class="lead">
+            Flue's strongest reusable ideas are not its branding or server architecture. They are
+            its clean contracts around agents, tools, sandboxes, connectors, and schema-backed
+            results. workflow can adopt those ideas while keeping its current identity:
+            deterministic orchestration over coding harnesses.
           </p>
-        </div>
-        <div class="card">
-          <span class="tag ok">strength</span>
-          <h3>Harness adapters</h3>
-          <p>
-            Claude, Codex, Copilot, and raw API are represented behind one runner shape, with
-            typed capabilities for schemas, token reports, and tool events.
-          </p>
-        </div>
-        <div class="card">
-          <span class="tag ok">strength</span>
-          <h3>Event-stream UI</h3>
-          <p>
-            The runtime emits a small set of events that reduce into run state. This keeps CLI,
-            UI, logs, and replay aligned around one observable surface.
-          </p>
-        </div>
-        <div class="card">
-          <span class="tag warn">gap</span>
-          <h3>Per-call options repeat intent</h3>
-          <p>
-            Scripts currently express model, adapter, isolation, label, and schema on individual
-            calls. That is explicit, but larger workflows will repeat the same agent personality.
-          </p>
-        </div>
-        <div class="card">
-          <span class="tag warn">gap</span>
-          <h3>Extension contracts are implicit</h3>
-          <p>
-            The repo has adapters and worktree isolation, but there is not yet a crisp public
-            contract for third-party sandboxes or agent-installable integrations.
-          </p>
-        </div>
-      </div>
-      <div class="callout mono" style="margin-top:26px">
-        <b>Decision constraint:</b> any borrowed idea should preserve deterministic sequencing,
-        journal replay, and the event model. If an idea makes replay ambiguous, it belongs outside
-        the core runtime.
-      </div>
-    </section>
+          <div class="grid3" style="margin-top: 28px">
+            <div class="card">
+              <span class="tag key">do first</span>
+              <h3>Agent profiles</h3>
+              <p>
+                Reduce repetition in workflow scripts by naming reusable model, adapter, isolation,
+                and instruction presets.
+              </p>
+              <div class="score">
+                <span class="pill good">high value</span><span class="pill good">low risk</span>
+              </div>
+            </div>
+            <div class="card">
+              <span class="tag ok">do next</span>
+              <h3>Sandbox connector contract</h3>
+              <p>
+                Document one provider-neutral interface for remote files, shell, timeout, and
+                cancellation.
+              </p>
+              <div class="score">
+                <span class="pill good">high leverage</span
+                ><span class="pill mid">medium work</span>
+              </div>
+            </div>
+            <div class="card">
+              <span class="tag warn">defer</span>
+              <h3>Persistent agent server</h3>
+              <p>
+                Useful later, but it changes the product center from finite replayable runs to
+                addressable sessions.
+              </p>
+              <div class="score">
+                <span class="pill risk">high drift</span><span class="pill mid">later</span>
+              </div>
+            </div>
+          </div>
+        </section>
 
-    <section id="ideas">
-      <div class="eyebrow">candidate improvements</div>
-      <h2 style="font-size:44px;margin-top:12px">What to improve, why, and how.</h2>
-      <div class="matrix">
-        <div class="row">
-          <div class="cell head">idea</div>
-          <div class="cell head">how it works now</div>
-          <div class="cell head">better version</div>
-          <div class="cell head">priority</div>
-        </div>
+        <section id="now">
+          <div class="eyebrow">how workflow works now</div>
+          <h2 style="font-size: 44px; margin-top: 12px">
+            Current architecture strengths and gaps.
+          </h2>
+          <div class="grid2" style="margin-top: 28px">
+            <div class="card">
+              <span class="tag ok">strength</span>
+              <h3>Deterministic workflow scripts</h3>
+              <p>
+                A run walks a JS/TS script top-to-bottom. Each <span class="mono">agent()</span>
+                call receives a sequence number, which makes journal replay simple and defensible.
+              </p>
+            </div>
+            <div class="card">
+              <span class="tag ok">strength</span>
+              <h3>Crash-safe journal replay</h3>
+              <p>
+                Cached sequence entries return without respawning models. This is the core
+                differentiator: restart and resume are cheap, observable, and understandable.
+              </p>
+            </div>
+            <div class="card">
+              <span class="tag ok">strength</span>
+              <h3>Harness adapters</h3>
+              <p>
+                Claude, Codex, Copilot, and raw API are represented behind one runner shape, with
+                typed capabilities for schemas, token reports, and tool events.
+              </p>
+            </div>
+            <div class="card">
+              <span class="tag ok">strength</span>
+              <h3>Event-stream UI</h3>
+              <p>
+                The runtime emits a small set of events that reduce into run state. This keeps CLI,
+                UI, logs, and replay aligned around one observable surface.
+              </p>
+            </div>
+            <div class="card">
+              <span class="tag warn">gap</span>
+              <h3>Per-call options repeat intent</h3>
+              <p>
+                Scripts currently express model, adapter, isolation, label, and schema on individual
+                calls. That is explicit, but larger workflows will repeat the same agent
+                personality.
+              </p>
+            </div>
+            <div class="card">
+              <span class="tag warn">gap</span>
+              <h3>Extension contracts are implicit</h3>
+              <p>
+                The repo has adapters and worktree isolation, but there is not yet a crisp public
+                contract for third-party sandboxes or agent-installable integrations.
+              </p>
+            </div>
+          </div>
+          <div class="callout mono" style="margin-top: 26px">
+            <b>Decision constraint:</b> any borrowed idea should preserve deterministic sequencing,
+            journal replay, and the event model. If an idea makes replay ambiguous, it belongs
+            outside the core runtime.
+          </div>
+        </section>
 
-        <div class="row">
-          <div class="cell">
-            <b>Agent profiles</b>
-            <p>Named presets for repeated agent behavior.</p>
-          </div>
-          <div class="cell">
-            <p>Each <span class="mono">agent()</span> call carries options directly. This is simple, but repetition grows quickly in real workflows.</p>
-          </div>
-          <div class="cell">
-            <p>Add <span class="mono">profile()</span> or exported profile objects that define adapter, model, instructions, isolation, default schema behavior, and labels.</p>
-          </div>
-          <div class="cell"><div class="prio">1</div><p>Highest value with low architectural risk.</p></div>
-        </div>
+        <section id="ideas">
+          <div class="eyebrow">candidate improvements</div>
+          <h2 style="font-size: 44px; margin-top: 12px">What to improve, why, and how.</h2>
+          <div class="matrix">
+            <div class="row">
+              <div class="cell head">idea</div>
+              <div class="cell head">how it works now</div>
+              <div class="cell head">better version</div>
+              <div class="cell head">priority</div>
+            </div>
 
-        <div class="row">
-          <div class="cell">
-            <b>Sandbox connector spec</b>
-            <p>Provider-neutral remote execution contract.</p>
-          </div>
-          <div class="cell">
-            <p>workflow has worktree isolation and process runners, but no documented contract for remote sandboxes like Daytona, E2B, Modal, or in-house runners.</p>
-          </div>
-          <div class="cell">
-            <p>Define a small interface for <span class="mono">readFile</span>, <span class="mono">writeFile</span>, <span class="mono">stat</span>, <span class="mono">readdir</span>, <span class="mono">exec</span>, timeout, env, cwd, and cancellation.</p>
-          </div>
-          <div class="cell"><div class="prio">2</div><p>Unlocks remote execution without hardcoding providers.</p></div>
-        </div>
+            <div class="row">
+              <div class="cell">
+                <b>Agent profiles</b>
+                <p>Named presets for repeated agent behavior.</p>
+              </div>
+              <div class="cell">
+                <p>
+                  Each <span class="mono">agent()</span> call carries options directly. This is
+                  simple, but repetition grows quickly in real workflows.
+                </p>
+              </div>
+              <div class="cell">
+                <p>
+                  Add <span class="mono">profile()</span> or exported profile objects that define
+                  adapter, model, instructions, isolation, default schema behavior, and labels.
+                </p>
+              </div>
+              <div class="cell">
+                <div class="prio">1</div>
+                <p>Highest value with low architectural risk.</p>
+              </div>
+            </div>
 
-        <div class="row">
-          <div class="cell">
-            <b>Structured result protocol</b>
-            <p>Normalize schema capture across adapters.</p>
-          </div>
-          <div class="cell">
-            <p>workflow converts Zod to JSON Schema and validates returned data. Adapter quality still depends on harness-specific schema behavior.</p>
-          </div>
-          <div class="cell">
-            <p>Introduce a tool-backed <span class="mono">finish</span> / <span class="mono">give_up</span> protocol for adapters that support tools, with validation feedback and retry.</p>
-          </div>
-          <div class="cell"><div class="prio">3</div><p>Improves reliability, especially for weaker schema adapters.</p></div>
-        </div>
+            <div class="row">
+              <div class="cell">
+                <b>Sandbox connector spec</b>
+                <p>Provider-neutral remote execution contract.</p>
+              </div>
+              <div class="cell">
+                <p>
+                  workflow has worktree isolation and process runners, but no documented contract
+                  for remote sandboxes like Daytona, E2B, Modal, or in-house runners.
+                </p>
+              </div>
+              <div class="cell">
+                <p>
+                  Define a small interface for <span class="mono">readFile</span>,
+                  <span class="mono">writeFile</span>, <span class="mono">stat</span>,
+                  <span class="mono">readdir</span>, <span class="mono">exec</span>, timeout, env,
+                  cwd, and cancellation.
+                </p>
+              </div>
+              <div class="cell">
+                <div class="prio">2</div>
+                <p>Unlocks remote execution without hardcoding providers.</p>
+              </div>
+            </div>
 
-        <div class="row">
-          <div class="cell">
-            <b>Agent-installable connectors</b>
-            <p>Markdown instructions as integration packages.</p>
-          </div>
-          <div class="cell">
-            <p>Integrations are code and docs. A user must infer where to place provider-specific glue.</p>
-          </div>
-          <div class="cell">
-            <p>Add <span class="mono">workflow add sandbox daytona</span> or <span class="mono">workflow add adapter raw-api</span> that prints exact instructions an agent can apply.</p>
-          </div>
-          <div class="cell"><div class="prio">4</div><p>Good distribution pattern after the contract exists.</p></div>
-        </div>
+            <div class="row">
+              <div class="cell">
+                <b>Structured result protocol</b>
+                <p>Normalize schema capture across adapters.</p>
+              </div>
+              <div class="cell">
+                <p>
+                  workflow converts Zod to JSON Schema and validates returned data. Adapter quality
+                  still depends on harness-specific schema behavior.
+                </p>
+              </div>
+              <div class="cell">
+                <p>
+                  Introduce a tool-backed <span class="mono">finish</span> /
+                  <span class="mono">give_up</span> protocol for adapters that support tools, with
+                  validation feedback and retry.
+                </p>
+              </div>
+              <div class="cell">
+                <div class="prio">3</div>
+                <p>Improves reliability, especially for weaker schema adapters.</p>
+              </div>
+            </div>
 
-        <div class="row">
-          <div class="cell">
-            <b>Persistent sessions</b>
-            <p>Follow-up interactions after a run.</p>
-          </div>
-          <div class="cell">
-            <p>workflow is centered on finite runs. Watching, resuming, and saving all point at run IDs.</p>
-          </div>
-          <div class="cell">
-            <p>Optionally add sessions as a layer around a saved run or workflow, but keep them separate from deterministic run replay.</p>
-          </div>
-          <div class="cell"><div class="prio">5</div><p>Useful, but only after core extension points are clear.</p></div>
-        </div>
+            <div class="row">
+              <div class="cell">
+                <b>Agent-installable connectors</b>
+                <p>Markdown instructions as integration packages.</p>
+              </div>
+              <div class="cell">
+                <p>
+                  Integrations are code and docs. A user must infer where to place provider-specific
+                  glue.
+                </p>
+              </div>
+              <div class="cell">
+                <p>
+                  Add <span class="mono">workflow add sandbox daytona</span> or
+                  <span class="mono">workflow add adapter raw-api</span> that prints exact
+                  instructions an agent can apply.
+                </p>
+              </div>
+              <div class="cell">
+                <div class="prio">4</div>
+                <p>Good distribution pattern after the contract exists.</p>
+              </div>
+            </div>
 
-        <div class="row">
-          <div class="cell">
-            <b>Build targets</b>
-            <p>Generate deployable artifacts.</p>
-          </div>
-          <div class="cell">
-            <p>The CLI runs, watches, resumes, stops, saves, and lists. It does not package workflows as deployable apps.</p>
-          </div>
-          <div class="cell">
-            <p>Later: <span class="mono">workflow build --target node|github-actions|container</span> for teams that want scheduled or hosted workflow execution.</p>
-          </div>
-          <div class="cell"><div class="prio">6</div><p>Valuable, but premature if execution contracts are still moving.</p></div>
-        </div>
-      </div>
-    </section>
+            <div class="row">
+              <div class="cell">
+                <b>Persistent sessions</b>
+                <p>Follow-up interactions after a run.</p>
+              </div>
+              <div class="cell">
+                <p>
+                  workflow is centered on finite runs. Watching, resuming, and saving all point at
+                  run IDs.
+                </p>
+              </div>
+              <div class="cell">
+                <p>
+                  Optionally add sessions as a layer around a saved run or workflow, but keep them
+                  separate from deterministic run replay.
+                </p>
+              </div>
+              <div class="cell">
+                <div class="prio">5</div>
+                <p>Useful, but only after core extension points are clear.</p>
+              </div>
+            </div>
 
-    <section>
-      <div class="eyebrow">what the first improvement could look like</div>
-      <h2 style="font-size:44px;margin-top:12px">Agent profiles without losing explicitness.</h2>
-      <div class="grid2" style="margin-top:28px">
-        <div>
-          <div class="tag warn">today</div>
-          <pre class="code"><span class="kw">phase</span>(<span class="ok">"Review"</span>)
+            <div class="row">
+              <div class="cell">
+                <b>Build targets</b>
+                <p>Generate deployable artifacts.</p>
+              </div>
+              <div class="cell">
+                <p>
+                  The CLI runs, watches, resumes, stops, saves, and lists. It does not package
+                  workflows as deployable apps.
+                </p>
+              </div>
+              <div class="cell">
+                <p>
+                  Later:
+                  <span class="mono">workflow build --target node|github-actions|container</span>
+                  for teams that want scheduled or hosted workflow execution.
+                </p>
+              </div>
+              <div class="cell">
+                <div class="prio">6</div>
+                <p>Valuable, but premature if execution contracts are still moving.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">what the first improvement could look like</div>
+          <h2 style="font-size: 44px; margin-top: 12px">
+            Agent profiles without losing explicitness.
+          </h2>
+          <div class="grid2" style="margin-top: 28px">
+            <div>
+              <div class="tag warn">today</div>
+              <pre class="code"><span class="kw">phase</span>(<span class="ok">"Review"</span>)
 <span class="kw">const</span> findings = <span class="kw">await</span> <span class="ty">agent</span>(prompt, {
   adapter: <span class="ok">"claude"</span>,
   model: <span class="ok">"sonnet"</span>,
@@ -518,10 +793,12 @@ footer{padding:48px 30px 70px;text-align:center;color:var(--ink-faint);font-fami
   schema: FINDINGS,
   label: <span class="ok">"review-api"</span>,
 })</pre>
-        </div>
-        <div>
-          <div class="tag ok">possible</div>
-          <pre class="code"><span class="kw">export const</span> reviewer = <span class="ty">profile</span>({
+            </div>
+            <div>
+              <div class="tag ok">possible</div>
+              <pre
+                class="code"
+              ><span class="kw">export const</span> reviewer = <span class="ty">profile</span>({
   adapter: <span class="ok">"claude"</span>,
   model: <span class="ok">"sonnet"</span>,
   isolation: <span class="ok">"worktree"</span>,
@@ -533,102 +810,126 @@ footer{padding:48px 30px 70px;text-align:center;color:var(--ink-faint);font-fami
   schema: FINDINGS,
   label: <span class="ok">"review-api"</span>,
 })</pre>
-        </div>
-      </div>
-      <div class="callout" style="margin-top:24px">
-        <b>Why this is safe:</b> profiles are static inputs to the same deterministic agent calls.
-        The sequence number, journal key, semaphore behavior, schema validation, and event stream do
-        not need to change. The runtime only resolves defaults before constructing the existing request.
-      </div>
-    </section>
+            </div>
+          </div>
+          <div class="callout" style="margin-top: 24px">
+            <b>Why this is safe:</b> profiles are static inputs to the same deterministic agent
+            calls. The sequence number, journal key, semaphore behavior, schema validation, and
+            event stream do not need to change. The runtime only resolves defaults before
+            constructing the existing request.
+          </div>
+        </section>
 
-    <section id="roadmap">
-      <div class="eyebrow">recommended roadmap</div>
-      <h2 style="font-size:44px;margin-top:12px">Small slices, each independently useful.</h2>
-      <div class="timeline">
-        <div class="step">
-          <div class="num">01</div>
-          <div class="body">
-            <h3>Introduce profiles as data</h3>
-            <p>Add types and tests first. Profiles should be mergeable defaults, not new runtime control flow.</p>
+        <section id="roadmap">
+          <div class="eyebrow">recommended roadmap</div>
+          <h2 style="font-size: 44px; margin-top: 12px">
+            Small slices, each independently useful.
+          </h2>
+          <div class="timeline">
+            <div class="step">
+              <div class="num">01</div>
+              <div class="body">
+                <h3>Introduce profiles as data</h3>
+                <p>
+                  Add types and tests first. Profiles should be mergeable defaults, not new runtime
+                  control flow.
+                </p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="num">02</div>
+              <div class="body">
+                <h3>Write the sandbox connector spec before code</h3>
+                <p>
+                  Define the external contract in docs. Then implement one local/reference connector
+                  to prove the interface.
+                </p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="num">03</div>
+              <div class="body">
+                <h3>Normalize structured results behind adapters</h3>
+                <p>
+                  Keep native schema support where it is good. Add tool-backed finish only where the
+                  adapter can support it cleanly.
+                </p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="num">04</div>
+              <div class="body">
+                <h3>Add connector installation docs</h3>
+                <p>
+                  Once contracts settle, make <span class="mono">workflow add</span> emit exact
+                  agent-readable instructions and file templates.
+                </p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="num">05</div>
+              <div class="body">
+                <h3>Revisit sessions and deployment targets</h3>
+                <p>
+                  Only add long-lived agents or build targets when user workflows clearly need
+                  hosted, repeated, or external-triggered execution.
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="step">
-          <div class="num">02</div>
-          <div class="body">
-            <h3>Write the sandbox connector spec before code</h3>
-            <p>Define the external contract in docs. Then implement one local/reference connector to prove the interface.</p>
-          </div>
-        </div>
-        <div class="step">
-          <div class="num">03</div>
-          <div class="body">
-            <h3>Normalize structured results behind adapters</h3>
-            <p>Keep native schema support where it is good. Add tool-backed finish only where the adapter can support it cleanly.</p>
-          </div>
-        </div>
-        <div class="step">
-          <div class="num">04</div>
-          <div class="body">
-            <h3>Add connector installation docs</h3>
-            <p>Once contracts settle, make <span class="mono">workflow add</span> emit exact agent-readable instructions and file templates.</p>
-          </div>
-        </div>
-        <div class="step">
-          <div class="num">05</div>
-          <div class="body">
-            <h3>Revisit sessions and deployment targets</h3>
-            <p>Only add long-lived agents or build targets when user workflows clearly need hosted, repeated, or external-triggered execution.</p>
-          </div>
-        </div>
-      </div>
-    </section>
+        </section>
 
-    <section id="decision">
-      <div class="eyebrow">decision guide</div>
-      <h2 style="font-size:44px;margin-top:12px">How to choose what to build.</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Question</th>
-            <th>Build if yes</th>
-            <th>Defer if</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Does it preserve deterministic replay?</td>
-            <td>Profiles, connector specs, structured result protocols.</td>
-            <td>It introduces hidden background work that changes the order or count of agent calls.</td>
-          </tr>
-          <tr>
-            <td>Does it reduce workflow author friction?</td>
-            <td>Profiles and installable connector guides.</td>
-            <td>It mainly adds platform surface before scripts are easier to write.</td>
-          </tr>
-          <tr>
-            <td>Does it make adapters more reliable?</td>
-            <td>Schema finish tools, sandbox timeout/cancellation contracts.</td>
-            <td>It depends on provider-specific behavior that cannot be tested locally.</td>
-          </tr>
-          <tr>
-            <td>Does it clarify the public extension boundary?</td>
-            <td>Sandbox connector spec and reference implementations.</td>
-            <td>It requires committing to deployment targets before execution APIs are stable.</td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="callout mono" style="margin-top:26px">
-        <b>Recommended decision:</b> build agent profiles first, then a sandbox connector contract.
-        Treat Flue as validation that these extension surfaces matter, not as a blueprint for a full
-        rewrite.
-      </div>
-    </section>
-  </main>
+        <section id="decision">
+          <div class="eyebrow">decision guide</div>
+          <h2 style="font-size: 44px; margin-top: 12px">How to choose what to build.</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Question</th>
+                <th>Build if yes</th>
+                <th>Defer if</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Does it preserve deterministic replay?</td>
+                <td>Profiles, connector specs, structured result protocols.</td>
+                <td>
+                  It introduces hidden background work that changes the order or count of agent
+                  calls.
+                </td>
+              </tr>
+              <tr>
+                <td>Does it reduce workflow author friction?</td>
+                <td>Profiles and installable connector guides.</td>
+                <td>It mainly adds platform surface before scripts are easier to write.</td>
+              </tr>
+              <tr>
+                <td>Does it make adapters more reliable?</td>
+                <td>Schema finish tools, sandbox timeout/cancellation contracts.</td>
+                <td>It depends on provider-specific behavior that cannot be tested locally.</td>
+              </tr>
+              <tr>
+                <td>Does it clarify the public extension boundary?</td>
+                <td>Sandbox connector spec and reference implementations.</td>
+                <td>
+                  It requires committing to deployment targets before execution APIs are stable.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="callout mono" style="margin-top: 26px">
+            <b>Recommended decision:</b> build agent profiles first, then a sandbox connector
+            contract. Treat Flue as validation that these extension surfaces matter, not as a
+            blueprint for a full rewrite.
+          </div>
+        </section>
+      </main>
 
-  <footer>
-    created from local comparison with /tmp/flue · no project code changed except this decision HTML
-  </footer>
-</div>
-</body>
+      <footer>
+        created from local comparison with /tmp/flue · no project code changed except this decision
+        HTML
+      </footer>
+    </div>
+  </body>
 </html>

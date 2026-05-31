@@ -56,7 +56,7 @@ public type surface is unchanged — verified by `pnpm typecheck`).
 
 ## Why This Matters
 
-Three of the four false positives stem from *bundling* and *entry-by-convention*, which no static
+Three of the four false positives stem from _bundling_ and _entry-by-convention_, which no static
 analyzer can infer. Without the config, knip is too noisy to act on and someone will eventually
 "fix" a real bundle dependency by deleting it, breaking the published `defineworkflow` package.
 

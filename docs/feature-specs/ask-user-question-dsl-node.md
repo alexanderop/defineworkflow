@@ -1,6 +1,6 @@
 # Feature: `askUserQuestion()` — first-class human-in-the-loop DSL node
 
-> Deterministic, journaled human-in-the-loop *inside* the workflow body — pause a run to
+> Deterministic, journaled human-in-the-loop _inside_ the workflow body — pause a run to
 > ask the author a question, replay-safe so resume never re-asks.
 
 ## Overview
@@ -32,12 +32,12 @@ journal entry).
 
 ```ts
 const ans = await askUserQuestion({
-  key: 'deploy-target',          // stable string; used by --answers and journaling
-  question: '## Where to deploy?\nPick the target environment.', // rendered as markdown
-  choices: ['staging', 'production'],  // optional
-  allowOther: true,              // adds an "Other → type your own" free-text path
-  default: 'staging',            // used in non-interactive runs when no --answers entry
-})
+  key: "deploy-target", // stable string; used by --answers and journaling
+  question: "## Where to deploy?\nPick the target environment.", // rendered as markdown
+  choices: ["staging", "production"], // optional
+  allowOther: true, // adds an "Other → type your own" free-text path
+  default: "staging", // used in non-interactive runs when no --answers entry
+});
 // ans: string
 ```
 
@@ -56,7 +56,7 @@ Decisions locked in brainstorming:
 
 ### Core — `packages/core`
 
-**Primitive (`runtime.ts`).** `askUserQuestion()` walks a *subset* of the `agent()` sequence:
+**Primitive (`runtime.ts`).** `askUserQuestion()` walks a _subset_ of the `agent()` sequence:
 
 1. `const mySeq = seq++` — **shares the agent seq counter** so global ordering stays
    consistent across `agent()` and questions.
@@ -120,7 +120,7 @@ the journal as today, so answered questions short-circuit on lookup.
   `<key>` in non-interactive run"). Add `--answers` parsing to `run.ts`; thread the map onto
   the run meta so detached children read it back.
 - **Non-TTY line-log (`line-log.ts`):** format `question-asked` as `? <key>: <question
-  first line>` and `question-answered` as `  ↳ <answer>`.
+first line>` and `question-answered` as `  ↳ <answer>`.
 - **Watch (read-only):** render asked/answered in the event stream display; watch does **not**
   answer (consistent with today's read-only model) — that's the headless `--answers` path's job.
 

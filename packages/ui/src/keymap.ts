@@ -2,7 +2,12 @@ import type { NavAction, FocusColumn } from "./navigation.js";
 
 export type UiAction =
   | { readonly type: "pause" }
-  | { readonly type: "stop"; readonly target: { readonly scope: "run" } | { readonly scope: "agent"; readonly key: string } }
+  | {
+      readonly type: "stop";
+      readonly target:
+        | { readonly scope: "run" }
+        | { readonly scope: "agent"; readonly key: string };
+    }
   | { readonly type: "restart"; readonly key: string }
   | { readonly type: "save" }
   | { readonly type: "answer"; readonly key: string; readonly value: string };

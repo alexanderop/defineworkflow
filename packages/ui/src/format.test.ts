@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { formatTokens, formatElapsed, formatDuration, formatModel, statusGlyph, SPINNER_FRAMES } from "./format.js";
+import {
+  formatTokens,
+  formatElapsed,
+  formatDuration,
+  formatModel,
+  statusGlyph,
+  SPINNER_FRAMES,
+} from "./format.js";
 
 describe("formatTokens", () => {
   it("passes through small counts and abbreviates thousands/decimals", () => {
