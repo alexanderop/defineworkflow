@@ -1,4 +1,7 @@
-import { ok, err, type Result } from "neverthrow";
+import { build } from "esbuild";
+import type { Plugin } from "esbuild";
+import { ok, err } from "neverthrow";
+import type { Result } from "neverthrow";
 
 export interface BundleInput {
   /** Absolute or cwd-relative path to the entry workflow file (esbuild resolves imports from here). */
@@ -10,6 +13,19 @@ export interface BundleInput {
 /** Matches a relative import: `... from "./x"` or `... from "../x"`. */
 const RELATIVE_IMPORT = /^\s*import\b[^'"]*from\s*["']\.\.?\//m;
 
+// Forbid any import that is not a relative local file or the authoring package.
+const localOnly: Plugin = {
+  name: "workflow-local-only",
+  setup(b) {
+    b.onResolve({ filter: /.*/ }, (a) => {
+      if (a.kind === "entry-point") return null;
+      if (a.path === "defineworkflow" || a.path === "workflow") return { path: a.path, external: true };
+      if (a.path.startsWith("./") || a.path.startsWith("../")) return null; // esbuild resolves from disk
+      return { errors: [{ text: `a workflow may only import local files or "defineworkflow"; "${a.path}" is not allowed` }] };
+    });
+  },
+};
+
 /**
  * Inline a workflow entry's LOCAL relative imports into one self-contained source string.
  * Workflows with no local imports are returned unchanged (no esbuild work) so existing
@@ -17,5 +33,21 @@ const RELATIVE_IMPORT = /^\s*import\b[^'"]*from\s*["']\.\.?\//m;
  */
 export async function bundleWorkflow(input: BundleInput): Promise<Result<string, string>> {
   if (!RELATIVE_IMPORT.test(input.source)) return ok(input.source);
-  return err("not implemented"); // real bundling added in Task 3
+  try {
+    const result = await build({
+      entryPoints: [input.path],
+      bundle: true,
+      format: "esm",
+      platform: "neutral",
+      write: false,
+      logLevel: "silent",
+      plugins: [localOnly],
+    });
+    const out = result.outputFiles[0];
+    if (!out) return err(`bundling produced no output for ${input.path}`);
+    return ok(out.text);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return err(`failed to bundle ${input.path}: ${message}`);
+  }
 }
