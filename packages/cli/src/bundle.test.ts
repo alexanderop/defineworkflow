@@ -23,12 +23,13 @@ describe("bundleWorkflow", () => {
   });
 
   it("inlines a local schema import and keeps defineworkflow external", async () => {
+    const entrySource = `import { agent, defineWorkflow } from "defineworkflow";\nimport { ResearchSchema } from "./schemas";\nexport default defineWorkflow({ name: "spike", description: "d", harness: "claude", async run() { return await agent("hi", { schema: ResearchSchema }); } });\n`;
     const { dir, entry } = fixture({
       "schemas.ts": `import { z } from "defineworkflow";\nexport const ResearchSchema = z.object({ summary: z.string() });\n`,
-      "entry.workflow.ts": `import { agent, defineWorkflow } from "defineworkflow";\nimport { ResearchSchema } from "./schemas";\nexport default defineWorkflow({ name: "spike", description: "d", harness: "claude", async run() { return await agent("hi", { schema: ResearchSchema }); } });\n`,
+      "entry.workflow.ts": entrySource,
     });
     try {
-      const result = await bundleWorkflow({ path: entry, source: "import { x } from \"./schemas\";" });
+      const result = await bundleWorkflow({ path: entry, source: entrySource });
       expect(result.isOk()).toBe(true);
       const code = result._unsafeUnwrap();
       expect(code).toContain("z.object({ summary: z.string() })"); // helper inlined
@@ -41,11 +42,14 @@ describe("bundleWorkflow", () => {
   });
 
   it("rejects an npm import with a clear error", async () => {
+    // A real relative `from` import triggers bundling; the bare npm import is then rejected by the plugin.
+    const entrySource = `import { defineWorkflow } from "defineworkflow";\nimport { helper } from "./helper";\nimport _ from "lodash";\nexport default defineWorkflow({ name: "x", description: "d", harness: "claude", async run() { return helper(_); } });\n`;
     const { dir, entry } = fixture({
-      "entry.workflow.ts": `import { defineWorkflow } from "defineworkflow";\nimport _ from "lodash";\nexport default defineWorkflow({ name: "x", description: "d", harness: "claude", async run() { return _; } });\n`,
+      "helper.ts": `export const helper = (x: unknown) => x;\n`,
+      "entry.workflow.ts": entrySource,
     });
     try {
-      const result = await bundleWorkflow({ path: entry, source: `import x from "./missing";` });
+      const result = await bundleWorkflow({ path: entry, source: entrySource });
       expect(result.isErr()).toBe(true);
       expect(result._unsafeUnwrapErr()).toMatch(/only import local files or "defineworkflow"/);
     } finally {
