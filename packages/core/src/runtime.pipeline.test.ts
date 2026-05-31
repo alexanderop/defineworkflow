@@ -58,4 +58,36 @@ describe("pipeline", () => {
     );
     expect(out).toEqual([null, 2]);
   });
+
+  it("threads item and index to every stage and runs stages in order", async () => {
+    const seen: Array<{ stage: number; prev: unknown; item: unknown; index: number }> = [];
+    const r = createRuntime({
+      runner: createScriptedRunner({}),
+      semaphore: createSemaphore(8),
+      journal: createJournal(),
+      maxAgents: 1000,
+      budgetTotal: null,
+      args: {},
+      cwd: "/tmp",
+      runId: "r" as RunId,
+      emit: () => {},
+      now: () => 0,
+    });
+    const out = await r.pipeline(
+      ["x", "y"],
+      async (prev, item, index) => {
+        seen.push({ stage: 1, prev, item, index });
+        return `${item}-1`;
+      },
+      async (prev, item, index) => {
+        seen.push({ stage: 2, prev, item, index });
+        return `${prev}-2`;
+      },
+    );
+    expect(out).toEqual(["x-1-2", "y-1-2"]);
+    // stage 1 sees prev === item (the original); stage 2 sees stage 1's return as prev, item unchanged.
+    expect(seen).toContainEqual({ stage: 1, prev: "x", item: "x", index: 0 });
+    expect(seen).toContainEqual({ stage: 2, prev: "x-1", item: "x", index: 0 });
+    expect(seen).toContainEqual({ stage: 2, prev: "y-1", item: "y", index: 1 });
+  });
 });

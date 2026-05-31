@@ -72,7 +72,8 @@ These are the things that silently break a run or fail to type-check. Get them r
    top of the file is the most common cause of a workflow that won't start.
 2. **No nondeterministic globals.** `Date.now()`, `Math.random()`, and argless `new Date()` are
    forbidden inside the sandbox — they break journal replay. Need a unique path or seed? Pass it via
-   `args`. `Array.map/filter/forEach`, `JSON`, `Math.*` (except random) are fine.
+   `args`. `Array.map/filter/forEach`, `JSON`, `Math.*` (except random), and `new URL(u)` /
+   `URLSearchParams` (deterministic host globals) are fine.
 3. **`args` is `unknown`.** Cast it: `const { topic } = (args ?? {}) as { topic?: string }`. Reading
    `args.topic` directly does not type-check.
 4. **`harness` is required and is the single source of truth.** No auto-detect, no CLI override. The
@@ -87,7 +88,7 @@ These are the things that silently break a run or fail to type-check. Get them r
 | `agent(prompt, opts?)` | `(string, { label?, phase?, model?, schema? }) => Promise<T \| unknown>` | Invoke one coding agent. With a zod `schema`, resolves to the inferred type; without, resolves to the raw text as `unknown`. |
 | `agent(profile, prompt, opts?)` | adds a leading `Profile` | Apply reusable defaults (see `profile()`). |
 | `parallel(thunks)` | `Array<() => Promise<T>> => Promise<T[]>` | **Barrier.** Pass *thunks* (`() => agent(...)`), not promises. Awaits all; a thrown thunk becomes `null` in the array — `.filter(Boolean)`. |
-| `pipeline(items, ...stages)` | each stage `(prev, item, i) => Promise<R>` | **No barrier.** Each item flows through all stages independently; item B can be in stage 1 while A is in stage 3. A throwing stage drops that item to `null`. Default for multi-stage work. |
+| `pipeline(items, ...stages)` | each stage `(prev, item, i) => Promise<R>` | **No barrier.** Each item flows through all stages independently; item B can be in stage 1 while A is in stage 3. A throwing stage drops that item to `null`. **Typed** (1–5 stages): each stage's `prev` is inferred from the prior stage's return — no casts. Default for multi-stage work. |
 | `phase(title)` | `(string) => void` | Switch the active progress group; match a `meta.phases[].title`. |
 | `log(msg)` | `(string) => void` | Emit a progress line. |
 | `askUserQuestion(opts)` | `({ key, question, choices?, allowOther?, default }) => Promise<string>` | Pause and ask the human; `question` is markdown. Answer is journaled (resume never re-asks). Headless falls back to `--answers` then `default`. |
