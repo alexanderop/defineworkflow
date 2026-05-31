@@ -2,7 +2,7 @@
 
 Runnable example workflows for the workflow engine.
 
-A **workflow** is a `.ts` file that imports from `workflow`, exports
+A **workflow** is a `.ts` file that imports from `defineworkflow`, exports
 `defineWorkflow({ ... })`, and puts executable logic in `run()`. The imports are for
 TypeScript/editor support; the runner strips them and injects the live runtime values in a
 sandbox.
@@ -10,7 +10,7 @@ sandbox.
 Use `defineWorkflow` for editor autocomplete and compile-time checks:
 
 ```ts
-import { agent, defineWorkflow } from "workflow";
+import { agent, defineWorkflow } from "defineworkflow";
 
 export default defineWorkflow({
   name: "haiku",
@@ -41,7 +41,7 @@ not raw text).
 ## Running
 
 The workflow declares its harness in `meta.harness`; there is no CLI/config override or
-auto-detect for a run. Make sure `workflow` is built first (`pnpm build`).
+auto-detect for a run. Make sure `defineworkflow` is built first (`pnpm build`).
 
 ```bash
 # convenience script in this package
