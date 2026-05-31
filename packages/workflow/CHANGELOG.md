@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.1](https://github.com/alexanderop/defineworkflow/compare/v0.5.0...v0.5.1) (2026-05-31)
+
+
+### Bug Fixes
+
+* eliminate polynomial-ReDoS in three regexes (CodeQL js/polynomial-redos) ([7009d78](https://github.com/alexanderop/defineworkflow/commit/7009d78a88d267ff12e7dd6efbb0acec20555381))
+* **release:** make release workflow trusted publisher entrypoint ([e3c87cd](https://github.com/alexanderop/defineworkflow/commit/e3c87cd45364c29ec717108396f43f2e51cecc40))
+* **release:** make release workflow trusted publisher entrypoint ([c6810dc](https://github.com/alexanderop/defineworkflow/commit/c6810dc7505e8a6dd349327ce61741fb3dba383d))
+
 ## [0.5.0](https://github.com/alexanderop/defineworkflow/compare/v0.4.1...v0.5.0) (2026-05-31)
 
 
