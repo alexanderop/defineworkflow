@@ -1,10 +1,10 @@
 import { ok, err, type Result } from "neverthrow";
-import { createJournal, type Brand, type Journal, type JournalEntry, type RunId, type WorkflowError, type WorkflowEvent } from "@workflow/core";
+import { createJournal, type Journal, type JournalEntry, type RunId, type Tagged, type WorkflowError, type WorkflowEvent } from "@workflow/core";
 import type { AdapterId } from "@workflow/adapters";
 import { serializeEvent, serializeJournalEntry, parseEventLine, parseJournalLine } from "./jsonl.js";
 
 /** SHA-256 hex of a run's script snapshot — compared on resume to guarantee same-script replay. */
-export type ScriptHash = Brand<string, "ScriptHash">;
+export type ScriptHash = Tagged<string, "ScriptHash">;
 
 export interface RegistryFs {
   mkdirp(dir: string): void;
