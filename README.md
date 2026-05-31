@@ -167,8 +167,8 @@ pnpm test:e2e       # WORKFLOW_E2E=1 — spawns real agents, uses tokens
 - Run a single file: `pnpm vitest run packages/core/src/runtime.test.ts`
 - Filter by name: `pnpm vitest run packages/core/src/runtime.test.ts -t "nested"`
 
-Tests are **colocated** with source as `*.test.ts(x)`. The vitest workspace
-splits them into a `unit` project and an `e2e` project (gated behind
+Tests are **colocated** with source as `*.test.ts(x)`. The vitest config
+(`vitest.config.ts` `projects`) splits them into a `unit` project and an `e2e` project (gated behind
 `WORKFLOW_E2E=1`). Use the in-memory test doubles — `createScriptedRunner()`
 (`@workflow/core`) and `FakeProcessRunner` (`@workflow/adapters`) — instead of
 spawning real CLIs in unit tests.
