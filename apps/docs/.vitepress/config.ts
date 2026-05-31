@@ -1,7 +1,7 @@
 import { defineConfig } from "vitepress";
 
-// Repo name → GitHub Pages base path (https://alexanderop.github.io/clanker-workflow/).
-const REPO = "clanker-workflow";
+// Repo name → GitHub Pages base path (https://alexanderop.github.io/defineworkflow/).
+const REPO = "defineworkflow";
 const GH_USER = "alexanderop";
 
 export default defineConfig({

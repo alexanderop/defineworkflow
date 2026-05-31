@@ -8,7 +8,7 @@ The latest published `defineworkflow` release on npm receives security fixes.
 
 Please **do not** open a public issue for security vulnerabilities.
 
-Report privately via [GitHub Security Advisories](https://github.com/alexanderop/clanker-workflow/security/advisories/new). If that is not possible, email **opalicalexander@gmail.com**.
+Report privately via [GitHub Security Advisories](https://github.com/alexanderop/defineworkflow/security/advisories/new). If that is not possible, email **opalicalexander@gmail.com**.
 
 You can expect an initial response within a few days. Verified vulnerabilities
 will be addressed promptly, and we will coordinate a disclosure timeline with you.

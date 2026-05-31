@@ -17,14 +17,14 @@
   ],
   "license": "MIT",
   "author": "Alexander Opalic",
-  "homepage": "https://github.com/alexanderop/clanker-workflow#readme",
+  "homepage": "https://github.com/alexanderop/defineworkflow#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/alexanderop/clanker-workflow.git",
+    "url": "git+https://github.com/alexanderop/defineworkflow.git",
     "directory": "packages/workflow"
   },
   "bugs": {
-    "url": "https://github.com/alexanderop/clanker-workflow/issues"
+    "url": "https://github.com/alexanderop/defineworkflow/issues"
   },
   "type": "module",
   "bin": {

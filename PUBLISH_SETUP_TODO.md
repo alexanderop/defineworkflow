@@ -46,7 +46,7 @@ git push origin v0.1.0
 npmjs.com → package **`defineworkflow`** → **Settings → Trusted Publisher** →
 add a GitHub Actions publisher with:
 
-- **Organization / repository:** `alexanderop/clanker-workflow`
+- **Organization / repository:** `alexanderop/defineworkflow`
 - **Workflow filename:** `release.yml`
 - **Environment:** `npm-publish`
 
