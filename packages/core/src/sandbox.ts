@@ -40,11 +40,21 @@ function childNode(node: AstNode, key: string): AstNode | undefined {
  */
 export function transformScript(source: string): string {
   const authoringSource = stripWorkflowImports(source);
-  if (!/export\s+const\s+meta\s*=/.test(authoringSource) && !/export\s+default\s+defineWorkflow\s*\(/.test(authoringSource)) {
+  assertNoForeignImports(authoringSource);
+  // Detect AND rewrite the export against `masked` (comments/strings blanked) so the literal text
+  // `export default defineWorkflow(` inside a JSDoc comment or a string can't be mistaken for the
+  // real export — the previous code detected any occurrence but rewrote the *first*, so a comment
+  // above the real export got rewritten and the real `export` reached esbuild (`Unexpected "export"`).
+  const masked = maskNonCode(authoringSource);
+  const hasMeta = /export\s+const\s+meta\s*=/.test(masked);
+  const hasDefineWorkflow = /\bexport\s+default\s+defineWorkflow\s*\(/.test(masked);
+  if (!hasMeta && !hasDefineWorkflow) {
     throw new Error("SandboxViolation: workflow script must export `const meta` or `export default defineWorkflow({ … })`");
   }
-  if (/export\s+default\s+defineWorkflow\s*\(/.test(authoringSource)) {
-    const safe = authoringSource.replace(
+  if (hasDefineWorkflow) {
+    const safe = replaceFirstReal(
+      authoringSource,
+      masked,
       /\bexport\s+default\s+defineWorkflow\s*\(/,
       "const __workflow = globalThis.__workflow = defineWorkflow(",
     );
@@ -55,11 +65,71 @@ export function transformScript(source: string): string {
   // value onto a global for extraction — without needing to locate the end of the
   // meta literal. Robust to multi-line literals, `as const`, semicolons inside
   // strings, and a missing trailing semicolon.
-  const safe = authoringSource
-    .replace(/export\s+const\s+meta\s*=\s*/, "const meta = globalThis.__meta = ")
-    .replace(/\bexport\s+default\b/, "return");
+  const metaRenamed = replaceFirstReal(authoringSource, masked, /export\s+const\s+meta\s*=\s*/, "const meta = globalThis.__meta = ");
+  // The first splice shifts offsets, so re-mask before locating the `export default` return.
+  const safe = replaceFirstReal(metaRenamed, maskNonCode(metaRenamed), /\bexport\s+default\b/, "return");
   const wrapped = `(async () => {\n${safe}\n})()`;
   return transformSync(wrapped, { loader: "ts", format: "esm" }).code;
+}
+
+/**
+ * Return a same-length copy of `source` with the *contents* of comments and string/template
+ * literals blanked to spaces (delimiters and newlines preserved). The transform rewrites workflow
+ * source with regex *before* esbuild strips TS, so we can't parse it as JS yet; masking lets the
+ * detection/location regexes match only real code, while match offsets still line up with the
+ * original source for splicing.
+ */
+function maskNonCode(source: string): string {
+  const chars = source.split("");
+  const n = chars.length;
+  const blank = (idx: number): void => {
+    const ch = chars[idx];
+    if (ch !== "\n" && ch !== "\r") chars[idx] = " ";
+  };
+  let state: "code" | "line" | "block" | "single" | "double" | "template" = "code";
+  let i = 0;
+  while (i < n) {
+    const c = source[i];
+    const next = i + 1 < n ? source[i + 1] : "";
+    if (state === "code") {
+      if (c === "/" && next === "/") { state = "line"; i += 2; continue; }
+      if (c === "/" && next === "*") { state = "block"; i += 2; continue; }
+      if (c === "'") { state = "single"; i += 1; continue; }
+      if (c === '"') { state = "double"; i += 1; continue; }
+      if (c === "`") { state = "template"; i += 1; continue; }
+      i += 1;
+      continue;
+    }
+    if (state === "line") {
+      if (c === "\n") { state = "code"; i += 1; continue; }
+      blank(i); i += 1; continue;
+    }
+    if (state === "block") {
+      if (c === "*" && next === "/") { blank(i); blank(i + 1); state = "code"; i += 2; continue; }
+      blank(i); i += 1; continue;
+    }
+    // string ("single"/"double") or template literal
+    if (c === "\\") { blank(i); blank(i + 1); i += 2; continue; }
+    if ((state === "single" && c === "'") || (state === "double" && c === '"') || (state === "template" && c === "`")) {
+      state = "code"; i += 1; continue;
+    }
+    // A bare newline terminates a single/double quoted string (it's unterminated source); template
+    // literals legally span lines, so they keep going.
+    if ((state === "single" || state === "double") && c === "\n") { state = "code"; i += 1; continue; }
+    blank(i); i += 1;
+  }
+  return chars.join("");
+}
+
+/**
+ * Replace the first occurrence of `pattern` found in `masked` (the comment/string-blanked twin of
+ * `source`) by splicing `replacement` into `source` at the same offset. Detect and replace thus act
+ * on the *same* real match; returns `source` unchanged when there is no real match.
+ */
+function replaceFirstReal(source: string, masked: string, pattern: RegExp, replacement: string): string {
+  const m = pattern.exec(masked);
+  if (!m) return source;
+  return source.slice(0, m.index) + replacement + source.slice(m.index + m[0].length);
 }
 
 function stripWorkflowImports(source: string): string {
@@ -70,6 +140,26 @@ function stripWorkflowImports(source: string): string {
     /^\s*import\s+(?:type\s+)?(?:(?!^\s*import\s)[\s\S])*?\s+from\s+["'](?:defineworkflow|workflow)["'];?\s*$/gm,
     "",
   );
+}
+
+/**
+ * After {@link stripWorkflowImports} drops the authoring import, any surviving
+ * `import … from "<mod>"` would be wrapped into the async IIFE body — where a static
+ * `import` statement is a syntax error — and esbuild fails with an opaque
+ * `Unexpected "{"` that points at the import braces, not the real cause. Catch it here
+ * with a SandboxViolation that names the offending module and points at the
+ * `defineworkflow` re-export: the sandbox injects the runtime (`agent`, `z`, …) and
+ * resolves no modules, so `import { z } from "zod"` must become `import { z } from "defineworkflow"`.
+ */
+function assertNoForeignImports(source: string): void {
+  const match = /^\s*import\s+(?:type\s+)?(?:(?!^\s*import\s)[\s\S])*?\s+from\s+["']([^"']+)["'];?\s*$/m.exec(source);
+  const mod = match?.[1];
+  if (mod === undefined) return;
+  const hint =
+    mod === "zod"
+      ? 'import `z` from "defineworkflow" instead — e.g. `import { z } from "defineworkflow"`'
+      : 'the workflow sandbox injects the runtime and resolves no modules; import what you need from "defineworkflow"';
+  throw violation(`cannot import from "${mod}" inside a workflow: ${hint}`);
 }
 
 function makeBannedDate(): typeof Date {
