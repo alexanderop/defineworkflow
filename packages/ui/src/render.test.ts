@@ -86,7 +86,8 @@ describe("startUi (TTY)", () => {
     });
     handle.unmount();
 
-    const finalEvents = inkMock.frames.at(-1)?.props.events as readonly WorkflowEvent[];
+    const finalEvents = (inkMock.frames.at(-1)?.props as { events?: readonly WorkflowEvent[] } | undefined)
+      ?.events as readonly WorkflowEvent[];
     expect(finalEvents.at(-1)?.type).toBe("agent-finished");
 
     vi.useRealTimers();
@@ -109,7 +110,7 @@ describe("startUi (TTY)", () => {
     });
 
     const element = inkMock.frames.at(-1);
-    const report = element?.props.report as { name: string; status: string } | undefined;
+    const report = (element?.props as { report?: { name: string; status: string } } | undefined)?.report;
     expect(report).toBeDefined();
     expect(report?.name).toBe("done-run");
     expect(report?.status).toBe("finished");
