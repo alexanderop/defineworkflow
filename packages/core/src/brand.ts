@@ -1,4 +1,4 @@
-import type { Tagged } from "type-fest";
+import type { Tagged } from "./type-ext.js";
 
 /** A workflow run's unique id — minted by `genRunId`, used as its on-disk directory key. */
 export type RunId = Tagged<string, "RunId">;
