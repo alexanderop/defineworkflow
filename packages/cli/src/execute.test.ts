@@ -5,7 +5,7 @@ import { createMockRunner } from "@workflow/core";
 import type { WorkflowEvent } from "@workflow/core";
 import type { ProcessRunner } from "@workflow/adapters";
 import { createRegistry, type RegistryFs, type RunMeta } from "./registry.js";
-import { runForeground } from "./execute.js";
+import { runForeground, saveRun } from "./execute.js";
 import { fakeDeps as makeFakeDeps } from "./test-support.js";
 
 function memRegistryFs(): RegistryFs {
@@ -102,5 +102,35 @@ describe("runForeground with --mock", () => {
     expect(out).toContain("finished");
     expect(out).toContain("Tokens");
     expect(out).toContain("Agents");
+  });
+});
+
+describe("saveRun", () => {
+  it("persists the self-contained workflow bundle verbatim", () => {
+    // A bundled snapshot: helpers inlined, `export { wf as default }`, NO `./` relative imports.
+    const bundled = [
+      `var S = ({});`,
+      `var wf = defineWorkflow({ name: "mf", description: "d", harness: "claude" });`,
+      `export { wf as default };`,
+    ].join("\n");
+
+    const registry = createRegistry({ root: "/tmp/runs", fs: memRegistryFs() });
+    const runId = "run-1" as RunId;
+    const meta: RunMeta = { runId, name: "mf", scriptPath: "s.ts", args: null, adapter: "claude", status: "finished", startedAt: 0, endedAt: 1, pid: null, scriptHash: "h" as ScriptHash };
+    registry.init(meta, bundled);
+
+    let captured: { p: string; d: string } | undefined;
+    const { deps } = makeFakeDeps({
+      registry,
+      io: { writeText: (p: string, d: string) => void (captured = { p, d }) },
+    });
+
+    const path = saveRun(deps, runId);
+
+    expect(path).toMatch(/\/workflows\/mf\.ts$/);
+    expect(captured?.p).toBe(path);
+    // The bundle is persisted byte-for-byte, and is self-contained (no relative imports).
+    expect(captured?.d).toBe(bundled);
+    expect(captured?.d).not.toMatch(/from\s*["']\.\//);
   });
 });
