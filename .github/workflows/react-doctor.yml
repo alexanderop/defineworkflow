@@ -43,7 +43,8 @@ jobs:
           persist-credentials: false # don't leave the git token on disk
 
       - name: React Doctor
-        uses: millionco/react-doctor@9fc6f62940321beb129757a4eec4fd48ba45528e # main
+        # react-doctor publishes no release tags, so pin to the main-branch SHA.
+        uses: millionco/react-doctor@9fc6f62940321beb129757a4eec4fd48ba45528e # zizmor: ignore[stale-action-refs]
         with:
           directory: packages/ui
           fail-on: error
