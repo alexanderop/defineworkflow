@@ -310,6 +310,10 @@ export async function runInSandbox(
     Boolean,
     Error,
     console,
+    // Host globals injected for authoring convenience. Both are deterministic (no clocks,
+    // no randomness), so they don't violate the journal-replay invariant.
+    URL,
+    URLSearchParams,
   };
 
   const context = vm.createContext(sandbox);

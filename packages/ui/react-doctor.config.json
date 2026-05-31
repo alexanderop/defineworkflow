@@ -1,0 +1,16 @@
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  "failOn": "error",
+  "ignore": {
+    "overrides": [
+      {
+        "files": ["**/*.test.ts", "**/*.test.tsx"],
+        "rules": ["react-perf/jsx-no-new-function-as-prop"]
+      },
+      {
+        "files": ["src/App.tsx", "src/RunReport.tsx", "src/QuestionPrompt.tsx"],
+        "rules": ["react-doctor/no-array-index-key", "react-doctor/no-array-index-as-key"]
+      }
+    ]
+  }
+}

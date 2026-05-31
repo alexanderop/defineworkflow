@@ -17,24 +17,7 @@
 // the CLI executes this file. The sandbox strips these imports and binds the
 // identifiers to the live runtime.
 
-import { agent, args, defineWorkflow, log, parallel, phase, type JsonSchema } from "defineworkflow";
-
-interface Item {
-  title: string;
-  url: string;
-  summary: string;
-  category: string;
-  date: string;
-  impact: "high" | "medium" | "low";
-}
-interface SourceResult {
-  source: string;
-  items: Item[];
-}
-interface Curated {
-  highlights: string[];
-  items: Array<{ title: string; url: string; summary: string; category: string; impact: "high" | "medium" | "low" }>;
-}
+import { agent, args, defineWorkflow, log, parallel, phase, z } from "defineworkflow";
 
 export default defineWorkflow({
   name: "vue-newsletter",
@@ -64,30 +47,21 @@ export default defineWorkflow({
       ? `between ${a.weekStart} and ${a.weekEnd}`
       : "within the past 7 days from today";
 
-    // One agent researches each source, all returning the same shape. A schema is a
-    // plain JSON Schema object — the same shape the harness CLI consumes.
-    const ITEM: JsonSchema = {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        url: { type: "string" },
-        summary: { type: "string", description: "1-3 sentence plain summary of what changed / why it matters" },
-        category: { type: "string", enum: ["release", "article", "tooling", "discussion", "tutorial", "people", "other"] },
-        date: { type: "string", description: "ISO date if known, else empty" },
-        impact: { type: "string", enum: ["high", "medium", "low"] },
-      },
-      required: ["title", "url", "summary", "category", "date", "impact"],
-      additionalProperties: false,
-    };
-    const SOURCE_RESULT: JsonSchema = {
-      type: "object",
-      properties: {
-        source: { type: "string" },
-        items: { type: "array", items: ITEM },
-      },
-      required: ["source", "items"],
-      additionalProperties: false,
-    };
+    // One agent researches each source, all returning the same shape. Authored with zod
+    // (the runtime converts it to the JSON Schema the harness CLI consumes) so each agent()
+    // resolves to the inferred, validated type — no casts.
+    const ITEM = z.object({
+      title: z.string(),
+      url: z.string(),
+      summary: z.string().describe("1-3 sentence plain summary of what changed / why it matters"),
+      category: z.enum(["release", "article", "tooling", "discussion", "tutorial", "people", "other"]),
+      date: z.string().describe("ISO date if known, else empty"),
+      impact: z.enum(["high", "medium", "low"]),
+    });
+    const SOURCE_RESULT = z.object({
+      source: z.string(),
+      items: z.array(ITEM),
+    });
 
     const SOURCES = [
       {
@@ -142,46 +116,29 @@ export default defineWorkflow({
 
     // `schema` makes each agent() resolve to validated structured output (or null if that
     // agent errored). No JSON.parse — validation already happened in the runtime.
-    const collected = raw.filter((r): r is SourceResult => r !== null);
+    const collected = raw.filter((r): r is z.infer<typeof SOURCE_RESULT> => r !== null);
     const flatItems = collected.flatMap((c) => c.items.map((it) => ({ ...it, source: c.source })));
     log(`collected ${flatItems.length} items across ${collected.length} sources`);
 
     phase("Curate");
-    const CURATED: JsonSchema = {
-      type: "object",
-      properties: {
-        highlights: {
-          type: "array",
-          items: { type: "string" },
-          description: "3-5 punchy bullets capturing the week's biggest stories",
-        },
-        items: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string" },
-              url: { type: "string" },
-              summary: { type: "string" },
-              category: { type: "string" },
-              impact: { type: "string", enum: ["high", "medium", "low"] },
-            },
-            required: ["title", "url", "summary", "category", "impact"],
-            additionalProperties: false,
-          },
-        },
-      },
-      required: ["highlights", "items"],
-      additionalProperties: false,
-    };
+    const CURATED = z.object({
+      highlights: z.array(z.string()).describe("3-5 punchy bullets capturing the week's biggest stories"),
+      items: z.array(
+        z.object({
+          title: z.string(),
+          url: z.string(),
+          summary: z.string(),
+          category: z.string(),
+          impact: z.enum(["high", "medium", "low"]),
+        }),
+      ),
+    });
 
-    // CURATED is a plain JSON Schema (not zod), so agent() resolves to `unknown`; the runtime has
-    // already validated it against CURATED, so narrowing to the matching shape is safe here.
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the schema-validated agent output
-    const curated = (await agent(
+    // A zod `schema` makes agent() resolve to the inferred, runtime-validated type — no cast.
+    const curated = await agent(
       `Here are raw newsletter candidate items gathered from multiple sources for the Vue/Nuxt week of ${label}:\n\n${JSON.stringify(flatItems, null, 2)}\n\nCurate them:\n1. Remove duplicates (same release/article surfaced by multiple sources — keep the best canonical URL).\n2. Drop low-quality, off-topic, or spammy entries.\n3. Rank by impact (high first).\n4. Write 3-5 punchy "highlights" bullets capturing the week's biggest stories.\nKeep every URL exactly as provided — do not fabricate or alter links.`,
       { phase: "Curate", schema: CURATED },
-    )) as Curated;
+    );
 
     log(`curated to ${curated.items.length} items, ${curated.highlights.length} highlights`);
 

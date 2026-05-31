@@ -211,11 +211,15 @@ the runtime primitive stubs (`agent`/`parallel`/`pipeline`/`phase`/`log`/`workfl
 These imports exist purely for TypeScript/editor support — autocomplete and compile-time checks; the
 runner strips them and injects the live runtime values into the sandbox at execution time (see
 `transformScript()` above). It replaces the old ambient `workflow-globals.d.ts` as the source of editor
-types, and also provides the `defineworkflow` CLI bin. `agent({ schema })` accepts either a plain JSON
-Schema object or a **zod schema** (`z.object({ … })`): a zod schema makes `agent()` return the schema's
-inferred output type (e.g. `await agent(p, { schema: z.object({ n: z.number() }) })` resolves to
-`{ n: number }`), while a plain JSON Schema resolves to `unknown`. The runtime normalizes zod →
-JSON Schema via `@workflow/schema`'s `toJsonSchema` before validating (`isZodSchema` duck-types it).
+types, and also provides the `defineworkflow` CLI bin. **Schema authoring is zod-only**: `agent({ schema })`
+takes a **zod schema** (`z.object({ … })`) and returns the schema's inferred output type (e.g.
+`await agent(p, { schema: z.object({ n: z.number() }) })` resolves to `{ n: number }`); without a schema
+the result is the raw text as `unknown`. The runtime converts zod → JSON Schema via `@workflow/schema`'s
+`toJsonSchema` at the boundary before any adapter/harness sees it (JSON Schema remains the internal/harness
+format; a non-zod schema reaching `agent()` fails fast with `SchemaValidation`). `pipeline()` is typed —
+fixed-arity overloads (1–5 stages) infer each stage's `prev` from the prior stage's return, so workflow
+bodies need no casts; 6+ stages fall back to an untyped variadic. The sandbox also injects `URL` /
+`URLSearchParams` (deterministic host globals), so `new URL(u)` works in a workflow.
 `defineWorkflow` makes the metadata type-safe: e.g.
 `harness` only accepts `"claude" | "codex" | "copilot" | "raw-api"`, so tsc rejects typos. The
 metadata fields are `name`, `description`, `harness`, `phases`, the optional `whenToUse?: string`

@@ -1,0 +1,29 @@
+# Keeps dependencies patched so a known-vulnerable transitive dep doesn't sit
+# in the tree. Two ecosystems: the pnpm workspace (single root lockfile) and the
+# GitHub Actions we pin by SHA. Updates are grouped to keep PR noise low — a
+# security advisory still opens its own ungrouped PR immediately.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # Routine minor/patch bumps land as one PR per week.
+      production-minor-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+      dev-minor-patch:
+        applies-to: version-updates
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]

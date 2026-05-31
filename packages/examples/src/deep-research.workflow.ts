@@ -24,8 +24,9 @@
 
 import { agent, args, defineWorkflow, log, parallel, phase, pipeline, z } from "defineworkflow";
 
-// Type-only shapes (erased by the compiler) used to type the values that flow
-// between pipeline stages, which the runtime hands back as `unknown`.
+// Type-only shapes (erased by the compiler) used to type the accumulator state and the
+// FetchedSource literals. The pipeline now infers each stage's prev/item from the zod
+// schemas, so these are no longer needed to cast `unknown` stage results.
 interface SearchHit {
   url: string;
   title: string;
@@ -77,7 +78,7 @@ export default defineWorkflow({
     const MAX_VERIFY_CLAIMS = 25;
 
     // ── Schemas (zod → inferred types, validated at runtime by the engine) ────────
-    const ScopeSchema = z.object({
+    const SCOPE_SCHEMA = z.object({
       question: z.string(),
       summary: z.string().describe("1-2 sentence decomposition strategy"),
       angles: z
@@ -91,7 +92,7 @@ export default defineWorkflow({
         .min(3)
         .max(6),
     });
-    const SearchSchema = z.object({
+    const SEARCH_SCHEMA = z.object({
       results: z
         .array(
           z.object({
@@ -103,7 +104,7 @@ export default defineWorkflow({
         )
         .max(6),
     });
-    const ExtractSchema = z.object({
+    const EXTRACT_SCHEMA = z.object({
       sourceQuality: z.enum(["primary", "secondary", "blog", "forum", "unreliable"]),
       publishDate: z.string().optional(),
       claims: z
@@ -116,13 +117,13 @@ export default defineWorkflow({
         )
         .max(5),
     });
-    const VerdictSchema = z.object({
+    const VERDICT_SCHEMA = z.object({
       refuted: z.boolean(),
       evidence: z.string().describe("specific evidence for the verdict"),
       confidence: z.enum(["high", "medium", "low"]),
       counterSource: z.string().optional(),
     });
-    const ReportSchema = z.object({
+    const REPORT_SCHEMA = z.object({
       summary: z.string().describe("3-5 sentence executive summary answering the question"),
       findings: z.array(
         z.object({
@@ -162,7 +163,7 @@ export default defineWorkflow({
         `- For tech: state-of-art · benchmarks · limitations · industry adoption · cost/tradeoffs\n\n` +
         `Make queries specific enough to surface high-signal results. Avoid redundancy.\n` +
         `Return: the question (verbatim or lightly normalized), a 1-2 sentence decomposition strategy, and the angles.`,
-      { label: "scope", phase: "Scope", schema: ScopeSchema },
+      { label: "scope", phase: "Scope", schema: SCOPE_SCHEMA },
     );
     if (!scope) {
       return { error: "Scope agent returned no result — cannot decompose the research question." };
@@ -170,14 +171,24 @@ export default defineWorkflow({
     log(`Decomposed into ${scope.angles.length} angles: ${scope.angles.map((a) => a.label).join(", ")}`);
 
     // ── Dedup state — accumulates across searchers as they complete ───────────────
-    // Parse with a regex rather than `new URL()` — the sandbox's typecheck lib has no DOM/URL.
-    const hostOf = (u: string): string | undefined => /^[a-z]+:\/\/([^/?#]+)/i.exec(u)?.[1]?.replace(/^www\./, "");
+    // The sandbox injects `URL`, so parse with `new URL()` (falls back to the raw string on a
+    // malformed URL rather than throwing).
+    const hostOf = (u: string): string | undefined => {
+      try {
+        return new URL(u).hostname.replace(/^www\./, "");
+      } catch {
+        return undefined;
+      }
+    };
     const normURL = (u: string): string => {
-      const m = /^[a-z]+:\/\/([^/?#]+)([^?#]*)/i.exec(u);
-      if (!m) return u.toLowerCase();
-      const host = (m[1] ?? "").replace(/^www\./, "");
-      const path = (m[2] ?? "").replace(/\/$/, "");
-      return (host + path).toLowerCase();
+      try {
+        const parsed = new URL(u);
+        const host = parsed.hostname.replace(/^www\./, "");
+        const path = parsed.pathname.replace(/\/$/, "");
+        return (host + path).toLowerCase();
+      } catch {
+        return u.toLowerCase();
+      }
     };
     const relRank: Record<"high" | "medium" | "low", number> = { high: 0, medium: 1, low: 2 };
     const seen = new Map<string, { angle: string; title: string }>();
@@ -186,7 +197,7 @@ export default defineWorkflow({
     let fetchSlots = MAX_FETCH;
 
     // ── Prompts ───────────────────────────────────────────────────────────────────
-    const searchPrompt = (angle: { label: string; query: string; rationale?: string }): string =>
+    const SEARCH_PROMPT = (angle: { label: string; query: string; rationale?: string | undefined }): string =>
       `## Web Searcher: ${angle.label}\n\n` +
       `Research question: "${QUESTION}"\n\n` +
       `Your angle: **${angle.label}** — ${angle.rationale ?? ""}\n` +
@@ -195,7 +206,7 @@ export default defineWorkflow({
       `Rank by relevance to the ORIGINAL question, not just the search query. Skip obvious SEO spam/content farms.\n` +
       `Include a short snippet capturing why each result is relevant.`;
 
-    const fetchPrompt = (source: SearchHit, angle: string): string =>
+    const FETCH_PROMPT = (source: SearchHit, angle: string): string =>
       `## Source Extractor\n\n` +
       `Research question: "${QUESTION}"\n\n` +
       `Fetch and extract key claims from this source:\n` +
@@ -209,7 +220,7 @@ export default defineWorkflow({
       `4. Note publish date if available.\n\n` +
       `If the fetch fails or the page is irrelevant/paywalled, return claims: [] and sourceQuality: "unreliable".`;
 
-    const verifyPrompt = (claim: Claim, v: number): string =>
+    const VERIFY_PROMPT = (claim: Claim, v: number): string =>
       `## Adversarial Claim Verifier (voter ${v + 1}/${VOTES_PER_CLAIM})\n\n` +
       `Be SKEPTICAL. Try to REFUTE this claim. ≥${REFUTATIONS_REQUIRED}/${VOTES_PER_CLAIM} refutations kill it.\n\n` +
       `## Research question\n${QUESTION}\n\n` +
@@ -230,26 +241,23 @@ export default defineWorkflow({
     const searchResults = await pipeline(
       scope.angles,
 
-      // Stage 1 — Search: one WebSearch agent per angle.
-      (anglePrev) => {
-        // oxlint-disable-next-line typescript/consistent-type-assertions -- pipeline stages receive `unknown`; stage 1's `prev` is the original angle
-        const angle = anglePrev as { label: string; query: string; rationale?: string };
-        return agent(searchPrompt(angle), {
+      // Stage 1 — Search: one WebSearch agent per angle. `angle` is the pipeline item, typed
+      // from scope.angles (the SCOPE_SCHEMA inference) — no cast.
+      async (angle) => {
+        const r = await agent(SEARCH_PROMPT(angle), {
           label: `search:${angle.label}`,
           phase: "Search",
-          schema: SearchSchema,
-        }).then((r) => {
-          if (!r) return null;
-          log(`${angle.label}: ${r.results.length} results`);
-          return { angle: angle.label, results: r.results } satisfies AngleResults;
+          schema: SEARCH_SCHEMA,
         });
+        if (!r) return null;
+        log(`${angle.label}: ${r.results.length} results`);
+        return { angle: angle.label, results: r.results } satisfies AngleResults;
       },
 
-      // Stage 2 — URL-dedup + fetch slot budgeting, then fan out fetchers.
-      (prev) => {
-        // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the unknown prev-stage result
-        const searchResult = prev as AngleResults | null;
-        if (!searchResult) return Promise.resolve<Array<FetchedSource | null>>([]);
+      // Stage 2 — URL-dedup + fetch slot budgeting, then fan out fetchers. `searchResult` is
+      // stage 1's return (AngleResults | null) — the typed pipeline threads it here.
+      async (searchResult): Promise<Array<FetchedSource | null>> => {
+        if (!searchResult) return [];
         const sorted = searchResult.results.toSorted((a, b) => relRank[a.relevance] - relRank[b.relevance]);
         const novel = sorted.filter((r) => {
           const key = normURL(r.url);
@@ -271,49 +279,48 @@ export default defineWorkflow({
           );
         }
         return parallel(
-          novel.map((source) => () => {
+          novel.map((source) => async (): Promise<FetchedSource | null> => {
             const host = hostOf(source.url) ?? "unknown";
-            return agent(fetchPrompt(source, searchResult.angle), {
-              label: `fetch:${host}`,
-              phase: "Fetch",
-              schema: ExtractSchema,
-            })
-              .then((ext): FetchedSource | null => {
-                // User-skip → null; drop it (filtered by .flat().filter(Boolean)) rather than
-                // throwing into .catch() and mislabeling it "unreliable".
-                if (!ext) return null;
-                return {
-                  url: source.url,
-                  title: source.title,
-                  angle: searchResult.angle,
-                  sourceQuality: ext.sourceQuality,
-                  publishDate: ext.publishDate ?? "",
-                  claims: ext.claims.map((c) => ({
-                    ...c,
-                    sourceUrl: source.url,
-                    sourceQuality: ext.sourceQuality,
-                  })),
-                };
-              })
-              .catch((e: unknown): FetchedSource => {
-                log(`fetch failed: ${source.url} — ${e instanceof Error ? e.message : String(e)}`);
-                return {
-                  url: source.url,
-                  title: source.title,
-                  angle: searchResult.angle,
-                  sourceQuality: "unreliable",
-                  publishDate: "",
-                  claims: [],
-                };
+            try {
+              const ext = await agent(FETCH_PROMPT(source, searchResult.angle), {
+                label: `fetch:${host}`,
+                phase: "Fetch",
+                schema: EXTRACT_SCHEMA,
               });
+              // User-skip → null; drop it (filtered by .flat().filter(Boolean)) rather than
+              // mislabeling it "unreliable" in the catch below.
+              if (!ext) return null;
+              return {
+                url: source.url,
+                title: source.title,
+                angle: searchResult.angle,
+                sourceQuality: ext.sourceQuality,
+                publishDate: ext.publishDate ?? "",
+                claims: ext.claims.map((c) => ({
+                  ...c,
+                  sourceUrl: source.url,
+                  sourceQuality: ext.sourceQuality,
+                })),
+              };
+            } catch (e) {
+              log(`fetch failed: ${source.url} — ${e instanceof Error ? e.message : String(e)}`);
+              return {
+                url: source.url,
+                title: source.title,
+                angle: searchResult.angle,
+                sourceQuality: "unreliable",
+                publishDate: "",
+                claims: [],
+              };
+            }
           }),
         );
       },
     );
 
-    // pipeline() yields one entry per angle; stage 2 returned an array of sources per angle.
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow the unknown pipeline output
-    const perAngle = searchResults as Array<Array<FetchedSource | null> | null>;
+    // pipeline() yields one entry per angle (or null if that angle's chain threw); stage 2
+    // returned an array of sources per angle. Typed end-to-end — no cast.
+    const perAngle = searchResults;
     const allSources = perAngle.flat().filter((s): s is FetchedSource => s !== null);
     const allClaims = allSources.flatMap((s) => s.claims);
     const impRank: Record<"central" | "supporting" | "tangential", number> = {
@@ -350,31 +357,30 @@ export default defineWorkflow({
     phase("Verify");
     const voted = (
       await parallel(
-        rankedClaims.map((claim) => () =>
-          parallel(
+        rankedClaims.map((claim) => async () => {
+          const verdicts = await parallel(
             Array.from({ length: VOTES_PER_CLAIM }, (_unused, v) => () =>
-              agent(verifyPrompt(claim, v), {
+              agent(VERIFY_PROMPT(claim, v), {
                 label: `v${v}:${claim.claim.slice(0, 40)}`,
                 phase: "Verify",
-                schema: VerdictSchema,
+                schema: VERDICT_SCHEMA,
               }),
             ),
-          ).then((verdicts) => {
-            // A vote can be null (user-skip or agent error) — treat as abstain.
-            const valid = verdicts.filter((x): x is z.infer<typeof VerdictSchema> => x !== null);
-            const refuted = valid.filter((x) => x.refuted).length;
-            // Survive only if actually adjudicated: a quorum of valid votes AND fewer than
-            // REFUTATIONS_REQUIRED refuting. Too many abstentions = unverified, which must NOT
-            // pass into the report (else all-abstain → refuted=0 → false survive).
-            const abstained = VOTES_PER_CLAIM - valid.length;
-            const survives = valid.length >= REFUTATIONS_REQUIRED && refuted < REFUTATIONS_REQUIRED;
-            log(
-              `"${claim.claim.slice(0, 50)}…": ${valid.length - refuted}-${refuted}` +
-                `${abstained > 0 ? ` (${abstained} abstain)` : ""} ${survives ? "✓" : "✗"}`,
-            );
-            return { ...claim, verdicts: valid, refutedVotes: refuted, survives };
-          }),
-        ),
+          );
+          // A vote can be null (user-skip or agent error) — treat as abstain.
+          const valid = verdicts.filter((x): x is z.infer<typeof VERDICT_SCHEMA> => x !== null);
+          const refuted = valid.filter((x) => x.refuted).length;
+          // Survive only if actually adjudicated: a quorum of valid votes AND fewer than
+          // REFUTATIONS_REQUIRED refuting. Too many abstentions = unverified, which must NOT
+          // pass into the report (else all-abstain → refuted=0 → false survive).
+          const abstained = VOTES_PER_CLAIM - valid.length;
+          const survives = valid.length >= REFUTATIONS_REQUIRED && refuted < REFUTATIONS_REQUIRED;
+          log(
+            `"${claim.claim.slice(0, 50)}…": ${valid.length - refuted}-${refuted}` +
+              `${abstained > 0 ? ` (${abstained} abstain)` : ""} ${survives ? "✓" : "✗"}`,
+          );
+          return { ...claim, verdicts: valid, refutedVotes: refuted, survives };
+        }),
       )
     ).filter((x): x is NonNullable<typeof x> => x !== null);
 
@@ -443,7 +449,7 @@ export default defineWorkflow({
         `4. Write a 3-5 sentence executive summary answering the research question.\n` +
         `5. Note caveats: what's uncertain, what sources were weak, what time-sensitivity applies.\n` +
         `6. List 2-4 open questions that emerged but weren't answered.`,
-      { label: "synthesize", phase: "Synthesize", schema: ReportSchema },
+      { label: "synthesize", phase: "Synthesize", schema: REPORT_SCHEMA },
     );
 
     if (!report) {

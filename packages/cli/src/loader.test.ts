@@ -121,9 +121,10 @@ export default defineWorkflow({
     await expect(loaded.run(runtime, undefined)).resolves.toEqual({ ans: "picked k" });
   });
 
-  it("validates an agent's structured output against a plain JSON Schema", async () => {
-    const SCHEMA_SCRIPT = `export const meta = { name: "s", description: "d", harness: "claude" }
-const Out = { type: "object", properties: { ok: { type: "boolean" }, n: { type: "number" } }, required: ["ok", "n"] };
+  it("validates an agent's structured output against a zod schema", async () => {
+    const SCHEMA_SCRIPT = `import { z } from "defineworkflow";
+export const meta = { name: "s", description: "d", harness: "claude" }
+const Out = z.object({ ok: z.boolean(), n: z.number() });
 const res = await agent("do it", { label: "a", schema: Out });
 return res;`;
     const loaded = loadWorkflow(SCHEMA_SCRIPT);
@@ -147,8 +148,9 @@ return res;`;
   });
 
   it("surfaces a SchemaValidation error when output does not match the sandbox-built schema", async () => {
-    const SCHEMA_SCRIPT = `export const meta = { name: "s", description: "d", harness: "claude" }
-const Out = { type: "object", properties: { n: { type: "number" } }, required: ["n"] };
+    const SCHEMA_SCRIPT = `import { z } from "defineworkflow";
+export const meta = { name: "s", description: "d", harness: "claude" }
+const Out = z.object({ n: z.number() });
 return await agent("do it", { label: "a", schema: Out });`;
     const loaded = loadWorkflow(SCHEMA_SCRIPT);
 
