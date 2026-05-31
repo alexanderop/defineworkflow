@@ -47,7 +47,7 @@ export interface UiDeps {
 
 /** Interactive consent prompt + its persistence. */
 export interface ConsentDeps {
-  io: ConsentIO;
+  readonly io: ConsentIO;
   persist(project: string, name: string): void;
 }
 
