@@ -1,6 +1,6 @@
 {
   "name": "defineworkflow",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Deterministic, crash-safe multi-agent workflow engine. Author workflows as TypeScript, orchestrate coding-agent calls with agent()/parallel()/pipeline(), and replay from a journal.",
   "keywords": [
     "workflow",
@@ -49,7 +49,8 @@
   },
   "publishConfig": {
     "access": "public",
-    "provenance": true
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
     "build": "tsup",

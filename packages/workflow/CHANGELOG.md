@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/alexanderop/defineworkflow/compare/v0.3.0...v0.4.0) (2026-05-31)
+
+
+### Features
+
+* **core:** typed pipeline() via fixed-arity overloads ([be9acac](https://github.com/alexanderop/defineworkflow/commit/be9acac55de181bac8fe6d5a6cc7f8b019860a1a))
+* **core:** zod-only agent({ schema }) authoring ([1653b15](https://github.com/alexanderop/defineworkflow/commit/1653b159fa86f309068051973d51e2df9a8f1847))
+* typed pipeline(), zod-only schemas, and URL in sandbox ([f606990](https://github.com/alexanderop/defineworkflow/commit/f606990b2cc4c7d3a042b00600aaf7c4b18b3f39))
+
 ## [0.3.0](https://github.com/alexanderop/defineworkflow/compare/v0.2.0...v0.3.0) (2026-05-31)
 
 
