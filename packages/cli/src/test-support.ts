@@ -28,7 +28,10 @@ export const runMeta = (o: Partial<RunMeta> = {}): RunMeta => ({
   ...o,
 });
 
-/** In-memory RegistryFs for tests — also exposes its backing map. */
+/**
+ * In-memory RegistryFs for tests — also exposes its backing map.
+ * @public — intentional shared test helper (see CLAUDE.md), may be unused at times.
+ */
 export function memFs(seed: Record<string, string> = {}): RegistryFs & { files: Map<string, string> } {
   const files = new Map<string, string>(Object.entries(seed));
   const dirs = new Set<string>();

@@ -50,6 +50,12 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # Find unused files, dependencies, and exports. Runs after typecheck so
+      # every package's dist/ exists (knip resolves sibling packages the same way
+      # the runtime does — via their published `exports`).
+      - name: Knip
+        run: pnpm knip
+
       # Run ONLY the unit tests affected by this change.
       #
       # `vitest --changed <ref>` selects test files via the module import graph,

@@ -11,7 +11,7 @@
 
 // ─── Types (mirrors packages/core/src/events.ts) ──────────────────────────────────
 
-export interface ToolEvent {
+interface ToolEvent {
   readonly name: string;
   readonly input?: unknown;
 }
@@ -167,7 +167,7 @@ export function reduce(state: RunState, event: WorkflowEvent): RunState {
 
 // ─── Render helpers (mirror packages/ui/src/{format,selectors}.ts) ────────────────
 
-export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 
 export function spinnerFrame(frame: number): string {
   return SPINNER_FRAMES[frame % SPINNER_FRAMES.length] ?? SPINNER_FRAMES[0];
@@ -188,7 +188,7 @@ export function statusGlyph(status: AgentStatus, frame = 0): string {
   }
 }
 
-export function formatTokens(n: number): string {
+function formatTokens(n: number): string {
   if (n < 1000) return String(n);
   const k = n / 1000;
   const rounded = k >= 100 ? Math.round(k) : Math.round(k * 10) / 10;
@@ -202,7 +202,7 @@ export function formatElapsed(ms: number): string {
   return m > 0 ? `${m}m${String(s).padStart(2, "0")}s` : `${s}s`;
 }
 
-export function formatDuration(ms: number): string {
+function formatDuration(ms: number): string {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
   if (totalSec < 60) return `${totalSec}s`;
   const m = Math.floor(totalSec / 60);
@@ -212,7 +212,7 @@ export function formatDuration(ms: number): string {
 
 const MODEL_TIERS: Readonly<Record<string, string>> = { opus: "Opus", sonnet: "Sonnet", haiku: "Haiku" };
 
-export function formatModel(id: string): string {
+function formatModel(id: string): string {
   if (id === "") return "";
   const ctxMatch = /\[(\d+)m\]$/i.exec(id);
   const base = ctxMatch ? id.slice(0, ctxMatch.index) : id;
@@ -236,7 +236,7 @@ export function runElapsedMs(state: RunState, now: number): number {
   return Math.max(0, end - state.startedAt);
 }
 
-export function agentElapsedMs(agent: AgentState, now: number): number {
+function agentElapsedMs(agent: AgentState, now: number): number {
   if (agent.startedAt === undefined) return 0;
   const end = agent.endedAt ?? now;
   return Math.max(0, end - agent.startedAt);
@@ -244,7 +244,7 @@ export function agentElapsedMs(agent: AgentState, now: number): number {
 
 const MAX_TOOL_ARG = 38;
 
-export function humanizeTool(tool: ToolEvent): string {
+function humanizeTool(tool: ToolEvent): string {
   if (tool.name === "StructuredOutput") return "StructuredOutput";
   const arg = firstArgPreview(tool.input);
   if (arg === "") return tool.name;

@@ -18,8 +18,7 @@
     "@workflow/schema": "workspace:*",
     "acorn": "^8.16.0",
     "esbuild": "^0.24.0",
-    "neverthrow": "^8.1.0",
-    "tokenlens": "^1.3.1"
+    "neverthrow": "^8.1.0"
   },
   "devDependencies": {
     "zod": "^4.0.0"

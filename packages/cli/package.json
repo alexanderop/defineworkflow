@@ -15,7 +15,6 @@
   },
   "dependencies": {
     "@workflow/core": "workspace:*",
-    "@workflow/schema": "workspace:*",
     "@workflow/adapters": "workspace:*",
     "@workflow/ui": "workspace:*",
     "neverthrow": "^8.1.0"
