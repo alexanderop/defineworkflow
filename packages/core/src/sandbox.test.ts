@@ -211,6 +211,18 @@ describe("sandbox", () => {
     await expect(runInSandbox(src, {})).rejects.toThrow(/SandboxViolation|Math.random/);
   });
 
+  it("throws SandboxViolation on argless new Date() (determinism guard)", async () => {
+    const src = `export const meta = { name: "x", description: "x", harness: "claude", phases: [] };\nreturn new Date().getUTCFullYear();`;
+    await expect(runInSandbox(src, {})).rejects.toThrow(/argless new Date\(\) is not allowed/);
+  });
+
+  it("allows deterministic Date forms: new Date(ms), Date.parse, Date.UTC", async () => {
+    const src = `export const meta = { name: "x", description: "x", harness: "claude", phases: [] };
+return { y: new Date(0).getUTCFullYear(), p: Date.parse("1970-01-01T00:00:00Z"), u: Date.UTC(2020, 0, 1) };`;
+    const result = await runInSandbox(src, {});
+    expect(result.returnValue).toEqual({ y: 1970, p: 0, u: Date.UTC(2020, 0, 1) });
+  });
+
   it("captures meta with no trailing semicolon (ASI)", async () => {
     const src = `export const meta = { name: "n", description: "n", harness: "claude", phases: [] }\nreturn 1;`;
     const result = await runInSandbox(src, {});
@@ -328,7 +340,6 @@ return x;`;
     const src = `const x = 1;\nexport const meta = { name: "x", description: "d", harness: "claude" };\nreturn 1;`;
     expect(() => extractMeta(src)).toThrow(/SandboxViolation: .*first statement/);
   });
-
   it("rejects a raw `import … from \"zod\"` and points at the defineworkflow re-export", () => {
     const src = `
       import { agent, defineWorkflow } from "defineworkflow";
@@ -353,5 +364,35 @@ return x;`;
       });
     `;
     expect(() => extractMeta(src)).toThrow(/SandboxViolation: cannot import from "lodash"/);
+  });
+
+  it("rejects a reserved __proto__ key in meta (prototype-pollution guard)", () => {
+    const src = `export const meta = { name: "x", description: "d", harness: "claude", __proto__: { polluted: true } };\nreturn 1;`;
+    expect(() => extractMeta(src)).toThrow(/reserved key name not allowed in meta: __proto__/);
+  });
+
+  it("rejects a reserved constructor key nested inside meta", () => {
+    const src = `export const meta = { name: "x", description: "d", harness: "claude", phases: [{ constructor: 1 }] };\nreturn 1;`;
+    expect(() => extractMeta(src)).toThrow(/reserved key name not allowed/);
+  });
+
+  it("rejects an empty/whitespace meta.name", () => {
+    const src = `export const meta = { name: "  ", description: "d", harness: "claude", phases: [] };\nreturn 1;`;
+    expect(() => extractMeta(src)).toThrow(/meta\.name must be a non-empty string/);
+  });
+
+  it("rejects a non-string meta.description", () => {
+    const src = `export const meta = { name: "x", description: 42, harness: "claude", phases: [] };\nreturn 1;`;
+    expect(() => extractMeta(src)).toThrow(/meta\.description must be a non-empty string/);
+  });
+
+  it("rejects a non-string meta.whenToUse", () => {
+    const src = `export const meta = { name: "x", description: "d", whenToUse: 5, harness: "claude", phases: [] };\nreturn 1;`;
+    expect(() => extractMeta(src)).toThrow(/meta\.whenToUse must be a string/);
+  });
+
+  it("rejects a non-array meta.phases", () => {
+    const src = `export const meta = { name: "x", description: "d", harness: "claude", phases: "nope" };\nreturn 1;`;
+    expect(() => extractMeta(src)).toThrow(/meta\.phases must be an array/);
   });
 });
