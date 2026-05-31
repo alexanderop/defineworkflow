@@ -1,7 +1,9 @@
 # Keeps dependencies patched so a known-vulnerable transitive dep doesn't sit
 # in the tree. Two ecosystems: the pnpm workspace (single root lockfile) and the
-# GitHub Actions we pin by SHA. Updates are grouped to keep PR noise low — a
-# security advisory still opens its own ungrouped PR immediately.
+# GitHub Actions we pin by SHA. Updates are grouped aggressively to keep PR noise
+# low — prod and dev each collapse into a single weekly PR covering every update
+# type (incl. majors). Security advisories still open their own ungrouped PR
+# immediately, regardless of grouping.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -10,14 +12,18 @@ updates:
       interval: weekly
     open-pull-requests-limit: 10
     groups:
-      # Routine minor/patch bumps land as one PR per week.
-      production-minor-patch:
+      # All production-dependency bumps (minor, patch, AND major) land as one
+      # weekly PR. Majors are bundled in too, so breaking changes arrive batched
+      # — review the combined PR carefully before merging.
+      production:
         applies-to: version-updates
-        update-types: [minor, patch]
-      dev-minor-patch:
+        dependency-type: production
+        update-types: [minor, patch, major]
+      # All dev-dependency bumps land as a second weekly PR.
+      development:
         applies-to: version-updates
         dependency-type: development
-        update-types: [minor, patch]
+        update-types: [minor, patch, major]
 
   - package-ecosystem: github-actions
     directory: /

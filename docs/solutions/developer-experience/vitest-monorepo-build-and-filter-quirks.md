@@ -20,7 +20,8 @@ repo. Both look like real failures but are harness mechanics.
 ## Guidance
 
 **1. Run `pnpm build` before `pnpm test` on a fresh tree.** `pnpm test` is `vitest run`, which runs
-both the `unit` and `e2e` vitest projects (see `vitest.workspace.ts`). Unit tests resolve
+both the `unit` and `e2e` vitest projects (the `projects` array in `vitest.config.ts` — Vitest 4
+dropped the external `vitest.workspace.ts`). Unit tests resolve
 intra-package via relative `./foo.js` imports, but the `*.e2e.test.ts` files import sibling
 packages by name (e.g. `@workflow/schema`), which resolves to that package's `dist/` (its
 `exports` point at `./dist/index.js`). On a tree that hasn't been built, ~20 e2e files fail to
@@ -34,7 +35,7 @@ incorrect main/module/exports specified in its package.json.
 This is expected, not a bug — `turbo run build` first, then `pnpm test` is green. (Turbo caches the
 build, so it's cheap on subsequent runs.)
 
-**2. Don't run a single package's tests with `pnpm --filter`.** Because the vitest workspace
+**2. Don't run a single package's tests with `pnpm --filter`.** Because the vitest project
 include globs are rooted at the monorepo root (`packages/*/src/**/*.test.ts`), running
 `pnpm --filter @workflow/core exec vitest run` reports **"No test files found"** — the filtered cwd
 doesn't match the root-anchored globs. Instead run from the repo root and pass a path filter:
@@ -69,4 +70,5 @@ pnpm test                           # green: unit + e2e (e2e bodies skip without
 pnpm exec vitest run packages/core  # NOT: pnpm --filter @workflow/core exec vitest run
 ```
 
-See also [[workflow-sandbox-script-constraints]].
+See also [[workflow-sandbox-script-constraints]] and
+[[vitest-4-vite-module-runner-exports-error]] (a vitest-4 peer-resolution crash, different failure mode).
