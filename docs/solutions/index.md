@@ -15,3 +15,4 @@ Knowledge store of past problems and learnings. Read the relevant file before wo
 
 ## Integration Issues
 - [Claude schema output can be prose before structured_output](integration-issues/claude-schema-output-retry.md)
+- [codex exec --json never emits its model — supply a display-only fallback at the adapter](integration-issues/codex-never-emits-model-display-fallback.md)
