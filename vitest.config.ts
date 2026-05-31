@@ -3,6 +3,26 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   esbuild: { jsx: "automatic" },
   test: {
+    // Projects replace the removed `vitest.workspace.ts` / `defineWorkspace`
+    // (Vitest 4 dropped external workspace files — see the migration guide).
+    // Same split as before: `unit` excludes e2e, `e2e` runs only e2e files.
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          include: ["packages/*/src/**/*.test.ts", "packages/*/src/**/*.test.tsx"],
+          exclude: ["**/*.e2e.test.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "e2e",
+          include: ["packages/*/src/**/*.e2e.test.ts"],
+        },
+      },
+    ],
     // Coverage is a global-only option: per the Vitest docs it must live in
     // this root config and is ignored if set on a workspace project entry.
     coverage: {

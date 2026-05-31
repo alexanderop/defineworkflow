@@ -32,8 +32,9 @@ lint with **oxlint**, and git hooks run via **lefthook**.
 
 ### Test layout & conventions
 
-Tests are **colocated** with source as `*.test.ts(x)` inside each package's `src/`. The vitest workspace
-(`vitest.workspace.ts`) splits them into two projects:
+Tests are **colocated** with source as `*.test.ts(x)` inside each package's `src/`. The vitest config
+(`vitest.config.ts` — the `projects` array; Vitest 4 dropped the external `vitest.workspace.ts`) splits
+them into two projects:
 
 - **unit** — `packages/*/src/**/*.test.ts(x)`, excluding `*.e2e.test.ts`
 - **e2e** — `packages/*/src/**/*.e2e.test.ts` only (gated behind `WORKFLOW_E2E=1`)
