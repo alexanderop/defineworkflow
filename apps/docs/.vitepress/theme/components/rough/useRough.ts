@@ -47,7 +47,7 @@ function cssVar(style: CSSStyleDeclaration, name: string, fallback: string): str
   return v || fallback;
 }
 
-export function readPalette(): RoughPalette {
+function readPalette(): RoughPalette {
   if (typeof document === "undefined") return FALLBACK;
   const s = getComputedStyle(document.documentElement);
   return {

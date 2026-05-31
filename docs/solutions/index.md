@@ -8,6 +8,7 @@ Knowledge store of past problems and learnings. Read the relevant file before wo
 
 ## Developer Experience
 - [Build before pnpm test, and don't use pnpm --filter to run vitest in this monorepo](developer-experience/vitest-monorepo-build-and-filter-quirks.md)
+- [Running knip in this monorepo: the four built-in false positives and how they're suppressed](developer-experience/knip-false-positives-in-this-monorepo.md)
 
 ## Integration Issues
 - [Claude schema output can be prose before structured_output](integration-issues/claude-schema-output-retry.md)
