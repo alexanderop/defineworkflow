@@ -39,4 +39,17 @@ describe("bundleWorkflow", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("rejects an npm import with a clear error", async () => {
+    const { dir, entry } = fixture({
+      "entry.workflow.ts": `import { defineWorkflow } from "defineworkflow";\nimport _ from "lodash";\nexport default defineWorkflow({ name: "x", description: "d", harness: "claude", async run() { return _; } });\n`,
+    });
+    try {
+      const result = await bundleWorkflow({ path: entry, source: `import x from "./missing";` });
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr()).toMatch(/only import local files or "defineworkflow"/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
