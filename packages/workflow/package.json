@@ -56,13 +56,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.40.0",
+    "@anthropic-ai/sdk": "^0.100.1",
     "acorn": "^8.16.0",
     "ajv": "^8.17.0",
-    "esbuild": "^0.25.0",
-    "ink": "^5.0.1",
+    "esbuild": "^0.28.0",
+    "ink": "^7.0.5",
     "neverthrow": "^8.1.0",
-    "react": "^18.3.1",
+    "react": "^19.2.6",
     "zod": "^4.0.0"
   },
   "devDependencies": {
@@ -72,6 +72,6 @@
     "@workflow/schema": "workspace:*",
     "@workflow/ui": "workspace:*",
     "tsup": "^8.3.0",
-    "typescript": "^5.6.0"
+    "typescript": "^6.0.3"
   }
 }
