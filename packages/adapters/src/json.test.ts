@@ -13,6 +13,15 @@ describe("extractJson", () => {
     expect(extractJson("no json here")).toBeUndefined();
   });
 
+  // Regression: the fenced-block regex must stay linear. An unterminated fence
+  // followed by a long whitespace run fed a polynomial-backtracking
+  // `\s*([\s\S]*?)` and could hang (ReDoS).
+  it("handles an unterminated fence with a long whitespace run in linear time", () => {
+    const start = performance.now();
+    expect(extractJson("```json" + " ".repeat(100_000) + "x")).toBeUndefined();
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
   // Property-based: extractJson is a pure parser, so its guarantees should hold for arbitrary input.
   // We only fuzz arrays/objects because that's what extractJson scans for ([ or { is the entry point),
   // and we compare via JSON.stringify so the round-trip is insensitive to -0 and key ordering.

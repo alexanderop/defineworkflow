@@ -1,8 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { runInSandbox, extractMeta } from "./sandbox.js";
+import { runInSandbox, extractMeta, transformScript } from "./sandbox.js";
 import { profile, isProfile } from "./profile.js";
 
 describe("sandbox", () => {
+  // Regression: the import-matching regexes must stay linear. An `import` token
+  // followed by a long whitespace run with no `from` fed a
+  // polynomial-backtracking `[\s\S]*?` flanked by `\s+` and could hang (ReDoS).
+  it("matches imports in linear time on a pathological line", () => {
+    // `import` + a long whitespace run with no `from` is invalid JS, so the
+    // downstream transform rejects it — but the import-matching regexes run
+    // first, and under the old polynomial pattern they hung before ever
+    // reaching that point. We only assert the call returns promptly.
+    const src = "import " + " ".repeat(100_000) + "x";
+    const start = performance.now();
+    expect(() => transformScript(src)).toThrow();
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
   it("extracts meta and returns the script's return value", async () => {
     const src = `
       export const meta = { name: "demo", description: "d", harness: "claude", phases: [] };

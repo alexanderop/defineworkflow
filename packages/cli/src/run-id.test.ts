@@ -7,6 +7,19 @@ describe("slugify", () => {
     expect(slugify("a/b\\c:d")).toBe("a-b-c-d");
     expect(slugify("")).toBe("workflow");
   });
+
+  it("trims leading and trailing separators", () => {
+    expect(slugify("!!!hello!!!")).toBe("hello");
+    expect(slugify("---")).toBe("workflow");
+  });
+
+  // Regression: the dash-trim regex must stay linear. A long run of separators
+  // fed a polynomial-backtracking `^-+|-+$` and could hang (ReDoS).
+  it("handles a long run of separators in linear time", () => {
+    const start = performance.now();
+    expect(slugify("!".repeat(100_000) + "a")).toBe("a");
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
 });
 
 describe("genRunId", () => {

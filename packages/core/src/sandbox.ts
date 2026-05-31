@@ -221,8 +221,12 @@ function stripWorkflowImports(source: string): string {
   // Strip the authoring import — both the published package name
   // (`defineworkflow`) and the legacy `workflow` specifier — since the runtime
   // injects these primitives into the sandbox instead.
+  // Whitespace is folded into the lazy body rather than flanking it with `\s+`:
+  // a `[\s\S]*?` wedged between two whitespace quantifiers backtracks
+  // polynomially on `import` + a long run of spaces with no `from` (ReDoS). The
+  // negative lookahead still stops a single match from spanning two import lines.
   return source.replace(
-    /^\s*import\s+(?:type\s+)?(?:(?!^\s*import\s)[\s\S])*?\s+from\s+["'](?:defineworkflow|workflow)["'];?\s*$/gm,
+    /^[^\S\n]*import\b(?:(?!^[^\S\n]*import\b)[\s\S])*?\bfrom[^\S\n]*["'](?:defineworkflow|workflow)["'][^\S\n]*;?[^\S\n]*$/gm,
     "",
   );
 }
@@ -237,8 +241,10 @@ function stripWorkflowImports(source: string): string {
  * resolves no modules, so `import { z } from "zod"` must become `import { z } from "defineworkflow"`.
  */
 function assertNoForeignImports(source: string): void {
+  // Same linear shape as stripWorkflowImports' pattern (no whitespace
+  // quantifier flanking the lazy body) so it can't backtrack polynomially.
   const match =
-    /^\s*import\s+(?:type\s+)?(?:(?!^\s*import\s)[\s\S])*?\s+from\s+["']([^"']+)["'];?\s*$/m.exec(
+    /^[^\S\n]*import\b(?:(?!^[^\S\n]*import\b)[\s\S])*?\bfrom[^\S\n]*["']([^"']+)["'][^\S\n]*;?[^\S\n]*$/m.exec(
       source,
     );
   const mod = match?.[1];

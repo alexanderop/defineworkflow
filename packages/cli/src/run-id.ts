@@ -10,7 +10,10 @@ export function slugify(name: string): string {
   const slug = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    // The previous step collapses every run of non-alphanumerics to a single
+    // "-", so a single-character trim suffices here. Trimming with `-+` instead
+    // would backtrack polynomially on a long dash run (ReDoS).
+    .replace(/^-|-$/g, "");
   return slug === "" ? "workflow" : slug;
 }
 
