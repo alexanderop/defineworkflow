@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import readline from "node:readline";
 import { spawn } from "node:child_process";
 import { createProcessRunner, detectAdapters } from "@workflow/adapters";
+import type { JsonValue } from "@workflow/core";
 import { startUi } from "@workflow/ui";
 import type { AppDeps } from "./app.js";
 import { createRegistry, type RegistryFs } from "./registry.js";
@@ -66,8 +67,9 @@ function persistConsent(homeDir: string, project: string, name: string): void {
   const raw = tryRead(configPath);
   if (raw !== undefined) {
     try {
+      const parsed: JsonValue = JSON.parse(raw);
       // oxlint-disable-next-line typescript/consistent-type-assertions -- untyped JSON config from disk narrowed to its known (all-optional) shape
-      config = JSON.parse(raw) as WorkflowConfig;
+      config = parsed as unknown as WorkflowConfig;
     } catch {
       config = {};
     }

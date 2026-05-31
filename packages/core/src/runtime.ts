@@ -1,5 +1,6 @@
 import { validate, compileValidator, isZodSchema, toJsonSchema, type JsonSchema } from "@workflow/schema";
 import type { AgentKey, RunId } from "./brand.js";
+import type { Immutable, JsonValue } from "./type-ext.js";
 import { createBudget, type Budget } from "./budget.js";
 import { WorkflowThrow, type WorkflowError } from "./errors.js";
 import { truncateRawOutput } from "./raw-output.js";
@@ -69,7 +70,7 @@ export interface RuntimeDeps {
   readonly journal: Journal;
   readonly maxAgents: number;
   readonly budgetTotal: number | null;
-  readonly args: unknown;
+  readonly args: Immutable<JsonValue>;
   readonly cwd: string;
   readonly runId: RunId;
   readonly emit: (event: WorkflowEvent) => void;
@@ -90,7 +91,7 @@ export interface RuntimeDeps {
 }
 
 export interface Runtime {
-  readonly args: unknown;
+  readonly args: Immutable<JsonValue>;
   readonly budget: Budget;
   agent(prompt: string, opts?: AgentOptions): Promise<unknown>;
   agent(profile: Profile, prompt: string, opts?: AgentOptions): Promise<unknown>;
@@ -98,7 +99,7 @@ export interface Runtime {
   pipeline(items: readonly unknown[], ...stages: ReadonlyArray<(prev: unknown, item: unknown, index: number) => Promise<unknown>>): Promise<Array<unknown | null>>;
   phase(title: string): void;
   log(message: string): void;
-  workflow(name: string, args?: unknown): Promise<unknown>;
+  workflow(name: string, args?: Immutable<JsonValue>): Promise<unknown>;
   askUserQuestion(opts: AskUserQuestionOptions): Promise<string>;
 }
 
@@ -422,13 +423,13 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     deps.emit({ type: "log", message, at: deps.now() });
   };
 
-  const workflow = async (name: string, childArgs?: unknown): Promise<unknown> => {
+  const workflow = async (name: string, childArgs?: Immutable<JsonValue>): Promise<unknown> => {
     if (!deps.resolveWorkflow) {
       throw new WorkflowThrow({ kind: "AdapterSpawn", adapter: "workflow", cause: "no workflow resolver configured" });
     }
     const loaded = await deps.resolveWorkflow(name, childArgs);
     const childRuntime: Runtime = {
-      args: childArgs,
+      args: childArgs ?? null,
       budget,
       agent,
       parallel,

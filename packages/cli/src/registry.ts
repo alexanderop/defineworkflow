@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "neverthrow";
-import { createJournal, type Journal, type JournalEntry, type RunId, type Tagged, type WorkflowError, type WorkflowEvent } from "@workflow/core";
+import { createJournal, type Immutable, type JsonValue, type Journal, type JournalEntry, type RunId, type Tagged, type WorkflowError, type WorkflowEvent } from "@workflow/core";
 import type { AdapterId } from "@workflow/adapters";
 import { serializeEvent, serializeJournalEntry, parseEventLine, parseJournalLine } from "./jsonl.js";
 
@@ -21,7 +21,7 @@ export interface RunMeta {
   readonly runId: RunId;
   readonly name: string;
   readonly scriptPath: string | null;
-  readonly args: unknown;
+  readonly args: Immutable<JsonValue>;
   readonly adapter: AdapterId;
   readonly status: RunStatus;
   readonly startedAt: number;
@@ -41,13 +41,13 @@ export interface Registry {
   runDir(runId: string): string;
   init(meta: RunMeta, scriptSource: string): void;
   updateMeta(runId: string, patch: Partial<RunMeta>): void;
-  readMeta(runId: string): RunMeta | undefined;
+  readMeta(runId: string): Immutable<RunMeta> | undefined;
   appendEvent(runId: string, event: WorkflowEvent): void;
   readEvents(runId: string): readonly WorkflowEvent[];
   readScript(runId: string): string | undefined;
   persistentJournal(runId: string, seed: readonly JournalEntry[]): Journal;
   readJournal(runId: string): Result<readonly JournalEntry[], WorkflowError>;
-  listRuns(): readonly RunMeta[];
+  listRuns(): readonly Immutable<RunMeta>[];
 }
 
 function nonEmptyLines(raw: string | undefined): readonly string[] {
@@ -63,12 +63,13 @@ export function createRegistry(deps: RegistryDeps): Registry {
   const journalPath = (runId: string): string => `${runDir(runId)}/journal.jsonl`;
   const scriptPath = (runId: string): string => `${runDir(runId)}/script.snapshot`;
 
-  const readMeta = (runId: string): RunMeta | undefined => {
+  const readMeta = (runId: string): Immutable<RunMeta> | undefined => {
     const raw = fs.readFile(metaPath(runId));
     if (raw === undefined) return undefined;
     try {
+      const parsed: JsonValue = JSON.parse(raw);
       // oxlint-disable-next-line typescript/consistent-type-assertions -- untyped JSON meta.json from disk narrowed to its persisted RunMeta shape
-      return JSON.parse(raw) as RunMeta;
+      return parsed as unknown as Immutable<RunMeta>;
     } catch {
       return undefined;
     }
@@ -124,7 +125,7 @@ export function createRegistry(deps: RegistryDeps): Registry {
       return fs
         .readDir(root)
         .map((id) => readMeta(id))
-        .filter((m): m is RunMeta => m !== undefined);
+        .filter((m): m is Immutable<RunMeta> => m !== undefined);
     },
   };
 }

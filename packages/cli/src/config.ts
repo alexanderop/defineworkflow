@@ -1,3 +1,5 @@
+import type { Immutable, JsonObject } from "@workflow/core";
+
 export interface AdapterOverride {
   readonly bin?: string;
   readonly extraArgs?: readonly string[];
@@ -22,9 +24,10 @@ export interface ConfigDeps {
   readonly env: Readonly<Record<string, string | undefined>>;
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
+const isRecord = (v: unknown): v is JsonObject =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
 
-function readJson(deps: ConfigDeps, path: string): Record<string, unknown> {
+function readJson(deps: ConfigDeps, path: string): JsonObject {
   const raw = deps.readFile(path);
   if (raw === undefined) return {};
   try {
@@ -54,7 +57,7 @@ export function configPaths(deps: ConfigDeps): { personal: string; project: stri
 }
 
 /** Personal config is the base; project config shallow-overrides it (project wins). */
-export function loadConfig(deps: ConfigDeps): WorkflowConfig {
+export function loadConfig(deps: ConfigDeps): Immutable<WorkflowConfig> {
   const { personal, project } = configPaths(deps);
   // oxlint-disable-next-line typescript/consistent-type-assertions -- untyped JSON config from disk narrowed to its known (all-optional) shape
   const base = readJson(deps, personal) as WorkflowConfig;

@@ -29,7 +29,7 @@ const baseDeps = (runner: RuntimeDeps["runner"], over: Partial<RuntimeDeps> = {}
   journal: createJournal(),
   maxAgents: 100,
   budgetTotal: null,
-  args: undefined,
+  args: null,
   cwd: "/tmp",
   runId: "test-run" as RunId,
   emit: () => {},

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AgentOptions, Budget, Profile, ProfileConfig, Runtime, WorkflowMeta } from "@workflow/core";
+import type { AgentOptions, Budget, Immutable, JsonValue, Profile, ProfileConfig, Runtime, WorkflowMeta } from "@workflow/core";
 
 export type {
   AgentOptions,
@@ -82,7 +82,7 @@ export const workflow: Runtime["workflow"] = runtimeOnly;
  */
 export const askUserQuestion: Runtime["askUserQuestion"] = runtimeOnly;
 
-export const args: unknown = undefined;
+export const args: Immutable<JsonValue> = null;
 export const budget: Budget = {
   total: null,
   spent: runtimeOnly,
