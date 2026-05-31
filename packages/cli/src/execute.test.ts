@@ -44,13 +44,13 @@ function fakeDeps(registry: ReturnType<typeof createRegistry>, events: WorkflowE
 }
 
 const SOURCE = `
-import { agent, defineWorkflow } from "defineworkflow";
+import { agent, defineWorkflow, z } from "defineworkflow";
 export default defineWorkflow({
   name: "mocktest",
   description: "d",
   harness: "claude",
   async run() {
-    const schema = { type: "object", properties: { x: { type: "number" } }, required: ["x"], additionalProperties: false };
+    const schema = z.object({ x: z.number() });
     const a = await agent("first", { label: "a", schema });
     const b = await agent("second", { label: "b", adapter: "codex", schema });
     return { a, b };

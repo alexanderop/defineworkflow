@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createProcessRunner, detectAdapters, type AdapterId } from "@workflow/adapters";
 import { createRuntime, createSemaphore, type AgentRunner } from "@workflow/core";
+import { z } from "zod";
 import { buildRunner } from "./adapter-select.js";
 import { createRegistry, type RegistryFs, type RunMeta } from "./registry.js";
 import { adaptersCommand } from "./commands/adapters.js";
@@ -44,10 +45,10 @@ function nodeRegistryFs(): RegistryFs {
 }
 
 // Engine path (createRuntime) is used directly rather than runWorkflow(sandbox) only to keep the
-// test self-contained; a schema-bearing agent works in a sandbox script too (schema is a plain object).
+// test self-contained; a schema-bearing agent works in a sandbox script too (authored with zod).
 d("real-CLI e2e per installed adapter (costs tokens; WORKFLOW_E2E=1)", () => {
   const CANDIDATES: readonly AdapterId[] = ["claude", "codex", "copilot"];
-  const schema = { type: "object", properties: { answer: { type: "number" } }, required: ["answer"] };
+  const schema = z.object({ answer: z.number() });
   const prompt = "Return JSON with key 'answer' set to the number 42. Output only the JSON.";
 
   for (const id of CANDIDATES) {

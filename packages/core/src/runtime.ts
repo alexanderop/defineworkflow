@@ -21,7 +21,7 @@ export function labelFromPrompt(prompt: string, max = 48): string {
 export interface AgentOptions {
   readonly label?: string;
   readonly phase?: string;
-  readonly schema?: JsonSchema | ZodLike;
+  readonly schema?: ZodLike;
   readonly model?: string;
   readonly agentType?: string;
   readonly adapter?: string;
@@ -90,7 +90,40 @@ export interface Runtime {
   agent(prompt: string, opts?: AgentOptions): Promise<unknown>;
   agent(profile: Profile, prompt: string, opts?: AgentOptions): Promise<unknown>;
   parallel<T>(thunks: ReadonlyArray<() => Promise<T>>): Promise<Array<T | null>>;
-  pipeline(items: readonly unknown[], ...stages: ReadonlyArray<(prev: unknown, item: unknown, index: number) => Promise<unknown>>): Promise<Array<unknown | null>>;
+  pipeline<T, A>(
+    items: readonly T[],
+    s1: (prev: T, item: T, index: number) => Promise<A>,
+  ): Promise<Array<A | null>>;
+  pipeline<T, A, B>(
+    items: readonly T[],
+    s1: (prev: T, item: T, index: number) => Promise<A>,
+    s2: (prev: A, item: T, index: number) => Promise<B>,
+  ): Promise<Array<B | null>>;
+  pipeline<T, A, B, C>(
+    items: readonly T[],
+    s1: (prev: T, item: T, index: number) => Promise<A>,
+    s2: (prev: A, item: T, index: number) => Promise<B>,
+    s3: (prev: B, item: T, index: number) => Promise<C>,
+  ): Promise<Array<C | null>>;
+  pipeline<T, A, B, C, D>(
+    items: readonly T[],
+    s1: (prev: T, item: T, index: number) => Promise<A>,
+    s2: (prev: A, item: T, index: number) => Promise<B>,
+    s3: (prev: B, item: T, index: number) => Promise<C>,
+    s4: (prev: C, item: T, index: number) => Promise<D>,
+  ): Promise<Array<D | null>>;
+  pipeline<T, A, B, C, D, E>(
+    items: readonly T[],
+    s1: (prev: T, item: T, index: number) => Promise<A>,
+    s2: (prev: A, item: T, index: number) => Promise<B>,
+    s3: (prev: B, item: T, index: number) => Promise<C>,
+    s4: (prev: C, item: T, index: number) => Promise<D>,
+    s5: (prev: D, item: T, index: number) => Promise<E>,
+  ): Promise<Array<E | null>>;
+  pipeline(
+    items: readonly unknown[],
+    ...stages: ReadonlyArray<(prev: unknown, item: unknown, index: number) => Promise<unknown>>
+  ): Promise<Array<unknown | null>>;
   phase(title: string): void;
   log(message: string): void;
   workflow(name: string, args?: Immutable<JsonValue>): Promise<unknown>;
@@ -106,15 +139,6 @@ function profileOverrides(config: ProfileConfig, callOpts: AgentOptions): readon
     (k) => config[k] !== undefined && callOpts[k] !== undefined && callOpts[k] !== config[k],
   );
   return keys.length > 0 ? keys : undefined;
-}
-
-/**
- * Coerce a non-zod `agent({ schema })` value to a plain JSON Schema object. `isZodSchema` is a type
- * predicate, so its false branch already narrows the input to `JsonSchema` here — no comment-only
- * invariant; the spread just copies its own enumerable keys.
- */
-function toJsonSchemaObject(value: JsonSchema): JsonSchema {
-  return { ...value };
 }
 
 export function createRuntime(deps: RuntimeDeps): Runtime {
@@ -216,15 +240,17 @@ export function createRuntime(deps: RuntimeDeps): Runtime {
     }
     spawned++;
 
-    // `opts.schema` is either a plain JSON Schema or a zod schema; normalize zod to JSON
-    // Schema up front (the serializable form harnesses + AJV consume). Compile it here so a
-    // malformed schema surfaces as a clean SchemaValidation error rather than an opaque
-    // adapter-spawn failure when the adapter later tries to compile it.
+    // `opts.schema` must be a zod schema (the authoring surface is zod-only). Normalize it to
+    // the JSON Schema the harnesses + AJV consume, and compile it here so a malformed schema
+    // surfaces as a clean SchemaValidation error. A non-zod value is only reachable from
+    // type-erased sandbox JS — reject it with the same error kind rather than guessing.
     let jsonSchema: JsonSchema | undefined;
     if (opts.schema) {
       try {
-        const rawSchema = opts.schema;
-        const candidate: JsonSchema = isZodSchema(rawSchema) ? toJsonSchema(rawSchema) : toJsonSchemaObject(rawSchema);
+        if (!isZodSchema(opts.schema)) {
+          throw new Error("agent({ schema }) requires a zod schema (e.g. z.object({ … }))");
+        }
+        const candidate = toJsonSchema(opts.schema);
         compileValidator(candidate);
         jsonSchema = candidate;
       } catch (cause) {

@@ -28,6 +28,11 @@ describe("toJsonSchema", () => {
     expect(json["required"]).toEqual(["title", "n"]);
   });
 
+  it("omits the $schema meta key (Claude Code's --json-schema silently ignores any schema that carries it)", () => {
+    const json = toJsonSchema(z.object({ title: z.string() }));
+    expect("$schema" in json).toBe(false);
+  });
+
   it("produces a schema that AJV can validate real data against", () => {
     const json = toJsonSchema(
       z.object({ impact: z.enum(["high", "medium", "low"]), count: z.number() }),

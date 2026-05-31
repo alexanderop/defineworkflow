@@ -16,6 +16,19 @@ export type {
 /** The engine's zod instance. Use it for `agent({ schema: z.object({ … }) })` to get inferred, type-safe output. */
 export { z };
 
+// The sandbox injects `URL`/`URLSearchParams` as host globals (see @workflow/core's sandbox.ts).
+// Declare them so a workflow file — which imports from `defineworkflow` and compiles with
+// `types: []` — sees exactly the sandbox surface, without pulling in all of @types/node (which
+// would falsely surface `process`/`fs`/`document`). `var` merges cleanly with @types/node's own
+// global `URL` in this package's own typecheck, and `typeof import("node:url").URL` resolves even
+// under `types: []`.
+declare global {
+  // oxlint-disable no-var
+  var URL: typeof import("node:url").URL;
+  var URLSearchParams: typeof import("node:url").URLSearchParams;
+  // oxlint-enable no-var
+}
+
 export interface WorkflowContext {
   readonly agent: Runtime["agent"];
   readonly parallel: Runtime["parallel"];

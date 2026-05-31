@@ -24,12 +24,17 @@ export function isZodSchema(value: unknown): value is ZodLike {
  * Convert a zod schema to the plain JSON Schema the rest of the engine speaks (the
  * serializable form harness CLIs consume and AJV validates). zod v4 emits 2020-12,
  * which is exactly the draft {@link compileValidator} compiles against.
+ *
+ * The `$schema` meta key zod v4 stamps on its output is dropped: Claude Code's
+ * `--json-schema` flag silently ignores any schema that carries it (falling back to free
+ * prose, which then fails our validation), and no internal consumer needs it — `compileValidator`
+ * is pinned to the 2020-12 Ajv build regardless of the key.
  */
 export function toJsonSchema(schema: unknown): JsonSchema {
   // `schema` is `unknown` (callers pass a duck-typed zod schema via `isZodSchema`); zod's own
   // overloads can't narrow it, so this one cast to the input type is unavoidable.
   // oxlint-disable-next-line typescript/consistent-type-assertions -- narrow unknown to zod's input type
   const input = schema as Parameters<typeof z.toJSONSchema>[0];
-  const out: JsonSchema = z.toJSONSchema(input);
+  const { $schema: _discarded, ...out }: JsonSchema = z.toJSONSchema(input);
   return out;
 }
