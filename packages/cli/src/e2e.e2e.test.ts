@@ -104,7 +104,7 @@ d("real-CLI e2e per installed adapter (costs tokens; WORKFLOW_E2E=1)", () => {
       const journalFile = path.join(registry.runDir(runId), "journal.jsonl");
       expect(fs.existsSync(journalFile)).toBe(true);
       const seed = registry.readJournal(runId)._unsafeUnwrap();
-      expect(seed).toHaveLength(1);
+      expect(seed).toHaveLength(2);
 
       // resume: a journal-seeded run returns the cached result with NO new adapter spawn.
       let calls2 = 0;

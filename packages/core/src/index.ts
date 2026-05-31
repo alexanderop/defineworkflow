@@ -1,4 +1,4 @@
-export type { RunId, AgentKey } from "./brand.js";
+export type { RunId, AgentKey, JournalKey } from "./brand.js";
 export type {
   Immutable,
   Mutable,
@@ -29,7 +29,17 @@ export {
 export { createBudget, type Budget } from "./budget.js";
 export { profile, isProfile, type Profile, type ProfileConfig } from "./profile.js";
 export { createSemaphore, type Semaphore } from "./semaphore.js";
-export { createJournal, type Journal, type JournalEntry } from "./journal.js";
+export {
+  createJournal,
+  computeJournalKey,
+  stableJson,
+  type Journal,
+  type JournalStartedRecord,
+  type JournalResultRecord,
+  type JournalRecord,
+  type JournalKeyInput,
+  type JournalCallKind,
+} from "./journal.js";
 export { runInSandbox, extractMeta, transformScript, type SandboxResult } from "./sandbox.js";
 export {
   createRuntime,

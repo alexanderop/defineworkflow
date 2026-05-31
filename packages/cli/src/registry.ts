@@ -5,7 +5,7 @@ import {
   type Immutable,
   type JsonValue,
   type Journal,
-  type JournalEntry,
+  type JournalRecord,
   type RunId,
   type Tagged,
   type WorkflowError,
@@ -14,7 +14,7 @@ import {
 import type { AdapterId } from "@workflow/adapters";
 import {
   serializeEvent,
-  serializeJournalEntry,
+  serializeJournalRecord,
   parseEventLine,
   parseJournalLine,
 } from "./jsonl.js";
@@ -93,8 +93,8 @@ export interface Registry {
   appendEvent(runId: string, event: WorkflowEvent): void;
   readEvents(runId: string): readonly WorkflowEvent[];
   readScript(runId: string): string | undefined;
-  persistentJournal(runId: string, seed: readonly JournalEntry[]): Journal;
-  readJournal(runId: string): Result<readonly JournalEntry[], WorkflowError>;
+  persistentJournal(runId: string, seed: readonly JournalRecord[]): Journal;
+  readJournal(runId: string): Result<readonly JournalRecord[], WorkflowError>;
   listRuns(): readonly Immutable<RunMeta>[];
 }
 
@@ -156,15 +156,19 @@ export function createRegistry(deps: RegistryDeps): Registry {
       const journal = createJournal(seed);
       return {
         lookup: journal.lookup,
-        entries: journal.entries,
-        record: (entry) => {
-          journal.record(entry);
-          fs.appendFile(journalPath(runId), serializeJournalEntry(entry));
+        records: journal.records,
+        recordStarted: (record) => {
+          journal.recordStarted(record);
+          fs.appendFile(journalPath(runId), serializeJournalRecord(record));
+        },
+        recordResult: (record) => {
+          journal.recordResult(record);
+          fs.appendFile(journalPath(runId), serializeJournalRecord(record));
         },
       };
     },
     readJournal(runId) {
-      const entries: JournalEntry[] = [];
+      const entries: JournalRecord[] = [];
       for (const line of nonEmptyLines(fs.readFile(journalPath(runId)))) {
         const parsed = parseJournalLine(line);
         if (parsed.isErr()) return err(parsed.error);

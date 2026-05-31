@@ -30,7 +30,7 @@ export { resolveSavedWorkflow, type ResolveDeps, type ResolvedWorkflow } from ".
 export { genRunId, slugify, type RunIdDeps } from "./run-id.js";
 export {
   serializeEvent,
-  serializeJournalEntry,
+  serializeJournalRecord,
   parseEventLine,
   parseJournalLine,
 } from "./jsonl.js";

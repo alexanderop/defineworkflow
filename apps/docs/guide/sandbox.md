@@ -2,7 +2,7 @@
 
 <p class="wf-eyebrow">packages/core/src/sandbox.ts</p>
 
-Scripts run in a Node `vm` context. Replay only works if a re-run produces the *identical* sequence of
+Scripts run in a Node `vm` context. Replay only works if a re-run produces the *identical* chain of
 calls — so the three sources of nondeterminism are **hard-banned**. Click each snippet to run it
 against the sandbox and see what happens.
 
@@ -37,7 +37,7 @@ against the sandbox and see what happens.
 | Banned | Why it breaks replay |
 |---|---|
 | `Date.now()` | Wall-clock changes every run, so any branch on it diverges. |
-| `Math.random()` | Randomness ⇒ different seq order on replay ⇒ journal misalignment. |
+| `Math.random()` | Randomness ⇒ different prompts or branches on replay ⇒ journal key misses. |
 | `new Date()` *(argless)* | Reads the clock. `new Date("2026-05-30")` is fine — it's explicit. |
 
 ```js

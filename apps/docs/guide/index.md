@@ -42,13 +42,13 @@ lock-in to a single agent vendor.
 
 <RoughDiagram
   direction="LR"
-  caption="resume replays the journal — matching seqs return instantly, free"
+  caption="resume replays the journal — matching keys return instantly, free"
   :nodes="[
     { id: 'script', label: 'script.ts' },
     { id: 'a1', label: 'agent()', accent: 'amber' },
     { id: 'a2', label: 'agent()', accent: 'amber' },
     { id: 'a3', label: 'agent()', accent: 'amber' },
-    { id: 'journal', label: 'journal', sub: 'seq → result' },
+    { id: 'journal', label: 'journal', sub: 'key → result' },
     { id: 'reduce', label: 'reduce(events)' },
     { id: 'state', label: 'RunState' },
     { id: 'ui', label: 'UI', accent: 'cyan' },
@@ -60,10 +60,10 @@ lock-in to a single agent vendor.
   ]"
 />
 
-A run walks your script top-to-bottom. Each `agent()` call is assigned a **sequence number**, does
-its work through a pluggable **harness adapter**, and records its result in the **journal** keyed by
-that seq. Re-running replays the journal: matching seqs return instantly, so a crashed or edited run
-resumes from the longest unchanged prefix without re-invoking the model.
+A run walks your script top-to-bottom. Each `agent()` call is assigned a **sequence number** for
+events, then records its result in the **journal** under a content-addressed hash chain key. Re-running
+replays the journal until the first key miss, so a crashed run resumes from the longest unchanged
+prefix without re-invoking the model.
 
 ## The primitives
 
@@ -145,9 +145,9 @@ export default defineWorkflow({
 })
 ```
 
-The answer is **journaled by sequence number**, exactly like an `agent()` result — so a resumed or
-replayed run returns the cached answer instead of re-prompting. The call shares the agent seq counter
-and skips the budget/cap gates (a question costs no tokens). Questions raised concurrently inside
+The answer is **journaled by content-addressed key**, exactly like an `agent()` result — so a resumed
+or replayed run returns the cached answer instead of re-prompting. The call shares the agent seq
+counter for ordering and skips the budget/cap gates (a question costs no tokens). Questions raised concurrently inside
 `parallel()` / `pipeline()` are serialized behind one lock so only one prompt owns the keyboard at a
 time; in-flight agents keep running.
 

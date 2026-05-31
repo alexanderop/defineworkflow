@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { ScriptHash } from "./registry.js";
-import type { RunId } from "@workflow/core";
+import type { JournalKey, RunId } from "@workflow/core";
 import type { WorkflowEvent } from "@workflow/core";
 import { createRegistry, type RegistryFs, type RunMeta } from "./registry.js";
 
@@ -97,12 +97,35 @@ describe("registry", () => {
     const { reg } = setup();
     reg.init(baseMeta, "x");
     const journal = reg.persistentJournal("demo-1", []);
-    journal.record({ seq: 0, key: "0:P:a", text: "hi", data: null, outputTokens: 9 });
-    expect(journal.lookup(0)?.text).toBe("hi");
+    journal.recordStarted({
+      type: "started",
+      seq: 0,
+      journalKey: "v2:k" as JournalKey,
+      agentKey: "0:P:a",
+    });
+    journal.recordResult({
+      type: "result",
+      seq: 0,
+      journalKey: "v2:k" as JournalKey,
+      agentKey: "0:P:a",
+      text: "hi",
+      data: null,
+      outputTokens: 9,
+    });
+    expect(journal.lookup("v2:k" as JournalKey)?.text).toBe("hi");
     const fromDisk = reg.readJournal("demo-1");
     expect(fromDisk.isOk()).toBe(true);
     expect(fromDisk._unsafeUnwrap()).toEqual([
-      { seq: 0, key: "0:P:a", text: "hi", data: null, outputTokens: 9 },
+      { type: "started", seq: 0, journalKey: "v2:k", agentKey: "0:P:a" },
+      {
+        type: "result",
+        seq: 0,
+        journalKey: "v2:k",
+        agentKey: "0:P:a",
+        text: "hi",
+        data: null,
+        outputTokens: 9,
+      },
     ]);
   });
 

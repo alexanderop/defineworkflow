@@ -72,7 +72,7 @@ describe("runWorkflow", () => {
     const types = reg.readEvents("demo-1").map((e) => e.type);
     expect(types[0]).toBe("run-started");
     expect(types[types.length - 1]).toBe("run-finished");
-    expect(reg.readJournal("demo-1")._unsafeUnwrap()).toHaveLength(2);
+    expect(reg.readJournal("demo-1")._unsafeUnwrap()).toHaveLength(4);
   });
 
   it("carries budgetTotal onto the run-started event so a finished run can show the budget line", async () => {

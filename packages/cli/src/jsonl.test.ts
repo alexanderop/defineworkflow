@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
-import type { RunId } from "@workflow/core";
-import type { WorkflowEvent, JournalEntry } from "@workflow/core";
-import { serializeEvent, parseEventLine, parseJournalLine } from "./jsonl.js";
+import type { JournalKey, JournalRecord, RunId, WorkflowEvent } from "@workflow/core";
+import {
+  serializeEvent,
+  serializeJournalRecord,
+  parseEventLine,
+  parseJournalLine,
+} from "./jsonl.js";
 
 describe("jsonl events", () => {
   it("round-trips an event", () => {
@@ -27,15 +31,29 @@ describe("jsonl events", () => {
 });
 
 describe("jsonl journal", () => {
-  it("round-trips a journal entry", () => {
-    const entry: JournalEntry = {
+  it("round-trips a journal result record", () => {
+    const entry: JournalRecord = {
+      type: "result",
       seq: 0,
-      key: "0:P:a",
+      journalKey: "v2:abc" as JournalKey,
+      agentKey: "0:P:a",
       text: "hi",
       data: { n: 1 },
       outputTokens: 9,
     };
-    const parsed = parseJournalLine(JSON.stringify(entry));
+    const parsed = parseJournalLine(serializeJournalRecord(entry));
+    expect(parsed.isOk()).toBe(true);
+    expect(parsed._unsafeUnwrap()).toEqual(entry);
+  });
+
+  it("round-trips a journal started record", () => {
+    const entry: JournalRecord = {
+      type: "started",
+      seq: 0,
+      journalKey: "v2:abc" as JournalKey,
+      agentKey: "0:P:a",
+    };
+    const parsed = parseJournalLine(serializeJournalRecord(entry));
     expect(parsed.isOk()).toBe(true);
     expect(parsed._unsafeUnwrap()).toEqual(entry);
   });
@@ -44,21 +62,31 @@ describe("jsonl journal", () => {
     expect(parseJournalLine("   ").isErr()).toBe(true);
   });
 
-  it("returns JournalCorrupt when seq/key are missing", () => {
+  it("returns JournalCorrupt when type/journalKey are missing", () => {
     expect(parseJournalLine(JSON.stringify({ text: "x" })).isErr()).toBe(true);
   });
 
   it("rejects an entry missing replay-critical fields (text/outputTokens), not just seq/key", () => {
-    // The old 2-field duck check let this through as a JournalEntry whose text/outputTokens
+    // The old 2-field duck check let this through as a result whose text/outputTokens
     // were actually undefined — a type lie on the data durable-resume replays.
-    const bad = parseJournalLine(JSON.stringify({ seq: 1, key: "1:P:a" }));
+    const bad = parseJournalLine(
+      JSON.stringify({ type: "result", seq: 1, journalKey: "v2:k", agentKey: "1:P:a" }),
+    );
     expect(bad.isErr()).toBe(true);
     expect(bad._unsafeUnwrapErr().kind).toBe("JournalCorrupt");
   });
 
   it("rejects an entry whose field types are wrong", () => {
     const bad = parseJournalLine(
-      JSON.stringify({ seq: "1", key: "k", text: "t", data: null, outputTokens: 3 }),
+      JSON.stringify({
+        type: "result",
+        seq: "1",
+        journalKey: "v2:k",
+        agentKey: "a",
+        text: "t",
+        data: null,
+        outputTokens: 3,
+      }),
     );
     expect(bad.isErr()).toBe(true);
   });
