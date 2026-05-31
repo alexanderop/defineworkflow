@@ -17,7 +17,7 @@
   "dependencies": {
     "@workflow/schema": "workspace:*",
     "acorn": "^8.16.0",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.0",
     "neverthrow": "^8.1.0",
     "type-fest": "^4.41.0"
   },
