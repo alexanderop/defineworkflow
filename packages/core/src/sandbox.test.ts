@@ -210,4 +210,30 @@ return x;`;
     const src = `const x = 1;\nexport const meta = { name: "x", description: "d", harness: "claude" };\nreturn 1;`;
     expect(() => extractMeta(src)).toThrow(/SandboxViolation: .*first statement/);
   });
+
+  it("rejects a raw `import … from \"zod\"` and points at the defineworkflow re-export", () => {
+    const src = `
+      import { agent, defineWorkflow } from "defineworkflow";
+      import { z } from "zod";
+
+      export default defineWorkflow({
+        name: "n", description: "d", harness: "claude", phases: [],
+        async run() { return await agent("hi", { schema: z.object({ n: z.number() }) }); },
+      });
+    `;
+    expect(() => extractMeta(src)).toThrow(/SandboxViolation: cannot import from "zod".*defineworkflow/s);
+  });
+
+  it("names a non-zod foreign import in the SandboxViolation", () => {
+    const src = `
+      import { defineWorkflow } from "defineworkflow";
+      import { merge } from "lodash";
+
+      export default defineWorkflow({
+        name: "n", description: "d", harness: "claude", phases: [],
+        async run() { return merge({}, {}); },
+      });
+    `;
+    expect(() => extractMeta(src)).toThrow(/SandboxViolation: cannot import from "lodash"/);
+  });
 });

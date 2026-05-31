@@ -44,7 +44,12 @@ Hard rules for any script the sandbox will run:
 - **No `import` / `require` resolution.** There is no module context; the `import … from
   "defineworkflow"` line is *stripped* and its names are bound to injected globals instead. Because
   `z` is injected, you **author schemas with zod** (`agent(prompt, { schema: z.object({ … }) })`) —
-  the runtime converts zod → JSON Schema at the boundary.
+  the runtime converts zod → JSON Schema at the boundary. Importing `z` (or anything else) from a
+  *foreign* specifier such as `"zod"` is rejected: `transformScript` strips only the `defineworkflow`
+  /`workflow` import, so a surviving `import … from "zod"` would be wrapped into the async IIFE body
+  (an illegal static import) and esbuild fails with an opaque `Unexpected "{"`. `assertNoForeignImports`
+  now catches this first and throws a `SandboxViolation` naming the module and pointing at
+  `import { z } from "defineworkflow"`.
 - **No `Date.now()`, no argless `new Date()`, no `Math.random()`.** The sandbox installs
   sentinel-throwing `Date`/`Math` (the determinism guard). Index slicing, string parsing, `Set`
   dedup, `new URL(u)`, etc. are all fine (all deterministic).

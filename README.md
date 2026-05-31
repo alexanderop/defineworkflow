@@ -51,8 +51,9 @@ probabilistic:
   staged agent work, bounded by a semaphore.
 - **Harness-neutral** — the same workflow runs against the Claude, Codex, or
   Copilot CLIs, or the raw Anthropic API, selected by one `harness` field.
-- **Typed outputs** — pass a zod schema to `agent({ schema })` and the result is
-  validated (with repair/retry) and typed at the call site.
+- **Typed outputs** — `import { z } from "defineworkflow"` and pass a zod schema to
+  `agent({ schema })`; the result is validated (with repair/retry) and typed at the
+  call site. Import `z` from `defineworkflow`, not `zod` — the sandbox injects it.
 - **Budgets & caps** — soft token budgets and agent-count caps keep runaway runs
   in check.
 - **Live TUI** — a React + Ink dashboard streams phases, agents, and per-agent
