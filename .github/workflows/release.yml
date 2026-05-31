@@ -1,34 +1,38 @@
 name: release
 
-# Publishes `defineworkflow` to npm. This is the single OIDC publishing
-# workflow — configure the npm trusted publisher against THIS filename
-# (release.yml).
+# Automated versioning. On every push to main, release-please reads the
+# conventional commits since the last release and maintains an open
+# "chore: release vX.Y.Z" PR containing the computed version bump + changelog.
 #
-# It is invoked two ways:
-#   - automatically by release-please.yml (workflow_call) right after a release
-#     PR is merged and its tag/GitHub Release are created;
-#   - manually via workflow_dispatch as a break-glass to (re)publish a tag.
+# Merging that PR:
+#   1. bumps packages/workflow/package.json + .release-please-manifest.json,
+#   2. writes packages/workflow/CHANGELOG.md,
+#   3. creates the git tag (vX.Y.Z) and the GitHub Release,
+#   4. triggers the `publish` job below, which calls publish.yml to publish
+#      to npm with provenance.
 #
-# Security model (npm OIDC "trusted publishing"):
-#   - NO long-lived NPM_TOKEN secret. npm authenticates via a short-lived OIDC
-#     token, which requires `id-token: write`.
-#   - `--provenance` attaches a signed attestation linking the tarball to this
-#     exact commit + workflow run (verifiable on npmjs.com).
-#   - The `npm-publish` GitHub Environment is the release-source control: protect
-#     it (Settings → Environments → npm-publish).
+# It can also be run manually via workflow_dispatch as a break-glass publish for
+# an existing tag.
 #
-# One-time setup on npmjs.com (Package → Settings → Trusted Publisher):
-#   organization/repository: alexanderop/defineworkflow
-#   workflow filename:       release.yml
-#   environment:             npm-publish
+# Note: releases created via GITHUB_TOKEN do NOT trigger other workflows, so we
+# call publish.yml directly (workflow_call) instead of relying on a
+# `release: published` event.
+#
+# For the same reason, the *release PR* release-please opens must NOT be created
+# with the default GITHUB_TOKEN — PRs opened by it never fire `pull_request`
+# events, so required checks (test, CodeQL) would never run and the PR stays
+# BLOCKED forever. We mint a short-lived GitHub App installation token instead,
+# so the PR is opened as the app and its checks run normally.
+#
+# Requires repo/org secrets RELEASE_PLEASE_APP_ID and RELEASE_PLEASE_APP_KEY
+# from a GitHub App (installed on this repo) granted Contents: read/write and
+# Pull requests: read/write. If those secrets are absent the token step is
+# skipped and release-please falls back to GITHUB_TOKEN (PR opens but its
+# checks must be re-triggered manually by close/reopen).
 
 on:
-  workflow_call:
-    inputs:
-      tag:
-        description: "Git tag to publish (e.g. v0.1.0)"
-        required: true
-        type: string
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       tag:
@@ -36,79 +40,61 @@ on:
         required: true
         type: string
 
-# Never run two publishes of the same tag concurrently, and never cancel an
-# in-flight publish.
+# Serialize release-PR maintenance; never cancel an in-flight run mid-release.
 concurrency:
-  group: release-publish-${{ inputs.tag }}
+  group: release
   cancel-in-progress: false
 
 permissions: {}
 
 jobs:
-  publish:
-    name: Publish defineworkflow to npm
+  release-please:
+    name: Maintain release PR
     runs-on: ubuntu-latest
-    if: github.repository == 'alexanderop/defineworkflow'
-    environment: npm-publish
+    if: github.repository == 'alexanderop/defineworkflow' && github.event_name == 'push'
     permissions:
-      contents: read # checkout
-      id-token: write # npm trusted publishing via OIDC
-
+      contents: write # create release commits, tags, and GitHub Releases
+      pull-requests: write # create/update the release PR
+    outputs:
+      # The single released package (`defineworkflow`) is rooted at the repo root
+      # (".") so that commits to ANY package count toward its version — it bundles
+      # all `@workflow/*` packages into its dist, so a change in packages/cli or
+      # packages/core does change the published artifact. A root-path (".")
+      # component emits the BARE `release_created`/`tag_name` outputs (path-scoped
+      # components emit PATH-PREFIXED ones); read the bare outputs here.
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # Mint a GitHub App installation token so the release PR is opened as the
+      # app, not GITHUB_TOKEN — otherwise its required checks never trigger.
+      # Skipped (and we fall back to GITHUB_TOKEN) when the app secrets aren't set.
+      - id: app-token
+        if: vars.RELEASE_PLEASE_APP_ID != ''
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         with:
-          ref: ${{ inputs.tag }}
-          persist-credentials: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
-
-      # NOTE: intentionally NO `registry-url:` here. setup-node's registry-url
-      # writes an .npmrc with `_authToken=${NODE_AUTH_TOKEN}`; with no token that
-      # empty value short-circuits OIDC trusted publishing and `npm publish` fails
-      # with a misleading 404 on PUT (provenance signs fine, the registry write is
-      # rejected). The publish registry is set via publishConfig.registry instead.
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+          app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_KEY }}
+          # Scope the token to exactly what release-please needs (mirrors the
+          # job's GITHUB_TOKEN permissions); avoids blanket installation scopes.
+          permission-contents: write # release commits, tags, GitHub Releases
+          permission-pull-requests: write # create/update the release PR
+      - id: rp
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
-          node-version: 24
-          cache: pnpm
+          # Falls back to the default GITHUB_TOKEN when the app token is unset.
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
-
-      # Guard: the published version must match the release tag (strip leading v).
-      - name: Verify version matches tag
-        env:
-          TAG: ${{ inputs.tag }}
-        run: |
-          PKG_VERSION="$(node -p "require('./packages/workflow/package.json').version")"
-          EXPECTED="${TAG#v}"
-          if [ "$PKG_VERSION" != "$EXPECTED" ]; then
-            echo "::error::package.json version ($PKG_VERSION) does not match tag ($EXPECTED)"
-            exit 1
-          fi
-
-      # The `@workflow/*` devDependencies are build-only (their code is already
-      # bundled into dist/), and they use the `workspace:*` protocol that npm
-      # can't resolve. Drop devDependencies from the manifest before publishing
-      # so the tarball is clean. This only mutates the ephemeral CI checkout.
-      - name: Strip build-only devDependencies from manifest
-        working-directory: packages/workflow
-        run: |
-          node -e "const fs=require('fs');const p=require('./package.json');delete p.devDependencies;fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n');"
-
-      # npm trusted publishing (OIDC) requires npm >= 11.5.1.
-      - name: Ensure OIDC-capable npm
-        run: npm install -g npm@latest
-
-      # OIDC trusted publishing — no NPM_TOKEN. `provenance: true` and
-      # `access: public` come from the package's publishConfig; passed explicitly
-      # here too for clarity.
-      - name: Publish to npm with provenance
-        run: npm publish --provenance --access public
-        working-directory: packages/workflow
+  publish:
+    name: Publish release
+    needs: release-please
+    if: always() && github.repository == 'alexanderop/defineworkflow' && ((github.event_name == 'push' && needs.release-please.outputs.release_created == 'true') || github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: read
+      id-token: write # forwarded to publish.yml for OIDC trusted publishing
+    uses: ./.github/workflows/publish.yml
+    with:
+      tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag_name }}
+    # No `secrets: inherit` — publish.yml publishes via OIDC trusted publishing
+    # and declares no `workflow_call` secrets, so it needs none forwarded.
