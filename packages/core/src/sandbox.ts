@@ -248,23 +248,23 @@ function locateMetaLiteral(program: AstNode): LocatedMeta {
     (s) => !(s?.type === "ExpressionStatement" && childNode(s, "expression")?.type === "Literal"),
   );
 
-  // Strict path: meta / defineWorkflow declared as the FIRST statement (hand-written single file).
+  // Strict path: legacy `export const meta = <LIT>` (rewritten by `transformScript` to
+  // `const meta = globalThis.__meta = <LIT>`) declared as the FIRST statement.
   if (first?.type === "VariableDeclaration" && first.kind === "const") {
     const decl = asNodeArray(first.declarations)[0];
     const id = decl ? childNode(decl, "id") : undefined;
-    if (decl && id?.type === "Identifier") {
+    if (decl && id?.type === "Identifier" && id.name === "meta") {
       // Unwrap the `globalThis.__meta = <LIT>` assignment the transform injects.
       let init = childNode(decl, "init");
       while (init?.type === "AssignmentExpression") init = childNode(init, "right");
-      if (init) {
-        if (id.name === "meta") return { node: init, mode: "meta" };
-        if (id.name === "__workflow") return { node: defineWorkflowArg(init), mode: "defineWorkflow" };
-      }
+      if (init) return { node: init, mode: "meta" };
     }
   }
 
-  // Bundled path: esbuild hoists helper declarations above `var <name> = defineWorkflow({...})`.
-  // Scan top-level declarations for the first defineWorkflow call.
+  // defineWorkflow path: the single-file form (`const __workflow = … = defineWorkflow({…})`,
+  // first statement) and the bundled form (esbuild hoists helper declarations above
+  // `var <name> = defineWorkflow({…})`) both surface here — scan top-level declarations for
+  // the first defineWorkflow call.
   const bundled = findBundledDefineWorkflow(stmts);
   if (bundled) return { node: bundled, mode: "defineWorkflow" };
 

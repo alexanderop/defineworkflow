@@ -2,11 +2,11 @@
 
 > Deterministic, crash-safe multi-agent workflow engine.
 
-Author a workflow as a single TypeScript file, orchestrate coding-agent
-invocations with `agent()` / `parallel()` / `pipeline()`, and get **durable,
-replayable execution** for free: every agent result is journaled by sequence
-number, so a crashed or paused run resumes from its last checkpoint without
-re-invoking the model.
+Author a workflow as a single TypeScript file — or a small folder of files —
+orchestrate coding-agent invocations with `agent()` / `parallel()` /
+`pipeline()`, and get **durable, replayable execution** for free: every agent
+result is journaled by sequence number, so a crashed or paused run resumes from
+its last checkpoint without re-invoking the model.
 
 ```ts
 import { agent, defineWorkflow, log, phase } from "defineworkflow";
@@ -92,14 +92,96 @@ The runtime hands `run()` these primitives:
 | `pipeline(items, ...stages)` | Run each item through staged agent calls, no barrier between stages |
 | `phase(title)` | Group subsequent agents under a phase in the UI |
 | `log(message)` | Emit a progress line to the user |
+| `askUserQuestion(opts)` | Ask the human a question mid-run and await the answer (journaled, so resume never re-asks) |
 | `workflow(name, args?)` | Run another workflow inline (one level deep; shares the budget) |
 | `budget` | Token budget: `total`, `spent()`, `remaining()` |
 | `args` | The value passed via `--args` |
+
+`agent(prompt, opts?)` accepts these `opts`: `schema` (zod → typed output),
+`label` and `phase` (UI grouping), `model`, `agentType`, `adapter` (per-call
+backend override), `isolation: "worktree"` (run the agent in a throwaway git
+worktree), and `instructions` (a persona/system hint prepended to the prompt).
+Reusable defaults can be bundled with `profile(config)` and applied as
+`agent(myProfile, prompt, opts)`.
 
 The `harness` field (`"claude" | "codex" | "copilot" | "raw-api"`) is **required**
 and is the single source of truth for which backend runs — there is no
 auto-detect and no CLI override. `defineWorkflow` makes it type-safe, so `tsc`
 rejects typos before the CLI runs.
+
+The other `meta` fields are `name`, `description`, `phases`, and two optional
+ones:
+
+- `whenToUse?: string` — a hint shown in the saved/bundled workflow list.
+- `output?: string` — a directory to persist the run's return value into.
+  When set, `result.json` holds the value verbatim and each top-level string
+  field is also written to its own file (extension sniffed from content). When
+  omitted, the return value is only printed to the terminal.
+
+### Single file or multi-file
+
+A workflow can be **one file** or a **folder**. Pick whichever fits — the CLI
+runs both the same way (`workflow run <path>`).
+
+**Single file** — everything in one `*.workflow.ts`. Best for small workflows;
+this is the `haiku.workflow.ts` shown at the top of this README.
+
+**Multi-file** — a slim *entry* file that exports `defineWorkflow({...})`, plus
+local helper files (schemas, prompts, …) imported with **relative paths**, so the
+entry reads like a table of contents:
+
+```
+multi-file-haiku/
+├── haiku.workflow.ts   # the entry — `export default defineWorkflow({...})`
+├── schemas.ts          # `export const HaikuSchema = z.object({ … })`
+└── prompts.ts          # `export function haikuPrompt(topic) { … }`
+```
+
+```ts
+// haiku.workflow.ts
+import { agent, defineWorkflow, log } from "defineworkflow";
+import { HaikuSchema } from "./schemas";
+import { haikuPrompt } from "./prompts";
+
+export default defineWorkflow({
+  name: "multi-file-haiku",
+  description: "Schema + prompt live in sibling files; the entry is a table of contents.",
+  harness: "claude",
+  phases: [{ title: "Write" }],
+
+  async run() {
+    const result = await agent(haikuPrompt("a deterministic workflow engine"), {
+      label: "haiku",
+      phase: "Write",
+      schema: HaikuSchema,
+    });
+    return result;
+  },
+});
+```
+
+```bash
+workflow run multi-file-haiku/haiku.workflow.ts --yes
+```
+
+Rules to keep in mind:
+
+- Imports are restricted to **local relative files** + `"defineworkflow"`. npm
+  imports are rejected at bundle time — this is what keeps the sandbox
+  deterministic by construction.
+- Schemas may live at a helper file's top level (`export const X = z.object({…})`)
+  — they no longer have to be declared inside `run()`.
+- Before running, the CLI **bundles** the entry's local imports into one
+  self-contained source (esbuild, with `defineworkflow` external). That bundle is
+  what gets snapshotted to the registry, so `save` / `resume` / `--detach` are all
+  self-contained.
+- `meta` still lives in the entry's `defineWorkflow({...})` call as a pure literal.
+- **Known limitation:** a nested `workflow("name")` target must be single-file or
+  an already-saved workflow; a hand-placed multi-file nested workflow isn't bundled
+  by the nested resolver.
+
+A runnable example lives at `packages/examples/src/multi-file-haiku/`
+(`pnpm --filter @workflow/examples multi-file-haiku`).
 
 ### Sandbox constraints
 
@@ -111,19 +193,23 @@ returns.
 ## CLI
 
 ```
-workflow run <script> [--args '{...}'] [--detach] [--yes] [--mock]
-workflow watch <id>          # tail a detached run
-workflow list                # list runs
-workflow resume <id>         # replay from journal and continue
-workflow stop <id>
+workflow run <script> [--args '{...}'] [--answers '{...}'] [--detach] [--yes] [--mock]
+workflow watch <id>          # tail a running/finished run
+workflow list                # list runs (status, tokens, elapsed)
+workflow resume <id>         # replay from journal and continue live
+workflow stop <id>           # stop a backgrounded run
 workflow save <id>           # save a run's script as a named workflow
-workflow adapters            # probe PATH for available agent CLIs
-workflow <name> [--args ...] # run a saved workflow by name
+workflow adapters            # list detected harnesses + capabilities
+workflow <name> [--args ...] # run a saved/bundled workflow by name
 ```
 
 - `--mock` runs the whole workflow against a fabricating runner: every `agent()`
   returns schema-valid dummy data, so you can iterate on control flow, phases,
   and the UI with **no agents spawned and no tokens spent**.
+- `--answers '{"<key>":"<value>"}'` pre-supplies answers for `askUserQuestion()`
+  calls, keyed by each question's `key`. This is the headless story: a
+  non-TTY / `--detach` / CI run resolves each question from this map, then the
+  question's `default`, else fails fast rather than hanging on input.
 - `--detach` spawns a headless child you tail with `watch`.
 - Runs are persisted under `~/.workflow/runs/{runId}/` as events + journal JSONL.
 - A consent gate guards real runs; `--yes`, non-TTY/CI, or saved consent
@@ -132,9 +218,9 @@ workflow <name> [--args ...] # run a saved workflow by name
 ## Architecture
 
 Dependency direction: `schema` → `core` → `adapters` → `cli`, with `ui`,
-`examples`, and `workflow` (the authoring package) at the edges. Packages are
-wired by dependency injection, which is what makes them testable with in-memory
-fakes.
+`examples`, `workflow` (the authoring package), and the test-only `test-support`
+at the edges. Packages are wired by dependency injection, which is what makes
+them testable with in-memory fakes.
 
 | Package | Responsibility |
 | --- | --- |
@@ -145,6 +231,7 @@ fakes.
 | `@workflow/ui` | React + Ink terminal dashboard driven by the event stream |
 | `defineworkflow` (`packages/workflow`) | The public authoring entrypoint workflow files import from |
 | `@workflow/examples` | Runnable example workflows |
+| `@workflow/test-support` | Private, test-only — shared deterministic fakes and data factories |
 
 The engine is **event-sourced**: the runtime emits a typed `WorkflowEvent`
 stream, and `reduce(state, event)` rebuilds the `RunState` consumed by the UI and
@@ -170,9 +257,9 @@ pnpm test:e2e       # WORKFLOW_E2E=1 — spawns real agents, uses tokens
 
 Tests are **colocated** with source as `*.test.ts(x)`. The vitest config
 (`vitest.config.ts` `projects`) splits them into a `unit` project and an `e2e` project (gated behind
-`WORKFLOW_E2E=1`). Use the in-memory test doubles — `createScriptedRunner()`
-(`@workflow/core`) and `FakeProcessRunner` (`@workflow/adapters`) — instead of
-spawning real CLIs in unit tests.
+`WORKFLOW_E2E=1`). Use the shared, deterministic test doubles from
+**`@workflow/test-support`** — `createScriptedRunner()` / `createMockRunner()`
+and `createFakeProcessRunner()` — instead of spawning real CLIs in unit tests.
 
 `lefthook` runs lint + typecheck on **pre-commit** and tests on **pre-push**.
 
