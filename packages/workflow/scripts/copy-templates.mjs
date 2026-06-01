@@ -1,12 +1,17 @@
-// Validate the bundled `init` templates at build time (runs as `prebuild`).
+// Copy + validate the bundled `init` templates at build time (runs as `prebuild`).
 //
-// The 8 templates live under `packages/workflow/templates/` and ship in the published tarball
-// (see package.json `files`). `templates/index.json` is the gallery manifest read by
-// `workflow list-templates` / `workflow init`. This script keeps the two honest:
+// The template SOURCE lives in the CLI package at `packages/cli/templates/` — co-located with the
+// `node-deps.ts` that resolves `Env.templatesDir` and the `init`/`list-templates` commands that read
+// them, so the `@workflow/cli` `workflow` bin finds them natively (`<cli>/dist/../templates`).
 //
-//   1. every manifest entry's file exists on disk;
-//   2. the file's declared `harness` literal matches the manifest's `harness`
-//      (the invariant `list-templates` relies on — it never reads the workflow files);
+// The published `defineworkflow` package bundles the CLI into its own `dist/cli.js`, so that bin
+// resolves `<workflow>/dist/../templates`. This script copies the source set into
+// `packages/workflow/templates/` (listed in package.json `files`) so the published tarball ships
+// them. The copy is regenerated every build; `packages/workflow/templates/` is git-ignored.
+//
+// While copying, it enforces the invariants `list-templates` relies on:
+//   1. every manifest entry's file exists;
+//   2. the file's declared `harness` literal matches the manifest's `harness`;
 //   3. each template bundles cleanly under the same "local files + defineworkflow only" rule the
 //      CLI enforces on a real `workflow run`, so "it scaffolded" implies "it bundles".
 //
@@ -14,11 +19,12 @@
 // the built CLI `dist/`, so it is safe to run early in a topological build / in CI.
 
 import { build } from "esbuild";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, rm, cp } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const templatesDir = fileURLToPath(new URL("../templates", import.meta.url));
+const srcDir = fileURLToPath(new URL("../../cli/templates", import.meta.url));
+const destDir = fileURLToPath(new URL("../templates", import.meta.url));
 
 /** Only relative files and "defineworkflow" may be imported — mirrors the CLI's bundle guard. */
 const localOnly = {
@@ -37,13 +43,13 @@ const localOnly = {
 const HARNESS_RE = /\bharness\s*:\s*["']([^"']+)["']/;
 
 async function main() {
-  const raw = await readFile(path.join(templatesDir, "index.json"), "utf8");
+  const raw = await readFile(path.join(srcDir, "index.json"), "utf8");
   const index = JSON.parse(raw);
   if (index.version !== 1)
     throw new Error(`unexpected templates/index.json version ${index.version}`);
 
   for (const t of index.templates) {
-    const dir = t.multiFile ? path.join(templatesDir, t.dir ?? t.name) : templatesDir;
+    const dir = t.multiFile ? path.join(srcDir, t.dir ?? t.name) : srcDir;
     const entryPath = path.join(dir, t.entry);
     const source = await readFile(entryPath, "utf8");
 
@@ -65,7 +71,12 @@ async function main() {
     });
   }
 
-  process.stdout.write(`templates: validated ${index.templates.length}, index.json OK\n`);
+  // Mirror the validated source set into the published package verbatim.
+  await rm(destDir, { recursive: true, force: true });
+  await mkdir(destDir, { recursive: true });
+  await cp(srcDir, destDir, { recursive: true });
+
+  process.stdout.write(`templates: validated ${index.templates.length}, copied → ${destDir}\n`);
 }
 
 main().catch((e) => {

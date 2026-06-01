@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": ["repos/**", ".claude/**", ".agents/**", "packages/workflow/templates/**"],
+  "ignore": ["repos/**", ".claude/**", ".agents/**", "packages/cli/templates/**"],
   "workspaces": {
     "packages/examples": {
       "entry": ["src/**/*.workflow.ts"]

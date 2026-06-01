@@ -179,11 +179,12 @@ export async function initCommand(args: InitArgs, deps: AppDeps): Promise<number
   // an interactive TTY; --run forces it; --yes / non-TTY never prompt (run only if --run).
   let shouldRun = args.run;
   if (!shouldRun && deps.env.isTTY && !args.noRun && !args.yes) {
-    const answer = (
-      await deps.consent.io.question("\nRun it now with mocked agents (no tokens)? [Y/n]: ")
-    )
-      .trim()
-      .toLowerCase();
+    // Wording must match what actually runs: `--real` spends tokens, default `--mock` does not.
+    const prompt =
+      args.mode === "real"
+        ? "\nRun it now for real (spawns agents, spends tokens)? [Y/n]: "
+        : "\nRun it now with mocked agents (no tokens)? [Y/n]: ";
+    const answer = (await deps.consent.io.question(prompt)).trim().toLowerCase();
     shouldRun = answer !== "n" && answer !== "no";
   }
   if (shouldRun)

@@ -210,6 +210,41 @@ describe("dispatch init", () => {
     expect(await dispatch(["init"], deps)).toBe(0);
     expect(out()).toContain("Available templates");
   });
+
+  it("copies every file of a multi-file template, rewriting harness only on the entry", async () => {
+    const MULTI_INDEX = JSON.stringify({
+      version: 1,
+      templates: [
+        {
+          name: "mf",
+          description: "multi",
+          harness: "claude",
+          multiFile: true,
+          dir: "mf",
+          entry: "entry.workflow.ts",
+        },
+      ],
+    });
+    const files = new Map<string, string>([
+      ["/t/index.json", MULTI_INDEX],
+      ["/t/mf/entry.workflow.ts", 'export default defineWorkflow({\n  harness: "claude",\n});\n'],
+      ["/t/mf/schemas.ts", "export const S = 1;\n"],
+    ]);
+    const { deps } = fakeDeps({
+      env: { templatesDir: "/t", cwd: "/proj" },
+      adapters: { detected: ["codex"] },
+      io: {
+        readText: (p) => files.get(p),
+        writeText: (p, d) => void files.set(p, d),
+        exists: (p) => files.has(p),
+        readDir: (dir) => (dir === "/t/mf" ? ["entry.workflow.ts", "schemas.ts"] : []),
+      },
+    });
+    expect(await dispatch(["init", "mf", "--no-run"], deps)).toBe(0);
+    expect(files.get("/proj/mf/entry.workflow.ts")).toContain('harness: "codex"');
+    // helper copied verbatim (not harness-rewritten)
+    expect(files.get("/proj/mf/schemas.ts")).toBe("export const S = 1;\n");
+  });
 });
 
 describe("dispatch run (end-to-end, line-log)", () => {
