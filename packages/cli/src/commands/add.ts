@@ -53,15 +53,26 @@ export async function addCommand(args: AddArgs, deps: AddDeps): Promise<number> 
   const lockPath = `${deps.env.cwd}/.workflow/recipes.lock.json`;
   const onDisk = (p: string): string | undefined => deps.io.readText(`${dir}/${p}`);
 
+  // Load the lockfile. A present-but-corrupt lock must FAIL rather than reset to `{}`:
+  // writing a fresh lock derived from `{}` would clobber every other recipe's entry.
   let lock: RecipesLock = {};
   const lockRaw = deps.io.readText(lockPath);
-  if (lockRaw !== undefined) {
+  if (lockRaw !== undefined && lockRaw.trim().length > 0) {
+    let lockJson: unknown;
     try {
-      const r = RecipesLock.safeParse(JSON.parse(lockRaw));
-      if (r.success) lock = r.data;
+      lockJson = JSON.parse(lockRaw);
     } catch {
-      // unreadable lock → treat as empty; --force still works
+      deps.ui.print(`error: ${lockPath} is not valid JSON; fix or delete it before running add\n`);
+      return 1;
     }
+    const r = RecipesLock.safeParse(lockJson);
+    if (!r.success) {
+      deps.ui.print(
+        `error: ${lockPath} is corrupt (does not match the lockfile schema); fix or delete it\n`,
+      );
+      return 1;
+    }
+    lock = r.data;
   }
   const entry = lock[name];
   const blobHash = hashFiles(blob.files);

@@ -2,15 +2,16 @@ import { z } from "zod";
 import crypto from "node:crypto";
 
 /** Hardcoded for the POC (design §Future layering: swap for a config resolver later). */
-export const REGISTRY_BASE =
-  "https://raw.githubusercontent.com/alexanderop/defineworkflow/main/registry";
+const REGISTRY_BASE = "https://raw.githubusercontent.com/alexanderop/defineworkflow/main/registry";
 
 export const recipeUrl = (name: string): string => `${REGISTRY_BASE}/r/${name}.json`;
 
 export const RegistryBlob = z.object({
   name: z.string(),
   version: z.string(),
-  files: z.array(z.object({ path: z.string(), content: z.string() })),
+  // A recipe with no files is meaningless — reject it at the boundary so `add` never
+  // "succeeds" by writing nothing and stamping a lock entry for an empty set.
+  files: z.array(z.object({ path: z.string(), content: z.string() })).min(1),
 });
 export type RegistryBlob = z.infer<typeof RegistryBlob>;
 
@@ -33,22 +34,23 @@ export interface RecipeFileData {
 const byPath = (a: RecipeFileData, b: RecipeFileData): number =>
   a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
 
+const versionParts = (v: string): number[] =>
+  v.split(".").map((n) => {
+    const x = Number(n);
+    return Number.isFinite(x) ? x : 0;
+  });
+
 /** Canonical, order-independent sha256 of a recipe's file set. */
 export function hashFiles(files: readonly RecipeFileData[]): string {
   const h = crypto.createHash("sha256");
-  for (const f of [...files].sort(byPath)) h.update(`${f.path}\0${f.content}\0`);
+  for (const f of files.toSorted(byPath)) h.update(`${f.path}\0${f.content}\0`);
   return `sha256-${h.digest("hex")}`;
 }
 
 /** Dotted-numeric semver compare: -1 if a<b, 0 if equal, 1 if a>b. Missing parts = 0. */
 export function compareVersions(a: string, b: string): number {
-  const toParts = (v: string): number[] =>
-    v.split(".").map((n) => {
-      const x = Number(n);
-      return Number.isFinite(x) ? x : 0;
-    });
-  const pa = toParts(a);
-  const pb = toParts(b);
+  const pa = versionParts(a);
+  const pb = versionParts(b);
   const len = Math.max(pa.length, pb.length);
   for (let i = 0; i < len; i++) {
     const x = pa[i] ?? 0;
@@ -76,7 +78,7 @@ export function buildBlob(
   return {
     name,
     version,
-    files: [...files].sort(byPath).map((f) => ({ path: f.path, content: f.content })),
+    files: files.toSorted(byPath).map((f) => ({ path: f.path, content: f.content })),
   };
 }
 

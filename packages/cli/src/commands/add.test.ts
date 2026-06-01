@@ -114,6 +114,20 @@ describe("addCommand", () => {
     expect(deps.io.readText("/proj/.workflow/workflows/evil.ts")).toBeUndefined();
   });
 
+  it("refuses (does not clobber) when the lockfile is corrupt", async () => {
+    // A valid-JSON but schema-invalid lock that also tracks another recipe: resetting to {}
+    // and writing would destroy the sibling entry, so add must fail instead.
+    const seed: Record<string, string> = {
+      [LOCK]: JSON.stringify({ other: { version: "9.9.9" }, [NAME]: "not-an-entry" }),
+    };
+    const { deps, out } = depsWith(blob("1.0.0", FILES), seed);
+    expect(await addCommand({ name: NAME, force: false }, deps)).toBe(1);
+    expect(out()).toContain("corrupt");
+    expect(deps.io.readText(`${DIR}/schemas.ts`)).toBeUndefined();
+    // sibling lock entry untouched
+    expect(deps.io.readText(LOCK)).toContain('"other"');
+  });
+
   it("untracked existing directory is refused without --force", async () => {
     const seed: Record<string, string> = {
       [`${DIR}/deep-research.workflow.ts`]: "PRE-EXISTING\n",

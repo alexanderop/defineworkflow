@@ -91,7 +91,11 @@ describe("dispatch routing", () => {
   });
 
   it("add passes --force through", async () => {
-    const blobJson = JSON.stringify({ name: "demo", version: "2.0.0", files: [] });
+    const blobJson = JSON.stringify({
+      name: "demo",
+      version: "2.0.0",
+      files: [{ path: "demo.workflow.ts", content: "export default {}\n" }],
+    });
     const { deps } = fakeDeps({
       net: { fetchText: async () => blobJson },
       _files: { "/proj/.workflow/workflows/demo/x.ts": "edited" },
