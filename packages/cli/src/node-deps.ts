@@ -115,6 +115,16 @@ export async function buildNodeDeps(cliPath: string): Promise<AppDeps> {
       start: startUi,
       print: (text) => void process.stdout.write(text),
     },
+    net: {
+      fetchText: async (url) => {
+        try {
+          const res = await fetch(url);
+          return res.ok ? await res.text() : undefined;
+        } catch {
+          return undefined;
+        }
+      },
+    },
     consent: {
       io: makeReadlineIO(),
       persist: (project, name) => persistConsent(homeDir, project, name),

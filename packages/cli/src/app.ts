@@ -45,6 +45,12 @@ export interface UiDeps {
   print(text: string): void;
 }
 
+/** Outbound network as text — the only network capability in the CLI. */
+export interface NetDeps {
+  /** Fetch a URL as text. Returns undefined on a non-2xx / network failure. */
+  fetchText(url: string): Promise<string | undefined>;
+}
+
 /** Interactive consent prompt + its persistence. */
 export interface ConsentDeps {
   readonly io: ConsentIO;
@@ -73,6 +79,7 @@ export interface AppDeps {
   readonly io: FileIO;
   readonly adapters: AdapterDeps;
   readonly ui: UiDeps;
+  readonly net: NetDeps;
   readonly consent: ConsentDeps;
   readonly proc: ProcessControl;
 }

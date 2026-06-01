@@ -7,6 +7,7 @@ import type {
   ConsentDeps,
   Env,
   FileIO,
+  NetDeps,
   ProcessControl,
   UiDeps,
 } from "./app.js";
@@ -60,6 +61,7 @@ export interface FakeDepsOverrides {
   io?: Partial<FileIO>;
   adapters?: Partial<AdapterDeps>;
   ui?: Partial<UiDeps>;
+  net?: Partial<NetDeps>;
   consent?: Partial<ConsentDeps>;
   proc?: Partial<ProcessControl>;
   /** Seed files for the default in-memory registry/io. */
@@ -110,6 +112,7 @@ export function fakeDeps(o: FakeDepsOverrides = {}): { deps: AppDeps; out: () =>
       },
       ...o.ui,
     },
+    net: { fetchText: async () => undefined, ...o.net },
     consent: {
       io: { question: async () => "n", write: () => {} },
       persist: () => {},
