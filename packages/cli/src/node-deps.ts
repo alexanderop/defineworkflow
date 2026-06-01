@@ -115,6 +115,18 @@ export async function buildNodeDeps(cliPath: string): Promise<AppDeps> {
       start: startUi,
       print: (text) => void process.stdout.write(text),
     },
+    net: {
+      fetchText: async (url) => {
+        try {
+          // Bound the request so a hung/slow registry can't block `workflow add` forever;
+          // a timeout aborts and resolves to undefined, which callers treat as "missing".
+          const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+          return res.ok ? await res.text() : undefined;
+        } catch {
+          return undefined;
+        }
+      },
+    },
     consent: {
       io: makeReadlineIO(),
       persist: (project, name) => persistConsent(homeDir, project, name),

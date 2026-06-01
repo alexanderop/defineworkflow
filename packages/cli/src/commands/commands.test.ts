@@ -69,6 +69,44 @@ describe("dispatch routing", () => {
     expect(code).toBe(1);
     expect(out()).toContain("HarnessNotDeclared");
   });
+
+  it("add requires a recipe name", async () => {
+    const { deps, out } = fakeDeps();
+    expect(await dispatch(["add"], deps)).toBe(1);
+    expect(out()).toContain("add requires a recipe name");
+  });
+
+  it("add fetches and ejects a recipe by name", async () => {
+    const blobJson = JSON.stringify({
+      name: "demo",
+      version: "1.0.0",
+      files: [{ path: "demo.workflow.ts", content: "export default {}\n" }],
+    });
+    const { deps, out } = fakeDeps({ net: { fetchText: async () => blobJson } });
+    expect(await dispatch(["add", "demo"], deps)).toBe(0);
+    expect(out()).toContain("added demo@1.0.0");
+    expect(deps.io.readText("/proj/.workflow/workflows/demo/demo.workflow.ts")).toBe(
+      "export default {}\n",
+    );
+  });
+
+  it("add passes --force through", async () => {
+    const blobJson = JSON.stringify({
+      name: "demo",
+      version: "2.0.0",
+      files: [{ path: "demo.workflow.ts", content: "export default {}\n" }],
+    });
+    const { deps } = fakeDeps({
+      net: { fetchText: async () => blobJson },
+      // Seed the actual blob path so a non-force run would be refused as an untracked
+      // existing dir; only --force should overwrite it.
+      _files: { "/proj/.workflow/workflows/demo/demo.workflow.ts": "LOCAL EDIT\n" },
+    });
+    expect(await dispatch(["add", "demo", "--force"], deps)).toBe(0);
+    expect(deps.io.readText("/proj/.workflow/workflows/demo/demo.workflow.ts")).toBe(
+      "export default {}\n",
+    );
+  });
 });
 
 describe("dispatch run (end-to-end, line-log)", () => {

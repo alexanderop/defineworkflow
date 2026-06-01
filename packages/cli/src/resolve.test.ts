@@ -54,4 +54,25 @@ describe("resolveSavedWorkflow", () => {
   it("bundled is ignored when bundledDir is not provided", () => {
     expect(resolveSavedWorkflow("nope", deps({}))).toBeUndefined();
   });
+
+  it("resolves a multi-file recipe folder by its entry file", () => {
+    const entry = "/proj/.workflow/workflows/deep-research/deep-research.workflow.ts";
+    const r = resolveSavedWorkflow("deep-research", deps({ [entry]: "ENTRY" }));
+    expect(r?.source).toBe("ENTRY");
+    expect(r?.path).toBe(entry);
+  });
+
+  it("single-file copy beats a folder entry of the same name", () => {
+    const file = "/proj/.workflow/workflows/deep.ts";
+    const entry = "/proj/.workflow/workflows/deep/deep.workflow.ts";
+    const r = resolveSavedWorkflow("deep", deps({ [file]: "FILE", [entry]: "FOLDER" }));
+    expect(r?.source).toBe("FILE");
+  });
+
+  it("project folder beats a personal folder", () => {
+    const proj = "/proj/.workflow/workflows/deep/deep.workflow.ts";
+    const home = "/home/me/.workflow/workflows/deep/deep.workflow.ts";
+    const r = resolveSavedWorkflow("deep", deps({ [proj]: "PROJECT", [home]: "HOME" }));
+    expect(r?.source).toBe("PROJECT");
+  });
 });
