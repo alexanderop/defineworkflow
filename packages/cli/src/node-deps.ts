@@ -97,6 +97,7 @@ export async function buildNodeDeps(cliPath: string): Promise<AppDeps> {
       homeDir,
       tmpDir: path.join(os.tmpdir(), "workflow-worktrees"),
       bundledDir: path.resolve(path.dirname(cliPath), "..", "..", "..", "examples"),
+      templatesDir: path.resolve(path.dirname(cliPath), "..", "templates"),
       cores,
       vars,
       isTTY: Boolean(process.stdout.isTTY),
@@ -105,6 +106,14 @@ export async function buildNodeDeps(cliPath: string): Promise<AppDeps> {
     io: {
       readText: tryRead,
       writeText: writeFileEnsured,
+      readDir: (dir) => {
+        try {
+          return fs.readdirSync(dir);
+        } catch {
+          return [];
+        }
+      },
+      exists: (p) => fs.existsSync(p),
     },
     adapters: {
       processRunner: createProcessRunner(),

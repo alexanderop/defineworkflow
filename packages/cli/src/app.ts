@@ -20,6 +20,8 @@ export interface Env {
   readonly tmpDir: string;
   /** Dir holding the CLI's bundled example workflows. */
   readonly bundledDir: string;
+  /** Dir holding the CLI's bundled `init` templates + their `index.json`. */
+  readonly templatesDir: string;
   readonly cores: number;
   readonly vars: Readonly<Record<string, string | undefined>>;
   readonly isTTY: boolean;
@@ -30,6 +32,10 @@ export interface Env {
 export interface FileIO {
   readText(path: string): string | undefined;
   writeText(path: string, data: string): void;
+  /** Enumerate a directory's entries (basenames). Returns `[]` for a missing dir. */
+  readDir(dir: string): readonly string[];
+  /** Whether a path exists — used for `init`'s conflict detection. */
+  exists(path: string): boolean;
 }
 
 /** Harness resolution inputs: how to spawn CLIs, which are present, and the raw-api completer. */
