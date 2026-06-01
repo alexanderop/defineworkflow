@@ -20,6 +20,11 @@ export const LockEntry = z.object({
   url: z.string(),
   hash: z.string(),
   ejectedAt: z.number(),
+  // The relative paths ejected at `version`. Modify-detection hashes the on-disk content for
+  // *this* set (not the incoming blob's), so a newer version that adds/removes a file does not
+  // falsely flag an unmodified checkout as locally modified. Optional for backward compat with
+  // locks written before this field existed (those fall back to the incoming blob's path set).
+  files: z.array(z.string()).optional(),
 });
 export type LockEntry = z.infer<typeof LockEntry>;
 

@@ -83,9 +83,12 @@ export async function addCommand(args: AddArgs, deps: AddDeps): Promise<number> 
         deps.ui.print(`${name} is already up to date (v${entry.version})\n`);
         return 0;
       }
-      const onDiskHash = hashFiles(
-        blob.files.map((f) => ({ path: f.path, content: onDisk(f.path) ?? "" })),
-      );
+      // Hash the on-disk content for the *previously ejected* file set (recorded in the lock),
+      // not the incoming blob's — otherwise a new version that adds/removes a file hashes
+      // differently from lock.hash and falsely flags an unmodified checkout as modified. Locks
+      // written before `files` existed fall back to the incoming blob's path set.
+      const lockedPaths = entry.files ?? blob.files.map((f) => f.path);
+      const onDiskHash = hashFiles(lockedPaths.map((p) => ({ path: p, content: onDisk(p) ?? "" })));
       if (onDiskHash !== entry.hash) {
         const changed = blob.files.filter((f) => (onDisk(f.path) ?? "") !== f.content);
         deps.ui.print(
@@ -112,6 +115,7 @@ export async function addCommand(args: AddArgs, deps: AddDeps): Promise<number> 
     url,
     hash: blobHash,
     ejectedAt: deps.clock.now(),
+    files: blob.files.map((f) => f.path).toSorted(),
   };
   deps.io.writeText(lockPath, `${JSON.stringify({ ...lock, [name]: newEntry }, null, 2)}\n`);
 

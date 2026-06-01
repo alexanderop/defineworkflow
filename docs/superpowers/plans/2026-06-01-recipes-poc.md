@@ -638,7 +638,7 @@ Add `force` to the `parseArgs` options object:
 
 Add the USAGE line (after the `run` line):
 
-```
+```text
   workflow add <name> [--force]  fetch a recipe from the registry into .workflow/workflows/
 ```
 

@@ -65,6 +65,9 @@ describe("buildBlob / parseRecipeVersion", () => {
     expect(blob.files.map((f) => f.path)).toEqual(["a.ts", "z.ts"]);
     expect(RegistryBlob.safeParse(blob).success).toBe(true);
   });
+  it("rejects an empty file set (.min(1) boundary)", () => {
+    expect(RegistryBlob.safeParse({ name: "r", version: "1.0.0", files: [] }).success).toBe(false);
+  });
   it("reads version from recipe.json, undefined when missing/invalid", () => {
     expect(parseRecipeVersion('{"version":"1.2.3"}')).toBe("1.2.3");
     expect(parseRecipeVersion("{}")).toBeUndefined();

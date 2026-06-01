@@ -129,7 +129,10 @@ if (lockRaw !== undefined && lockRaw.trim().length > 0) {
 }
 ```
 
-Known POC limitation: modify-detection hashes the on-disk content at the _incoming_ blob's path set,
-so a newer version that adds/removes files can false-flag an unmodified checkout as "modified"
-(resolved by `--force`); orphan files from a removed-file version are not pruned. Acceptable because
-it is fail-safe (refuses rather than clobbers).
+Modify-detection correctness: hash the on-disk content for the **previously-ejected** file set,
+recorded as `LockEntry.files` (the ejected relative paths), NOT the incoming blob's set. Hashing the
+incoming set falsely flags an unmodified checkout as "modified" whenever a new version adds/removes a
+file (the path sets differ, so the hash differs even with no user edits). `files` is optional for
+backward compat — locks written before it existed fall back to the incoming path set. Remaining POC
+limitation: orphan files from a removed-file version are not pruned on overwrite (fail-safe — extra
+files, never data loss).

@@ -98,9 +98,14 @@ describe("dispatch routing", () => {
     });
     const { deps } = fakeDeps({
       net: { fetchText: async () => blobJson },
-      _files: { "/proj/.workflow/workflows/demo/x.ts": "edited" },
+      // Seed the actual blob path so a non-force run would be refused as an untracked
+      // existing dir; only --force should overwrite it.
+      _files: { "/proj/.workflow/workflows/demo/demo.workflow.ts": "LOCAL EDIT\n" },
     });
     expect(await dispatch(["add", "demo", "--force"], deps)).toBe(0);
+    expect(deps.io.readText("/proj/.workflow/workflows/demo/demo.workflow.ts")).toBe(
+      "export default {}\n",
+    );
   });
 });
 

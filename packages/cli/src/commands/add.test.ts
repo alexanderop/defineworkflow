@@ -64,6 +64,32 @@ describe("addCommand", () => {
     expect(JSON.parse(deps.io.readText(LOCK)!)[NAME].version).toBe("2.0.0");
   });
 
+  it("newer version that ADDS a file is not falsely flagged as modified", async () => {
+    // Lock records only the original file set; the disk is an unmodified v1 checkout.
+    const seed: Record<string, string> = {
+      [`${DIR}/deep-research.workflow.ts`]: FILES[0]!.content,
+      [`${DIR}/schemas.ts`]: FILES[1]!.content,
+      [LOCK]: JSON.stringify({
+        [NAME]: {
+          version: "1.0.0",
+          url: recipeUrl(NAME),
+          hash: hashFiles(FILES),
+          ejectedAt: 1,
+          files: FILES.map((f) => f.path),
+        },
+      }),
+    };
+    // v2 keeps the originals unchanged but adds a brand-new file.
+    const NEW = [...FILES, { path: "prompts.ts", content: "export const P = 1\n" }];
+    const { deps, out } = depsWith(blob("2.0.0", NEW), seed);
+    expect(await addCommand({ name: NAME, force: false }, deps)).toBe(0);
+    expect(out()).not.toContain("local modifications");
+    expect(deps.io.readText(`${DIR}/prompts.ts`)).toBe("export const P = 1\n");
+    const lock = JSON.parse(deps.io.readText(LOCK)!);
+    expect(lock[NAME].version).toBe("2.0.0");
+    expect(lock[NAME].files).toEqual(["deep-research.workflow.ts", "prompts.ts", "schemas.ts"]);
+  });
+
   it("newer + modified → refused without --force, lists changed files", async () => {
     const seed: Record<string, string> = {
       [`${DIR}/deep-research.workflow.ts`]: "LOCAL EDIT\n",
