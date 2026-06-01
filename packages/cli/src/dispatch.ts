@@ -8,6 +8,7 @@ import { resumeCommand } from "./commands/resume.js";
 import { stopCommand } from "./commands/stop.js";
 import { saveCommand } from "./commands/save.js";
 import { adaptersCommand } from "./commands/adapters.js";
+import { addCommand } from "./commands/add.js";
 import { resolveSavedWorkflow } from "./resolve.js";
 
 export const USAGE = `workflow — deterministic multi-agent workflow runner
@@ -20,6 +21,7 @@ Usage:
   workflow stop <id>             stop a backgrounded run
   workflow save <id>             save a run's script as a named workflow
   workflow adapters              list detected harnesses + capabilities
+  workflow add <name> [--force]  fetch a recipe from the registry into .workflow/workflows/
   workflow <name> [--args ...]   run a saved/bundled workflow by name
 `;
 
@@ -41,6 +43,7 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
         detach: { type: "boolean" },
         yes: { type: "boolean" },
         mock: { type: "boolean" },
+        force: { type: "boolean" },
         help: { type: "boolean" },
       },
     });
@@ -103,6 +106,14 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
     }
     case "adapters":
       return adaptersCommand(deps);
+    case "add": {
+      const recipe = positionals[1];
+      if (recipe === undefined) {
+        deps.ui.print("error: add requires a recipe name\n");
+        return 1;
+      }
+      return addCommand({ name: recipe, force: values["force"] === true }, deps);
+    }
     default: {
       // Treat an unknown command as a saved/bundled workflow name.
       const resolved = resolveSavedWorkflow(command, {
