@@ -13,6 +13,7 @@
     "docs:dev": "pnpm --filter @workflow/docs dev",
     "docs:build": "pnpm --filter @workflow/docs build",
     "docs:preview": "pnpm --filter @workflow/docs preview",
+    "build:registry": "node scripts/build-registry.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --project unit --coverage",
