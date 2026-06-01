@@ -71,6 +71,182 @@ describe("dispatch routing", () => {
   });
 });
 
+const INDEX = JSON.stringify({
+  version: 1,
+  templates: [
+    {
+      name: "haiku",
+      description: "Minimal single-agent workflow",
+      harness: "claude",
+      complexity: "beginner",
+      agents: 1,
+      multiFile: false,
+      entry: "haiku.workflow.ts",
+    },
+    {
+      name: "pr-review",
+      description: "Review a diff",
+      harness: "claude",
+      complexity: "beginner",
+      agents: 1,
+      recommended: true,
+      multiFile: false,
+      entry: "pr-review.workflow.ts",
+    },
+  ],
+});
+// A realistic single-file template: object-literal meta (the shape rewriteHarness anchors on),
+// not the JSON-style meta workflowSource emits.
+const HAIKU_TPL = `import { agent, defineWorkflow } from "defineworkflow";
+
+export default defineWorkflow({
+  name: "haiku",
+  description: "Minimal single-agent workflow",
+  harness: "claude",
+  async run() {
+    const r = await agent("write a haiku", { label: "haiku" });
+    return { r };
+  },
+});
+`;
+
+describe("dispatch list-templates", () => {
+  it("prints a table with each name and a ★ on the recommended one", async () => {
+    const { deps, out } = fakeDeps({
+      env: { templatesDir: "/t" },
+      _files: { "/t/index.json": INDEX },
+    });
+    expect(await dispatch(["list-templates"], deps)).toBe(0);
+    expect(out()).toContain("haiku");
+    expect(out()).toContain("pr-review ★");
+  });
+
+  it("--json emits parseable JSON of all entries", async () => {
+    const { deps, out } = fakeDeps({
+      env: { templatesDir: "/t" },
+      _files: { "/t/index.json": INDEX },
+    });
+    expect(await dispatch(["list-templates", "--json"], deps)).toBe(0);
+    const parsed = JSON.parse(out());
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].name).toBe("haiku");
+  });
+
+  it("missing index → exit 1 + message", async () => {
+    const { deps, out } = fakeDeps({ env: { templatesDir: "/t" } });
+    expect(await dispatch(["list-templates"], deps)).toBe(1);
+    expect(out()).toContain("not found");
+  });
+});
+
+describe("dispatch init", () => {
+  /** A fakeDeps whose io is a single in-memory map, so writes/exists/readText all agree. */
+  function initDeps(extra: Parameters<typeof fakeDeps>[0] = {}) {
+    const files = new Map<string, string>([
+      ["/t/index.json", INDEX],
+      ["/t/haiku.workflow.ts", HAIKU_TPL],
+    ]);
+    const { env: envExtra, io: ioExtra, ...rest } = extra;
+    const base = fakeDeps({
+      env: { templatesDir: "/t", cwd: "/proj", ...envExtra },
+      io: {
+        readText: (p) => files.get(p),
+        writeText: (p, d) => void files.set(p, d),
+        exists: (p) => files.has(p),
+        readDir: () => [],
+        ...ioExtra,
+      },
+      ...rest,
+    });
+    return { ...base, files };
+  }
+
+  it("scaffolds a single-file template into cwd", async () => {
+    const { deps, files } = initDeps();
+    expect(await dispatch(["init", "haiku", "--no-run"], deps)).toBe(0);
+    expect(files.has("/proj/haiku.workflow.ts")).toBe(true);
+  });
+
+  it("refuses to overwrite an existing file (non-TTY) without --force", async () => {
+    const { deps, out } = initDeps();
+    await dispatch(["init", "haiku", "--no-run"], deps);
+    expect(await dispatch(["init", "haiku", "--no-run"], deps)).toBe(1);
+    expect(out()).toContain("already exists");
+  });
+
+  it("--force overwrites", async () => {
+    const { deps } = initDeps();
+    await dispatch(["init", "haiku", "--no-run"], deps);
+    expect(await dispatch(["init", "haiku", "--no-run", "--force"], deps)).toBe(0);
+  });
+
+  it("--dry-run writes nothing and lists the plan", async () => {
+    const { deps, out, files } = initDeps();
+    expect(await dispatch(["init", "haiku", "--dry-run"], deps)).toBe(0);
+    expect(files.has("/proj/haiku.workflow.ts")).toBe(false);
+    expect(out()).toContain("would write");
+  });
+
+  it("unknown template → exit 1", async () => {
+    const { deps, out } = initDeps();
+    expect(await dispatch(["init", "nope", "--no-run"], deps)).toBe(1);
+    expect(out()).toContain("unknown template");
+  });
+
+  it("rewrites the harness to a detected one", async () => {
+    const { deps, files } = initDeps({ adapters: { detected: ["codex"] } });
+    await dispatch(["init", "haiku", "--no-run"], deps);
+    expect(files.get("/proj/haiku.workflow.ts")).toContain('harness: "codex"');
+  });
+
+  it("falls back to raw-api when nothing detected but ANTHROPIC_API_KEY is set", async () => {
+    const { deps, files } = initDeps({ env: { vars: { ANTHROPIC_API_KEY: "x" } } });
+    await dispatch(["init", "haiku", "--no-run"], deps);
+    expect(files.get("/proj/haiku.workflow.ts")).toContain('harness: "raw-api"');
+  });
+
+  it("with no template shows the gallery", async () => {
+    const { deps, out } = initDeps();
+    expect(await dispatch(["init"], deps)).toBe(0);
+    expect(out()).toContain("Available templates");
+  });
+
+  it("copies every file of a multi-file template, rewriting harness only on the entry", async () => {
+    const MULTI_INDEX = JSON.stringify({
+      version: 1,
+      templates: [
+        {
+          name: "mf",
+          description: "multi",
+          harness: "claude",
+          multiFile: true,
+          dir: "mf",
+          entry: "entry.workflow.ts",
+        },
+      ],
+    });
+    const files = new Map<string, string>([
+      ["/t/index.json", MULTI_INDEX],
+      ["/t/mf/entry.workflow.ts", 'export default defineWorkflow({\n  harness: "claude",\n});\n'],
+      ["/t/mf/schemas.ts", "export const S = 1;\n"],
+    ]);
+    const { deps } = fakeDeps({
+      env: { templatesDir: "/t", cwd: "/proj" },
+      adapters: { detected: ["codex"] },
+      io: {
+        readText: (p) => files.get(p),
+        writeText: (p, d) => void files.set(p, d),
+        exists: (p) => files.has(p),
+        readDir: (dir) => (dir === "/t/mf" ? ["entry.workflow.ts", "schemas.ts"] : []),
+      },
+    });
+    expect(await dispatch(["init", "mf", "--no-run"], deps)).toBe(0);
+    expect(files.get("/proj/mf/entry.workflow.ts")).toContain('harness: "codex"');
+    // helper copied verbatim (not harness-rewritten)
+    expect(files.get("/proj/mf/schemas.ts")).toBe("export const S = 1;\n");
+  });
+});
+
 describe("dispatch run (end-to-end, line-log)", () => {
   it("runs a workflow via the raw-api adapter and persists a finished run", async () => {
     const { deps, out } = fakeDeps({ _files: { "/h.ts": HELLO } });

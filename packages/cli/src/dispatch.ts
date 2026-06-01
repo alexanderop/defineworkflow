@@ -8,12 +8,16 @@ import { resumeCommand } from "./commands/resume.js";
 import { stopCommand } from "./commands/stop.js";
 import { saveCommand } from "./commands/save.js";
 import { adaptersCommand } from "./commands/adapters.js";
+import { initCommand } from "./commands/init.js";
+import { listTemplatesCommand } from "./commands/list-templates.js";
 import { resolveSavedWorkflow } from "./resolve.js";
 
 export const USAGE = `workflow — deterministic multi-agent workflow runner
 
 Usage:
   workflow run <script> [--args '{...}'] [--answers '{...}'] [--detach] [--yes] [--mock]
+  workflow init [template] [dir] scaffold a workflow from a bundled template
+  workflow list-templates [--json]  list the bundled init templates
   workflow watch <id>            attach the UI to a running/finished run
   workflow list                  list runs (status, tokens, elapsed)
   workflow resume <id>           replay the journal, run the rest live
@@ -40,8 +44,16 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
         model: { type: "string" },
         detach: { type: "boolean" },
         yes: { type: "boolean" },
+        y: { type: "boolean" },
         mock: { type: "boolean" },
+        real: { type: "boolean" },
         help: { type: "boolean" },
+        json: { type: "boolean" },
+        harness: { type: "string" },
+        force: { type: "boolean" },
+        run: { type: "boolean" },
+        "no-run": { type: "boolean" },
+        "dry-run": { type: "boolean" },
       },
     });
   } catch (e) {
@@ -103,6 +115,23 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
     }
     case "adapters":
       return adaptersCommand(deps);
+    case "init":
+      return initCommand(
+        {
+          template: positionals[1],
+          dir: positionals[2],
+          harness: str(values["harness"]),
+          force: values["force"] === true,
+          dryRun: values["dry-run"] === true,
+          run: values["run"] === true,
+          noRun: values["no-run"] === true,
+          mode: values["real"] === true ? "real" : "mock",
+          yes: values["yes"] === true || values["y"] === true,
+        },
+        deps,
+      );
+    case "list-templates":
+      return listTemplatesCommand({ json: values["json"] === true }, deps);
     default: {
       // Treat an unknown command as a saved/bundled workflow name.
       const resolved = resolveSavedWorkflow(command, {

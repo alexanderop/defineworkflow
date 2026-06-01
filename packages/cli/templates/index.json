@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "templates": [
+    {
+      "name": "haiku",
+      "description": "Minimal single-agent workflow",
+      "whenToUse": "Your first workflow — learn agent() and structured (zod) output in one screen.",
+      "harness": "claude",
+      "tags": ["beginner", "single-agent"],
+      "complexity": "beginner",
+      "agents": 1,
+      "multiFile": false,
+      "entry": "haiku.workflow.ts"
+    },
+    {
+      "name": "pr-review",
+      "description": "Review a diff, flag bugs and risks, suggest fixes",
+      "whenToUse": "When you want a structured second opinion on a PR before merge.",
+      "harness": "claude",
+      "tags": ["pr-review", "code-review", "structured-output"],
+      "complexity": "beginner",
+      "agents": 1,
+      "recommended": true,
+      "multiFile": false,
+      "entry": "pr-review.workflow.ts"
+    },
+    {
+      "name": "test-backfill",
+      "description": "Generate missing tests for a target module",
+      "whenToUse": "When a module is under-tested and you want coverage filled in test-first.",
+      "harness": "codex",
+      "tags": ["testing", "pipeline"],
+      "complexity": "intermediate",
+      "agents": 3,
+      "multiFile": false,
+      "entry": "test-backfill.workflow.ts"
+    },
+    {
+      "name": "doc-gen",
+      "description": "Generate/refresh a README section or docstrings",
+      "whenToUse": "When docs have drifted from the code and you want a fresh, accurate section.",
+      "harness": "claude",
+      "tags": ["docs", "output-artifact"],
+      "complexity": "beginner",
+      "agents": 1,
+      "multiFile": false,
+      "entry": "doc-gen.workflow.ts"
+    },
+    {
+      "name": "codebase-migration",
+      "description": "Mechanical rename/migration across files (parallel)",
+      "whenToUse": "When a rename or API migration spans many files and you want it done in parallel.",
+      "harness": "codex",
+      "tags": ["migration", "parallel", "budget"],
+      "complexity": "advanced",
+      "agents": "N",
+      "multiFile": false,
+      "entry": "codebase-migration.workflow.ts"
+    },
+    {
+      "name": "dependency-upgrade",
+      "description": "Bump a dep, fix breakages, summarize changelog risk",
+      "whenToUse": "When upgrading a dependency and you want breakages fixed and the risk summarized.",
+      "harness": "claude",
+      "tags": ["dependencies", "phases", "budget"],
+      "complexity": "intermediate",
+      "agents": 3,
+      "multiFile": false,
+      "entry": "dependency-upgrade.workflow.ts"
+    },
+    {
+      "name": "incident-triage",
+      "description": "Triage a stack trace; asks you which lead to pursue",
+      "whenToUse": "When you have a stack trace and want hypotheses, then to steer which one to chase.",
+      "harness": "claude",
+      "tags": ["incident", "human-in-the-loop", "askUserQuestion"],
+      "complexity": "intermediate",
+      "agents": 2,
+      "multiFile": false,
+      "entry": "incident-triage.workflow.ts"
+    },
+    {
+      "name": "multi-file-haiku",
+      "description": "Folder layout: slim entry + schemas.ts + prompts.ts",
+      "whenToUse": "When you want the canonical folder layout for a workflow split across files.",
+      "harness": "claude",
+      "tags": ["multi-file", "reference"],
+      "complexity": "reference",
+      "agents": 1,
+      "multiFile": true,
+      "dir": "multi-file-haiku",
+      "entry": "haiku.workflow.ts"
+    }
+  ]
+}

@@ -15,3 +15,6 @@ coverage/
 
 # generated example workflow output
 packages/examples/newsletters/
+
+# generated copy of the init templates (source lives in packages/cli/templates/)
+packages/workflow/templates/
