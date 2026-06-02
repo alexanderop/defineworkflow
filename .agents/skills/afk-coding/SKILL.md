@@ -85,3 +85,13 @@ If the spec is ambiguous, dependencies are missing, tests cannot be run, or a pr
 1. Call `afk_mark_blocked` with the exact reason.
 2. Ask one clear question.
 3. Do not guess past product ambiguity.
+4. In Ralph worker mode, also write a structured blocker section to the prompt file you were given:
+
+```md
+## Blocked
+
+Reason:
+Needed human decision:
+Files touched:
+Suggested next step:
+```

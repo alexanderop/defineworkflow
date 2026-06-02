@@ -7,8 +7,9 @@ The extension follows Pi's native model:
 ```txt
 parent Pi session = dashboard / manager
 worker Pi sessions = fresh `pi -p` Ralph loops
+feedback = `/afk logs <slice>` plus tmux attach
 parallelism = tmux sessions
-isolation = git worktrees
+isolation = optional git worktrees (`/afk run --worktree`)
 ```
 
 Pi does not need built-in subagents for this. `/afk run` launches separate Pi processes and tracks them from the parent board.
@@ -18,8 +19,8 @@ Pi does not need built-in subagents for this. `/afk run` launches separate Pi pr
 - `pi` available on `PATH`
 - `git`
 - `tmux`
-- a clean enough repo state to create worktrees/branches
 - slice tickets with checkbox tasks, usually `docs/tickets/*.md`
+- optional: a clean enough repo state to create worktrees/branches if you use `/afk run --worktree`
 
 ## Start a pipeline
 
@@ -41,17 +42,38 @@ Pi will read the spec, validate whether it is clear enough, and slice it into ve
 .agents/skills/afk-coding/SKILL.md
 ```
 
+A common loop is:
+
+```txt
+/afk start docs/my-spec.md       # spec + slicing
+/afk board                       # inspect slices
+/afk run --only 01-first-slice   # run one in-place Ralph worker
+/afk logs 01-first-slice         # watch feedback
+/afk sync                        # refresh board when it stops
+/afk qa                          # produce QA report
+/afk review                      # prepare human review
+```
+
 ## Commands
 
 ```txt
-/afk start <spec>  # create a pipeline and ask Pi to begin spec/slice work
-/afk board         # open the overlay dashboard
-/afk status        # sync worker state, refresh widget, show summary
-/afk run           # launch Pi-way Ralph workers for slice tickets
-/afk sync          # refresh worker status from tmux/worktree state
-/afk hide          # hide persistent widget
-/afk show          # show persistent widget
-/afk reset         # clear pipeline state for this Pi session
+/afk start <spec>              # create a pipeline and ask Pi to begin spec/slice work
+/afk doctor                    # check pi/git/tmux, optional worktree support, spec, and tickets
+/afk board                     # open the overlay dashboard
+/afk status                    # sync worker state, refresh widget, show summary
+/afk run [--only id]           # launch one in-place Ralph worker in the current checkout
+/afk run --worktree --max N     # launch parallel isolated worktree workers
+/afk run --only 01-auth --yes   # skip confirmation for a specific ticket
+/afk logs [id]                 # quick feedback: show worker summary + latest log/tmux output
+/afk feedback [id]             # alias for /afk logs
+/afk sync                      # refresh worker status from tmux/prompt/log state
+/afk qa                        # start the QA phase and prompt for a QA report
+/afk review                    # start the human-review summary phase
+/afk integrate                 # prepare a safe integration plan from worker branches
+/afk pr                        # draft a PR summary/checklist
+/afk hide                      # hide persistent widget
+/afk show                      # show persistent widget
+/afk reset                     # clear pipeline state for this Pi session
 ```
 
 ## Ralph mode: `/afk run`
@@ -61,20 +83,28 @@ Pi will read the spec, validate whether it is clear enough, and slice it into ve
 1. slice ticket paths already recorded on the AFK board
 2. `docs/tickets/*.md`
 
-For each ticket, it creates:
+By default, `/afk run` launches **one in-place worker in the current checkout** and asks for confirmation before doing so. This avoids worktrees entirely, but intentionally caps concurrency at one so workers do not fight over the same files. Use `--only <ticket-id>` to target a ticket and `--yes` when you already reviewed the launch plan.
+
+For the default in-place mode, it creates:
+
+```txt
+tmux session: pi-afk-<ticket-id>
+worker file:  .pi/afk/prompts/<ticket-id>.md
+worker log:   .pi/afk/logs/<ticket-id>.log
+```
+
+If you want parallel isolation, use `/afk run --worktree --max N`. In worktree mode it also creates:
 
 ```txt
 branch:       afk/<ticket-id>
 worktree:     ../<repo-name>-afk-<ticket-id>
-tmux session: pi-afk-<ticket-id>
-worker file:  PROMPT.md
 ```
 
 Each tmux worker runs repeated fresh Pi one-shots:
 
 ```bash
-while grep -q '^- \[ \]' PROMPT.md; do
-  pi --name "afk-<ticket-id>" -p @PROMPT.md "Use the afk-coding skill..."
+while grep -q '^- \[ \]' "$PROMPT_FILE"; do
+  pi --name "afk-<ticket-id>" -p @"$PROMPT_FILE" "Use the afk-coding skill..."
 done
 ```
 
@@ -89,17 +119,33 @@ The worker instruction is intentionally Ralph-shaped:
 7. tick the checkbox
 8. exit so the next loop starts with fresh context
 
-## Inspect workers
+If blocked, workers are instructed to add this structured section to their prompt file and exit non-zero:
 
-List workers:
+```md
+## Blocked
+
+Reason:
+Needed human decision:
+Files touched:
+Suggested next step:
+```
+
+## Feedback and inspection
+
+Fast path from inside Pi:
+
+```txt
+/afk logs              # active worker, or first slice
+/afk logs 01-auth      # specific slice
+/afk feedback 01-auth  # alias
+```
+
+This shows the slice summary, prompt path, log path, and the latest worker log lines. If no log file exists yet, it falls back to `tmux capture-pane`.
+
+Manual tmux inspection still works:
 
 ```bash
 tmux ls | grep pi-afk
-```
-
-Attach to a worker:
-
-```bash
 tmux attach -t pi-afk-01-some-ticket
 ```
 
@@ -115,6 +161,8 @@ Refresh the parent board after workers finish or stop:
 /afk sync
 ```
 
+Sync updates the board with task progress, latest commit hash, blocker notes, stale-worker warnings, and copies the worker prompt back over the parent ticket when a worker has stopped.
+
 ## Stop a worker
 
 ```bash
@@ -127,7 +175,7 @@ Then in the parent Pi session:
 /afk sync
 ```
 
-If the worker stopped with unchecked tasks still in `PROMPT.md`, the board marks that slice as blocked.
+If the worker stopped with unchecked tasks still in its prompt file, the board marks that slice as blocked.
 
 ## Registered model tools
 
@@ -154,10 +202,16 @@ Kick it off:
 /afk start docs/prd-convert-workflow-to-rust.md
 ```
 
-Once Pi creates `docs/tickets/*.md`, launch Ralph workers:
+Once Pi creates `docs/tickets/*.md`, launch a Ralph worker in-place:
 
 ```txt
-/afk run
+/afk run --only 01-some-ticket
+```
+
+Get feedback while it runs:
+
+```txt
+/afk logs 01-some-ticket
 ```
 
 Open the dashboard:
@@ -169,7 +223,9 @@ Open the dashboard:
 ## Safety notes
 
 - Workers are real Pi processes with normal tool access.
-- They run in git worktrees, not the main checkout.
-- They can still execute shell commands, so review tickets before launching.
-- Prefer small vertical tickets. Do not run twenty workers just because you can.
-- Human review is still required before merging worker branches.
+- By default, they run in the current checkout, so keep only one in-place worker active.
+- Use `/afk run --worktree --max N` if you want parallel isolated workers.
+- Workers can execute shell commands, so review tickets before launching.
+- Run `/afk doctor` before large launches.
+- Prefer small vertical tickets and keep concurrency low.
+- Human review is still required before merging worker branches; `/afk integrate` and `/afk pr` prepare plans/summaries rather than blindly merging.

@@ -1,7 +1,7 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { matchesKey, Text, truncateToWidth } from "@earendil-works/pi-tui";
-import { readFile, readdir } from "node:fs/promises";
+import { copyFile, readFile, readdir, stat } from "node:fs/promises";
 import {
   basename as pathBasename,
   dirname as pathDirname,
@@ -13,6 +13,8 @@ import { Type } from "typebox";
 const CUSTOM_ENTRY = "afk-pipeline-state";
 const WIDGET_ID = "afk-pipeline";
 const STATUS_ID = "afk-pipeline";
+const DEFAULT_MAX_WORKERS = 1;
+const STALE_WORKER_MINUTES = 60;
 
 const PHASES = ["spec", "slice", "ralph", "refactor", "qa", "review", "done"] as const;
 const STATUSES = ["pending", "active", "done", "blocked"] as const;
@@ -30,6 +32,8 @@ interface SliceState {
   branch?: string;
   tmuxSession?: string;
   worktreePath?: string;
+  promptPath?: string;
+  logPath?: string;
   summary?: string;
   updatedAt: number;
 }
@@ -51,6 +55,26 @@ interface PipelineState {
   artifacts: ArtifactState[];
   createdAt: number;
   updatedAt: number;
+}
+
+interface RunOptions {
+  maxWorkers: number;
+  only: string[];
+  yes: boolean;
+  worktree: boolean;
+}
+
+interface WorkerPromptInfo {
+  totalTasks: number;
+  doneTasks: number;
+  uncheckedTasks: number;
+  blocker?: string;
+  modifiedAt?: number;
+}
+
+interface WorkerCommitInfo {
+  hash?: string;
+  committedAt?: number;
 }
 
 const PhaseParam = StringEnum(PHASES);
@@ -77,6 +101,8 @@ const UpdateSliceParams = Type.Object({
   worktreePath: Type.Optional(
     Type.String({ description: "Git worktree path for this slice worker" }),
   ),
+  promptPath: Type.Optional(Type.String({ description: "Path to this worker's prompt file" })),
+  logPath: Type.Optional(Type.String({ description: "Path to this worker's log file" })),
   summary: Type.Optional(Type.String({ description: "Short progress/blocker summary" })),
 });
 
@@ -115,6 +141,146 @@ function safeId(value: string): string {
       .replace(/\.(md|markdown|txt)$/i, "")
       .replace(/[^a-zA-Z0-9._-]+/g, "-")
       .replace(/^-+|-+$/g, "") || "slice"
+  );
+}
+
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseRunOptions(tokens: string[]): RunOptions {
+  const options: RunOptions = {
+    maxWorkers: DEFAULT_MAX_WORKERS,
+    only: [],
+    yes: false,
+    worktree: false,
+  };
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i] ?? "";
+    if (token === "--yes" || token === "-y") {
+      options.yes = true;
+    } else if (token === "--worktree") {
+      options.worktree = true;
+    } else if (token === "--in-place" || token === "--no-worktree") {
+      options.worktree = false;
+    } else if (token === "--max" || token === "-m") {
+      options.maxWorkers = parsePositiveInteger(tokens[i + 1], options.maxWorkers);
+      i++;
+    } else if (token.startsWith("--max=")) {
+      options.maxWorkers = parsePositiveInteger(token.slice("--max=".length), options.maxWorkers);
+    } else if (token === "--only" || token === "-o") {
+      const value = tokens[i + 1];
+      if (value)
+        options.only.push(
+          ...value
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
+        );
+      i++;
+    } else if (token.startsWith("--only=")) {
+      options.only.push(
+        ...token
+          .slice("--only=".length)
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      );
+    }
+  }
+  return {
+    ...options,
+    maxWorkers: options.worktree ? options.maxWorkers : 1,
+    only: [...new Set(options.only)],
+  };
+}
+
+function ticketId(path: string): string {
+  return safeId(pathBasename(path));
+}
+
+function matchesRunFilter(path: string, only: string[]): boolean {
+  if (only.length === 0) return true;
+  const id = ticketId(path);
+  return only.some((item) => item === id || safeId(item) === id || path.includes(item));
+}
+
+function formatAge(ms: number): string {
+  const minutes = Math.max(1, Math.floor(ms / 60_000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`;
+}
+
+function summarizePrompt(content: string, modifiedAt?: number): WorkerPromptInfo {
+  const doneTasks = (content.match(/^- \[[xX]\] /gm) ?? []).length;
+  const uncheckedTasks = (content.match(/^- \[ \] /gm) ?? []).length;
+  const blockerMatch = content.match(/## Blocked\s*\n+([\s\S]*?)(?:\n##\s|$)/i);
+  const blocker = blockerMatch?.[1]?.trim().replace(/\s+/g, " ");
+  const info: WorkerPromptInfo = {
+    totalTasks: doneTasks + uncheckedTasks,
+    doneTasks,
+    uncheckedTasks,
+  };
+  if (blocker) info.blocker = blocker;
+  if (modifiedAt !== undefined) info.modifiedAt = modifiedAt;
+  return info;
+}
+
+function workerSummary(
+  running: boolean,
+  prompt?: WorkerPromptInfo,
+  commit?: WorkerCommitInfo,
+): string {
+  const parts = [running ? "Ralph worker running" : "Ralph worker stopped"];
+  if (prompt && prompt.totalTasks > 0) {
+    parts.push(`tasks ${prompt.doneTasks}/${prompt.totalTasks}`);
+  }
+  if (commit?.hash) parts.push(`commit ${commit.hash}`);
+  if (running) {
+    const activityAt = Math.max(prompt?.modifiedAt ?? 0, commit?.committedAt ?? 0);
+    const staleMs = activityAt > 0 ? now() - activityAt : 0;
+    if (staleMs > STALE_WORKER_MINUTES * 60_000) {
+      parts.push(`possibly stale: no activity for ${formatAge(staleMs)}`);
+    }
+  }
+  if (prompt?.blocker) parts.push(`blocked: ${prompt.blocker}`);
+  return parts.join(" • ");
+}
+
+function upsertArtifact(artifacts: ArtifactState[], artifact: ArtifactState): ArtifactState[] {
+  return [
+    ...artifacts.filter((item) => !(item.path === artifact.path && item.kind === artifact.kind)),
+    artifact,
+  ];
+}
+
+function workerBranches(current: PipelineState): string[] {
+  return current.slices
+    .map((slice) => slice.branch)
+    .filter((branch): branch is string => Boolean(branch));
+}
+
+async function syncPromptBackToTicket(root: string, slice: SliceState): Promise<void> {
+  const promptPath = workerPromptPath(slice);
+  if (!slice.ticketPath || !promptPath) return;
+  try {
+    await copyFile(promptPath, pathResolve(root, slice.ticketPath));
+  } catch {
+    // Best effort. The board summary still reports the worker state.
+  }
+}
+
+function workerDirectory(root: string, slice: SliceState): string {
+  return slice.worktreePath ?? root;
+}
+
+function workerPromptPath(slice: SliceState): string | undefined {
+  return (
+    slice.promptPath ?? (slice.worktreePath ? pathJoin(slice.worktreePath, "PROMPT.md") : undefined)
   );
 }
 
@@ -307,8 +473,45 @@ function renderWidgetLines(state: PipelineState, theme: Theme, width: number): s
   }
 
   if (state.note) lines.push(truncateToWidth(`${theme.fg("muted", "note:")} ${state.note}`, width));
-  lines.push(truncateToWidth(theme.fg("dim", "/afk board • /afk status • /afk reset"), width));
+  lines.push(
+    truncateToWidth(theme.fg("dim", "/afk board • /afk logs • /afk run --only <id>"), width),
+  );
   return lines;
+}
+
+class TextOverlay {
+  private title: string;
+  private lines: string[];
+  private theme: Theme;
+  private onClose: () => void;
+
+  constructor(title: string, lines: string[], theme: Theme, onClose: () => void) {
+    this.title = title;
+    this.lines = lines;
+    this.theme = theme;
+    this.onClose = onClose;
+  }
+
+  handleInput(data: string): void {
+    if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c") || data === "q") {
+      this.onClose();
+    }
+  }
+
+  render(width: number): string[] {
+    const rule = this.theme.fg("borderMuted", "─".repeat(Math.max(0, width)));
+    return [
+      rule,
+      truncateToWidth(this.theme.fg("accent", this.theme.bold(` ${this.title}`)), width),
+      "",
+      ...this.lines.map((line) => truncateToWidth(line, width)),
+      "",
+      truncateToWidth(this.theme.fg("dim", "q / Esc close"), width),
+      rule,
+    ];
+  }
+
+  invalidate(): void {}
 }
 
 class PipelineBoard {
@@ -361,6 +564,8 @@ class PipelineBoard {
           slice.branch,
           slice.tmuxSession ? `tmux:${slice.tmuxSession}` : undefined,
           slice.worktreePath,
+          slice.promptPath ? `prompt:${slice.promptPath}` : undefined,
+          slice.logPath ? `log:${slice.logPath}` : undefined,
         ]
           .filter((item): item is string => Boolean(item))
           .join(" • ");
@@ -464,7 +669,7 @@ export default function afkPipeline(pi: ExtensionAPI): void {
       ? state.slices
           .map(
             (slice) =>
-              `- ${slice.id}: ${slice.status} — ${slice.title}${slice.ticketPath ? ` (${slice.ticketPath})` : ""}${slice.tmuxSession ? ` [tmux:${slice.tmuxSession}]` : ""}`,
+              `- ${slice.id}: ${slice.status} — ${slice.title}${slice.ticketPath ? ` (${slice.ticketPath})` : ""}${slice.tmuxSession ? ` [tmux:${slice.tmuxSession}]` : ""}${slice.logPath ? ` [log:${slice.logPath}]` : ""}`,
           )
           .join("\n")
       : "- none yet";
@@ -525,11 +730,151 @@ AFK pipeline rules:
     return result.code === 0 && root ? root : ctx.cwd;
   }
 
+  async function commandExists(command: string): Promise<boolean> {
+    const result = await pi.exec(
+      "bash",
+      ["-lc", `command -v ${shellQuote(command)} >/dev/null 2>&1`],
+      {
+        timeout: 3000,
+      },
+    );
+    return result.code === 0;
+  }
+
+  async function readWorkerPromptInfo(promptPath: string): Promise<WorkerPromptInfo | undefined> {
+    try {
+      const [content, info] = await Promise.all([readFile(promptPath, "utf8"), stat(promptPath)]);
+      return summarizePrompt(content, info.mtimeMs);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async function readCommitInfo(worktreePath: string): Promise<WorkerCommitInfo> {
+    const hash = await pi.exec("git", ["-C", worktreePath, "rev-parse", "--short", "HEAD"], {
+      timeout: 3000,
+    });
+    const committedAt = await pi.exec("git", ["-C", worktreePath, "log", "-1", "--format=%ct"], {
+      timeout: 3000,
+    });
+    const seconds = Number.parseInt(committedAt.stdout.trim(), 10);
+    const result: WorkerCommitInfo = {};
+    if (hash.code === 0 && hash.stdout.trim()) result.hash = hash.stdout.trim();
+    if (Number.isFinite(seconds)) result.committedAt = seconds * 1000;
+    return result;
+  }
+
+  async function showOverlay(ctx: ExtensionContext, title: string, lines: string[]): Promise<void> {
+    await ctx.ui.custom<void>(
+      (_tui, theme, _keybindings, done) => new TextOverlay(title, lines, theme, done),
+      {
+        overlay: true,
+        overlayOptions: { width: "80%", maxHeight: "85%", minWidth: 60, anchor: "center" },
+      },
+    );
+  }
+
+  async function showWorkerFeedback(ctx: ExtensionContext, requestedId?: string): Promise<void> {
+    requireState();
+    await syncWorkers(ctx);
+    const latest = requireState();
+    const id = requestedId ? safeId(requestedId) : undefined;
+    const slice = id
+      ? latest.slices.find((item) => item.id === id || item.ticketPath?.includes(requestedId ?? ""))
+      : (latest.slices.find((item) => item.status === "active") ?? latest.slices[0]);
+
+    if (!slice) {
+      ctx.ui.notify("No AFK slices found.", "warning");
+      return;
+    }
+
+    let body = "";
+    if (slice.logPath) {
+      try {
+        const log = await readFile(slice.logPath, "utf8");
+        body = log.split("\n").slice(-80).join("\n");
+      } catch {
+        body = "";
+      }
+    }
+
+    if (!body && slice.tmuxSession) {
+      const capture = await pi.exec(
+        "tmux",
+        ["capture-pane", "-p", "-t", slice.tmuxSession, "-S", "-200"],
+        {
+          timeout: 2000,
+        },
+      );
+      if (capture.code === 0) body = capture.stdout;
+    }
+
+    const header = [
+      `${slice.id} — ${slice.title}`,
+      slice.summary ? `summary: ${slice.summary}` : undefined,
+      slice.tmuxSession ? `tmux: ${slice.tmuxSession}` : undefined,
+      workerPromptPath(slice) ? `prompt: ${workerPromptPath(slice)}` : undefined,
+      slice.logPath ? `log: ${slice.logPath}` : undefined,
+    ].filter((line): line is string => Boolean(line));
+
+    const lines = [...header, "", ...(body ? body.split("\n") : ["No log output yet."])];
+    await showOverlay(ctx, `AFK Feedback — ${slice.id}`, lines);
+  }
+
+  async function runDoctor(ctx: ExtensionContext): Promise<void> {
+    const root = await repoRoot(ctx);
+    const checks: Array<{ ok: boolean; label: string; detail?: string }> = [];
+
+    for (const command of ["pi", "git", "tmux"] as const) {
+      checks.push({ ok: await commandExists(command), label: `${command} is available` });
+    }
+
+    const worktree = await pi.exec("git", ["-C", root, "worktree", "list"], { timeout: 5000 });
+    checks.push({ ok: worktree.code === 0, label: "git worktree is available" });
+
+    const status = await pi.exec("git", ["-C", root, "status", "--porcelain"], { timeout: 5000 });
+    checks.push({
+      ok: status.code === 0,
+      label: "repository status can be inspected",
+      detail: status.stdout.trim()
+        ? "working tree has uncommitted changes; review before integrating"
+        : "working tree clean",
+    });
+
+    if (state) {
+      try {
+        await readFile(pathResolve(root, state.specPath), "utf8");
+        checks.push({ ok: true, label: `spec exists: ${state.specPath}` });
+      } catch {
+        checks.push({ ok: false, label: `spec missing: ${state.specPath}` });
+      }
+    }
+
+    const tickets = state ? await discoverTicketPaths(ctx) : [];
+    checks.push({
+      ok: !state || tickets.length > 0,
+      label: state ? "slice tickets discovered" : "AFK pipeline state",
+      detail: state ? `${tickets.length} ticket(s)` : "no active pipeline; run /afk start <spec>",
+    });
+
+    const lines = checks.map((check) => {
+      const marker = check.ok ? "✓" : "!";
+      const detail = check.detail ? ` — ${check.detail}` : "";
+      return `${marker} ${check.label}${detail}`;
+    });
+    await showOverlay(ctx, "AFK Doctor", lines);
+    ctx.ui.notify(
+      checks.every((check) => check.ok) ? "AFK doctor passed" : "AFK doctor found issues",
+      checks.every((check) => check.ok) ? "info" : "warning",
+    );
+  }
+
   async function syncWorkers(ctx: ExtensionContext): Promise<void> {
     if (!state) return;
 
     let changed = false;
     const slices: SliceState[] = [];
+    const root = await repoRoot(ctx);
 
     for (const slice of state.slices) {
       let next = slice;
@@ -537,35 +882,39 @@ AFK pipeline rules:
         const tmux = await pi.exec("tmux", ["has-session", "-t", slice.tmuxSession], {
           timeout: 2000,
         });
-        if (tmux.code === 0) {
+        const running = tmux.code === 0;
+        const promptPath = workerPromptPath(slice);
+        const prompt = promptPath ? await readWorkerPromptInfo(promptPath) : undefined;
+        const commit = await readCommitInfo(workerDirectory(root, slice));
+
+        if (running) {
           next = {
             ...slice,
             status: slice.status === "done" ? "done" : "active",
-            summary: `Ralph worker running in tmux:${slice.tmuxSession}`,
+            summary: `${workerSummary(true, prompt, commit)} in tmux:${slice.tmuxSession}`,
             updatedAt: now(),
           };
-        } else if (slice.worktreePath) {
-          try {
-            const prompt = await readFile(pathJoin(slice.worktreePath, "PROMPT.md"), "utf8");
-            const hasUnchecked = /^- \[ \]/m.test(prompt);
-            next = {
-              ...slice,
-              status: hasUnchecked ? "blocked" : "done",
-              summary: hasUnchecked
-                ? "Ralph worker stopped with unchecked tasks"
-                : "Ralph worker completed all tasks",
-              updatedAt: now(),
-            };
-          } catch {
-            next = {
-              ...slice,
-              summary: "Could not inspect Ralph worker worktree",
-              updatedAt: now(),
-            };
-          }
+        } else if (promptPath && prompt) {
+          const done = prompt.uncheckedTasks === 0 && !prompt.blocker;
+          next = {
+            ...slice,
+            status: done ? "done" : "blocked",
+            summary: done
+              ? `${workerSummary(false, prompt, commit)} • completed`
+              : workerSummary(false, prompt, commit),
+            updatedAt: now(),
+          };
+          await syncPromptBackToTicket(root, slice);
+        } else if (promptPath) {
+          next = {
+            ...slice,
+            status: "blocked",
+            summary: "Could not inspect Ralph worker prompt/log state",
+            updatedAt: now(),
+          };
         }
       }
-      changed = changed || next !== slice;
+      changed = changed || JSON.stringify(next) !== JSON.stringify(slice);
       slices.push(next);
     }
 
@@ -574,12 +923,156 @@ AFK pipeline rules:
     }
   }
 
-  async function runRalphWorkers(ctx: ExtensionContext): Promise<void> {
+  async function startQaPass(ctx: ExtensionContext): Promise<void> {
     const current = requireState();
-    const tickets = await discoverTicketPaths(ctx);
-    if (tickets.length === 0) {
+    const qaPath = `docs/qa/afk-${safeId(current.name)}.md`;
+    setState(
+      {
+        ...current,
+        phase: "qa",
+        phaseStatus: "active",
+        note: `Run an end-to-end QA pass and write ${qaPath}.`,
+        artifacts: upsertArtifact(current.artifacts, {
+          path: qaPath,
+          kind: "qa-report",
+          note: "Expected QA report path",
+          createdAt: now(),
+        }),
+        updatedAt: now(),
+      },
+      ctx,
+    );
+    pi.sendUserMessage(`Start the AFK QA phase.
+
+Refresh worker state, exercise the real user journey from ${current.specPath}, run the relevant full checks, and write a markdown QA report at ${qaPath} with scenario, steps, expected result, actual result, pass/fail, and logs. Record the report with afk_record_artifact.`);
+  }
+
+  async function startReviewPass(ctx: ExtensionContext): Promise<void> {
+    await syncWorkers(ctx);
+    const latest = requireState();
+    const branches = workerBranches(latest);
+    setState(
+      {
+        ...latest,
+        phase: "review",
+        phaseStatus: "active",
+        note: "Prepare human review of worker branches, blockers, and QA findings.",
+        updatedAt: now(),
+      },
+      ctx,
+    );
+    pi.sendUserMessage(`Start the AFK review phase.
+
+Summarize what changed, list blockers, list worker branches (${branches.join(", ") || "none"}), and call out exactly what a human should inspect before merge.`);
+  }
+
+  async function prepareIntegration(ctx: ExtensionContext): Promise<void> {
+    const current = requireState();
+    await syncWorkers(ctx);
+    const latest = requireState();
+    const blocked = latest.slices.filter((slice) => slice.status === "blocked");
+    if (blocked.length > 0) {
+      ctx.ui.notify(
+        `Cannot integrate: ${blocked.length} blocked slice(s). Open /afk board.`,
+        "warning",
+      );
+      return;
+    }
+    const branches = workerBranches(latest);
+    if (branches.length === 0) {
+      ctx.ui.notify("No worker branches recorded to integrate.", "warning");
+      return;
+    }
+    const root = await repoRoot(ctx);
+    const integrationBranch = `afk/integrate-${safeId(current.name)}`;
+    setState(
+      {
+        ...latest,
+        phase: "review",
+        phaseStatus: "active",
+        note: `Integration candidate: ${integrationBranch}`,
+        artifacts: upsertArtifact(latest.artifacts, {
+          path: integrationBranch,
+          kind: "branch",
+          note: "Suggested integration branch",
+          createdAt: now(),
+        }),
+        updatedAt: now(),
+      },
+      ctx,
+    );
+    pi.sendUserMessage(`Prepare AFK integration.
+
+Repo root: ${root}
+Suggested integration branch: ${integrationBranch}
+Worker branches:
+${branches.map((branch) => `- ${branch}`).join("\n")}
+
+Check out a safe integration branch, merge/rebase worker branches one at a time, resolve conflicts, run full checks, and stop if any behavior or product decision is ambiguous.`);
+  }
+
+  async function preparePullRequest(ctx: ExtensionContext): Promise<void> {
+    const current = requireState();
+    setState(
+      {
+        ...current,
+        phase: "review",
+        phaseStatus: "active",
+        note: "Draft PR summary and review checklist.",
+        updatedAt: now(),
+      },
+      ctx,
+    );
+    pi.sendUserMessage(
+      "Draft the AFK pull request summary. Include linked spec/tickets, worker branches, test results, QA report, known risks, and a human review checklist. If gh is available and the branch is ready, ask before creating the PR.",
+    );
+  }
+
+  async function runRalphWorkers(ctx: ExtensionContext, options: RunOptions): Promise<void> {
+    requireState();
+    await syncWorkers(ctx);
+    const current = requireState();
+    const activeInPlace = current.slices.find(
+      (slice) => slice.status === "active" && Boolean(slice.tmuxSession) && !slice.worktreePath,
+    );
+    if (!options.worktree && activeInPlace) {
+      ctx.ui.notify(
+        `An in-place worker is already active (${activeInPlace.id}). Use /afk logs ${activeInPlace.id} or stop it before launching another.`,
+        "warning",
+      );
+      return;
+    }
+    const discovered = await discoverTicketPaths(ctx);
+    const filtered = discovered.filter((path) => matchesRunFilter(path, options.only));
+    const eligible = filtered.filter((path) => {
+      const existing = current.slices.find((slice) => slice.id === ticketId(path));
+      return existing?.status !== "done";
+    });
+    const tickets = eligible.slice(0, options.maxWorkers);
+    if (discovered.length === 0) {
       ctx.ui.notify("No tickets found. Create docs/tickets/*.md or add slices first.", "warning");
       return;
+    }
+    if (filtered.length === 0) {
+      ctx.ui.notify(`No tickets matched: ${options.only.join(", ")}`, "warning");
+      return;
+    }
+    if (tickets.length === 0) {
+      ctx.ui.notify("All matched tickets are already done.", "info");
+      return;
+    }
+
+    if (!options.yes) {
+      const preview = tickets.map((ticket) => `- ${ticketId(ticket)} (${ticket})`).join("\n");
+      const mode = options.worktree ? "git worktrees" : "the current checkout (in-place, max 1)";
+      const ok = await ctx.ui.confirm(
+        "Launch AFK workers?",
+        `Launch ${tickets.length} worker(s) in ${mode}.\n${preview}`,
+      );
+      if (!ok) {
+        ctx.ui.notify("AFK worker launch cancelled", "info");
+        return;
+      }
     }
 
     const root = await repoRoot(ctx);
@@ -588,10 +1081,17 @@ AFK pipeline rules:
     let launched = 0;
 
     for (const ticketPath of tickets) {
-      const id = safeId(pathBasename(ticketPath));
-      const branch = `afk/${id}`;
+      const id = ticketId(ticketPath);
+      const branch = options.worktree ? `afk/${id}` : undefined;
       const tmuxSession = `pi-afk-${id}`;
-      const worktreePath = pathJoin(pathDirname(root), `${projectName}-afk-${id}`);
+      const worktreePath = options.worktree
+        ? pathJoin(pathDirname(root), `${projectName}-afk-${id}`)
+        : undefined;
+      const workerRoot = worktreePath ?? root;
+      const promptPath = options.worktree
+        ? pathJoin(workerRoot, "PROMPT.md")
+        : pathJoin(root, ".pi", "afk", "prompts", `${id}.md`);
+      const logPath = pathJoin(root, ".pi", "afk", "logs", `${id}.log`);
       const ticketAbsolute = pathResolve(root, ticketPath);
       const existing = nextState.slices.find((slice) => slice.id === id);
       if (existing?.status === "done") continue;
@@ -600,46 +1100,73 @@ AFK pipeline rules:
         timeout: 2000,
       });
       if (hasSession.code === 0) {
+        const activeSlice: SliceState = {
+          id,
+          title: existing?.title ?? titleFromSpec(ticketPath),
+          status: "active",
+          ticketPath,
+          ...(branch ? { branch } : {}),
+          tmuxSession,
+          ...(worktreePath ? { worktreePath } : {}),
+          promptPath,
+          logPath,
+          summary: `Existing Ralph worker running in tmux:${tmuxSession}`,
+          updatedAt: now(),
+        };
         nextState = {
           ...nextState,
-          slices: nextState.slices.map((slice) =>
-            slice.id === id
-              ? { ...slice, status: "active", tmuxSession, worktreePath, branch, updatedAt: now() }
-              : slice,
-          ),
+          slices: existing
+            ? nextState.slices.map((slice) => (slice.id === id ? activeSlice : slice))
+            : [...nextState.slices, activeSlice],
         };
         continue;
       }
 
       const workerPrompt = `Use the afk-coding skill. You are a Ralph worker for one vertical slice.
 
-Read PROMPT.md. Do exactly one unchecked task using red-green-refactor:
+Read and update this prompt file: ${promptPath}
+Do exactly one unchecked task using red-green-refactor:
 1. write or update the failing test first,
 2. implement the smallest passing change,
 3. refactor without changing behavior,
 4. run relevant checks,
 5. commit,
-6. tick the completed checkbox in PROMPT.md,
+6. tick the completed checkbox in ${promptPath},
 7. exit.
 
-Never delete or weaken failing tests to pass. If blocked, write a clear blocker note in PROMPT.md and exit non-zero.`;
+Never delete or weaken failing tests to pass. If blocked, write this exact section in ${promptPath} and exit non-zero:
+
+## Blocked
+
+Reason:
+Needed human decision:
+Files touched:
+Suggested next step:`;
 
       const script = `set -euo pipefail
 ROOT=${shellQuote(root)}
-WT=${shellQuote(worktreePath)}
+WORKER_ROOT=${shellQuote(workerRoot)}
 TICKET=${shellQuote(ticketAbsolute)}
-BRANCH=${shellQuote(branch)}
+BRANCH=${shellQuote(branch ?? "")}
+PROMPT_FILE=${shellQuote(promptPath)}
+LOG_FILE=${shellQuote(logPath)}
+USE_WORKTREE=${options.worktree ? "1" : "0"}
 SESSION_NAME=${shellQuote(`afk-${id}`)}
 WORKER_PROMPT=${shellQuote(workerPrompt)}
 
-if [ ! -e "$WT/.git" ]; then
-  git -C "$ROOT" worktree add "$WT" -b "$BRANCH" || git -C "$ROOT" worktree add "$WT" "$BRANCH"
-fi
-cp "$TICKET" "$WT/PROMPT.md"
-cd "$WT"
-while grep -q '^- \\[ \\]' PROMPT.md; do
-  pi --name "$SESSION_NAME" -p @PROMPT.md "$WORKER_PROMPT"
-done
+mkdir -p "$(dirname "$PROMPT_FILE")" "$(dirname "$LOG_FILE")"
+{
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] starting AFK worker ${id}"
+  if [ "$USE_WORKTREE" = "1" ] && [ ! -e "$WORKER_ROOT/.git" ]; then
+    git -C "$ROOT" worktree add "$WORKER_ROOT" -b "$BRANCH" || git -C "$ROOT" worktree add "$WORKER_ROOT" "$BRANCH"
+  fi
+  cp "$TICKET" "$PROMPT_FILE"
+  cd "$WORKER_ROOT"
+  while grep -q '^- \\[ \\]' "$PROMPT_FILE"; do
+    pi --name "$SESSION_NAME" -p @"$PROMPT_FILE" "$WORKER_PROMPT"
+  done
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] AFK worker ${id} finished"
+} 2>&1 | tee -a "$LOG_FILE"
 `;
 
       const tmux = await pi.exec("tmux", ["new-session", "-d", "-s", tmuxSession, script], {
@@ -655,21 +1182,39 @@ done
         title: existing?.title ?? titleFromSpec(ticketPath),
         status: "active",
         ticketPath,
-        branch,
+        ...(branch ? { branch } : {}),
         tmuxSession,
-        worktreePath,
-        summary: `Ralph worker launched in tmux:${tmuxSession}`,
+        ...(worktreePath ? { worktreePath } : {}),
+        promptPath,
+        logPath,
+        summary: `Ralph worker launched in tmux:${tmuxSession}. Feedback: /afk logs ${id}`,
         updatedAt: now(),
       };
 
+      const logArtifact: ArtifactState = {
+        path: logPath,
+        kind: "note",
+        note: `Worker log for ${id}`,
+        createdAt: now(),
+      };
       nextState = {
         ...nextState,
         phase: "ralph",
         phaseStatus: "active",
-        note: "Ralph workers are running as separate Pi processes in tmux worktrees.",
+        note: options.worktree
+          ? "Ralph workers are running as separate Pi processes in tmux worktrees."
+          : "Ralph worker is running in-place in the current checkout. Use /afk logs for feedback.",
         slices: existing
           ? nextState.slices.map((item) => (item.id === id ? slice : item))
           : [...nextState.slices, slice],
+        artifacts: branch
+          ? upsertArtifact(upsertArtifact(nextState.artifacts, logArtifact), {
+              path: branch,
+              kind: "branch",
+              note: `Worker branch for ${id}`,
+              createdAt: now(),
+            })
+          : upsertArtifact(nextState.artifacts, logArtifact),
         updatedAt: now(),
       };
       launched++;
@@ -677,14 +1222,14 @@ done
 
     setState(nextState, ctx);
     ctx.ui.notify(
-      `Ralph workers launched: ${launched}. Use tmux attach -t pi-afk-<slice>.`,
+      `Ralph workers launched: ${launched}. Use /afk logs <slice> or tmux attach -t pi-afk-<slice>.`,
       "info",
     );
   }
 
   pi.registerCommand("afk", {
     description:
-      "Manage the AFK coding pipeline UI: /afk start <spec>, /afk run, /afk board, /afk status, /afk hide, /afk show, /afk reset",
+      "Manage the AFK coding pipeline UI: /afk start <spec>, /afk doctor, /afk run [--worktree] [--max N] [--only id] [--yes], /afk logs [id], /afk qa, /afk review, /afk integrate, /afk pr, /afk board",
     handler: async (args, ctx) => {
       const [action = "status", ...rest] = args.trim().split(/\s+/).filter(Boolean);
 
@@ -719,8 +1264,34 @@ First, read the spec and confirm whether it is clear enough. If it is clear, mar
           return;
         }
 
+        case "doctor":
+          await runDoctor(ctx);
+          return;
+
         case "run":
-          await runRalphWorkers(ctx);
+          await runRalphWorkers(ctx, parseRunOptions(rest));
+          return;
+
+        case "logs":
+        case "log":
+        case "feedback":
+          await showWorkerFeedback(ctx, rest[0]);
+          return;
+
+        case "qa":
+          await startQaPass(ctx);
+          return;
+
+        case "review":
+          await startReviewPass(ctx);
+          return;
+
+        case "integrate":
+          await prepareIntegration(ctx);
+          return;
+
+        case "pr":
+          await preparePullRequest(ctx);
           return;
 
         case "sync":
@@ -775,7 +1346,7 @@ First, read the spec and confirm whether it is clear enough. If it is clear, mar
 
         default:
           ctx.ui.notify(
-            "Usage: /afk start <spec> | run | sync | board | status | hide | show | reset",
+            "Usage: /afk start <spec> | doctor | run [--worktree] [--max N] [--only id] [--yes] | logs [id] | qa | review | integrate | pr | sync | board | status | hide | show | reset",
             "warning",
           );
       }
@@ -845,6 +1416,8 @@ First, read the spec and confirm whether it is clear enough. If it is clear, mar
         branch: params.branch ?? existing?.branch,
         tmuxSession: params.tmuxSession ?? existing?.tmuxSession,
         worktreePath: params.worktreePath ?? existing?.worktreePath,
+        promptPath: params.promptPath ?? existing?.promptPath,
+        logPath: params.logPath ?? existing?.logPath,
         summary: params.summary ?? existing?.summary,
         updatedAt,
       };
