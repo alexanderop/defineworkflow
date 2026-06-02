@@ -1,6 +1,6 @@
 # CLI
 
-<p class="wf-eyebrow">packages/cli — the <code>defineworkflow</code> binary</p>
+<p class="wf-eyebrow">packages/cli — the <code>workflow</code> binary</p>
 
 `dispatch(argv, deps)` is a pure router over an injected `AppDeps`, which is what makes the whole CLI
 testable. Runs are persisted under `~/.workflow/runs/{runId}/` as events + journal JSONL — the same
@@ -9,26 +9,59 @@ on-disk pair that powers `watch`, `resume`, and `save`.
 ## Commands
 
 ```bash
-defineworkflow run <script> [--args '{...}'] [--detach] [--yes] [--answers '{...}']
-defineworkflow watch <id>            # attach the UI to a running/finished run
-defineworkflow list                  # list runs (status, tokens, elapsed)
-defineworkflow resume <id>           # replay the journal, run the rest live
-defineworkflow stop <id>             # stop a backgrounded run
-defineworkflow save <id>             # save a run's script as a named workflow
-defineworkflow adapters              # list detected harnesses + capabilities
-defineworkflow <name> [--args ...]   # run a saved/bundled workflow by name
+workflow run <script> [--args '{...}'] [--detach] [--yes] [--answers '{...}']
+workflow graph <script-or-name> [--format ascii|dot|svg|json] [--output <path>]
+workflow watch <id>            # attach the UI to a running/finished run
+workflow list                  # list runs (status, tokens, elapsed)
+workflow resume <id>           # replay the journal, run the rest live
+workflow stop <id>             # stop a backgrounded run
+workflow save <id>             # save a run's script as a named workflow
+workflow adapters              # list detected harnesses + capabilities
+workflow <name> [--args ...]   # run a saved/bundled workflow by name
 ```
 
 ## Running a workflow
 
 ```bash
 # foreground — renders the Ink TUI with pause / stop / save controls
-defineworkflow run ./research-bugs.workflow.ts --args '{ "dir": "src" }'
+workflow run ./research-bugs.workflow.ts --args '{ "dir": "src" }'
 
 # detached — spawns a headless child you tail with `watch`
-defineworkflow run ./research-bugs.workflow.ts --detach
-defineworkflow watch <id>
+workflow run ./research-bugs.workflow.ts --detach
+workflow watch <id>
 ```
+
+## Graphing a workflow
+
+`workflow graph <script-or-name>` statically extracts a best-effort workflow graph from a local workflow
+file or a saved workflow name. It understands metadata phases plus runtime calls to `phase()`, `agent()`,
+`parallel()`, `pipeline()`, `askUserQuestion()`, nested `workflow()`, and `output`.
+
+```bash
+# DOT is the default and is useful for Graphviz or Mermaid-adjacent tooling
+workflow graph ./research-bugs.workflow.ts
+
+# terminal-friendly tree
+workflow graph ./research-bugs.workflow.ts --format ascii
+
+# machine-readable graph contract
+workflow graph review --format json
+
+# render SVG with Graphviz dot and write it to disk
+workflow graph review --format svg --output review.svg
+```
+
+Supported formats are:
+
+- `dot` — default Graphviz DOT output.
+- `ascii` — a terminal tree, including approximation warnings.
+- `json` — the raw `WorkflowGraph` shape exported by `@workflow/cli`.
+- `svg` — Graphviz-rendered SVG. This requires the `dot` executable on `PATH`; use `--format dot` if
+  Graphviz is not installed.
+
+The graph is static and conservative. Dynamic loops, conditionals, dynamic `parallel()` inputs, dynamic
+agent prompts, and unknown nested workflow names are represented approximately and surfaced as warnings
+instead of making the command fail.
 
 ## The consent gate
 
@@ -40,9 +73,9 @@ defineworkflow watch <id>
 
 ## Resume & save
 
-`defineworkflow resume <id>` rebuilds the journal from disk and continues from the longest unchanged prefix —
-see [Journal & resume](/guide/journal-resume). `defineworkflow save <id>` promotes a run's script to a named
-workflow you can later invoke as `defineworkflow <name>`. The optional `whenToUse` meta hint, if set, is
+`workflow resume <id>` rebuilds the journal from disk and continues from the longest unchanged prefix —
+see [Journal & resume](/guide/journal-resume). `workflow save <id>` promotes a run's script to a named
+workflow you can later invoke as `workflow <name>`. The optional `whenToUse` meta hint, if set, is
 shown alongside each entry in the saved/bundled workflow listing.
 
 ## Asking questions headlessly
@@ -53,7 +86,7 @@ resolves each answer in this order:
 
 1. The `--answers` map, keyed by the question's `key`:
    ```bash
-   defineworkflow run ./deploy.workflow.ts --detach --answers '{ "deploy-target": "production" }'
+   workflow run ./deploy.workflow.ts --detach --answers '{ "deploy-target": "production" }'
    ```
 2. Otherwise the question's own `default`.
 3. Otherwise the run **fails fast** with an error naming the unanswered key — it never silently hangs.

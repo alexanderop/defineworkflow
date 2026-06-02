@@ -25,6 +25,7 @@
     "@workflow/adapters": "workspace:*",
     "@workflow/core": "workspace:*",
     "@workflow/ui": "workspace:*",
+    "acorn": "^8.16.0",
     "esbuild": "^0.28.0",
     "neverthrow": "^8.1.0"
   },

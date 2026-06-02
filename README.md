@@ -194,6 +194,7 @@ returns.
 
 ```
 workflow run <script> [--args '{...}'] [--answers '{...}'] [--detach] [--yes] [--mock]
+workflow graph <script-or-name> [--format ascii|dot|svg|json] [--output <path>]
 workflow watch <id>          # tail a running/finished run
 workflow list                # list runs (status, tokens, elapsed)
 workflow resume <id>         # replay from journal and continue live
@@ -214,6 +215,25 @@ workflow <name> [--args ...] # run a saved/bundled workflow by name
 - Runs are persisted under `~/.workflow/runs/{runId}/` as events + journal JSONL.
 - A consent gate guards real runs; `--yes`, non-TTY/CI, or saved consent
   auto-allow.
+
+### Graph workflows
+
+`workflow graph` turns a workflow file or saved workflow name into a static graph before you run it:
+
+```bash
+# Graphviz DOT output is the default
+workflow graph packages/examples/src/haiku.workflow.ts
+
+# terminal tree
+workflow graph packages/examples/src/haiku.workflow.ts --format ascii
+
+# write a rendered SVG; requires Graphviz `dot` on PATH
+workflow graph haiku --format svg --output haiku.svg
+```
+
+The graph includes phases, agents, `parallel()` branches and joins, `pipeline()` stages,
+`askUserQuestion()`, nested `workflow()` calls, and declared output. Dynamic control flow is shown
+approximately with warnings instead of failing the command.
 
 ## Architecture
 

@@ -69,6 +69,65 @@ describe("dispatch routing", () => {
     expect(code).toBe(1);
     expect(out()).toContain("HarnessNotDeclared");
   });
+
+  it("graphs a workflow as JSON", async () => {
+    const source = `export default defineWorkflow({
+  name: "graph-me",
+  description: "graph",
+  harness: "claude",
+  phases: ["Plan"],
+  async run() {
+    phase("Plan");
+    await agent("Make plan", { label: "planner" });
+  },
+});`;
+    const { deps, out } = fakeDeps({ _files: { "/g.ts": source } });
+
+    const code = await dispatch(["graph", "/g.ts", "--format", "json"], deps);
+
+    expect(code).toBe(0);
+    const parsed: unknown = JSON.parse(out());
+    expect(parsed).toMatchObject({ workflow: { name: "graph-me" } });
+  });
+
+  it("graphs a workflow as ASCII", async () => {
+    const source = `export default defineWorkflow({
+  name: "ascii-graph",
+  description: "graph",
+  harness: "copilot",
+  phases: ["Write"],
+  async run() {
+    phase("Write");
+    await agent("Write", { label: "writer" });
+  },
+});`;
+    const { deps, out } = fakeDeps({ _files: { "/ascii.ts": source } });
+
+    const code = await dispatch(["graph", "/ascii.ts", "--format", "ascii"], deps);
+
+    expect(code).toBe(0);
+    expect(out()).toContain("Workflow: ascii-graph (copilot)");
+    expect(out()).toContain("└── 🤖 writer");
+  });
+
+  it("graphs a saved workflow name to an output file", async () => {
+    const source = `export default defineWorkflow({
+  name: "saved-graph",
+  description: "graph",
+  harness: "codex",
+  async run() {
+    await agent("Go", { label: "go" });
+  },
+});`;
+    const files: Record<string, string> = { "/proj/.workflow/workflows/review.ts": source };
+    const { deps, out } = fakeDeps({ _files: files });
+
+    const code = await dispatch(["graph", "review", "--output", "/tmp/review.dot"], deps);
+
+    expect(code).toBe(0);
+    expect(out()).toBe("");
+    expect(deps.io.readText("/tmp/review.dot")).toContain("digraph workflow");
+  });
 });
 
 describe("dispatch run (end-to-end, line-log)", () => {

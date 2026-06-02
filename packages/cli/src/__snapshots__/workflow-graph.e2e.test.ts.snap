@@ -1,0 +1,90 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`workflow graph terminal snapshots e2e > renders a complex workflow as an ASCII screenshot > complex ASCII graph screenshot 1`] = `
+"Workflow: complex-review (claude)
+
+◎ complex-review
+└── [phase] Plan
+    └── 🤖 planner {schema}
+        └── [phase] Draft
+            └── ◇ parallel
+                ├── branch 1 ▶ 🤖 angle-a
+                ├── branch 2 ▶ 🤖 angle-b
+                └── ○ join
+                    └── [phase] Decide
+                        └── ? ship
+                            └── returns ▶ ⇥ review-output
+"
+`;
+
+exports[`workflow graph terminal snapshots e2e > renders the haiku example as a DOT screenshot > haiku DOT graph screenshot 1`] = `
+"digraph workflow {
+  rankdir=LR;
+  node [fontname="Helvetica"];
+  edge [fontname="Helvetica"];
+
+  root [label="haiku", shape="doublecircle", style="filled", fillcolor="#f8fafc"];
+  phase_write [label="Write", shape="box", style="rounded,filled", fillcolor="#dbeafe", color="#2563eb"];
+  agent_haiku_writer [label="agent: haiku-writer", shape="box", style="filled", fillcolor="#f3e8ff", color="#9333ea"];
+
+  root -> phase_write;
+  phase_write -> agent_haiku_writer;
+}
+"
+`;
+
+exports[`workflow graph terminal snapshots e2e > renders the haiku example as a JSON screenshot > haiku JSON graph screenshot 1`] = `
+"{
+  "workflow": {
+    "name": "haiku",
+    "description": "Ask an agent to write a haiku about durable workflows",
+    "harness": "copilot"
+  },
+  "nodes": [
+    {
+      "type": "workflow",
+      "id": "root",
+      "label": "haiku"
+    },
+    {
+      "type": "phase",
+      "id": "phase_write",
+      "label": "Write"
+    },
+    {
+      "type": "agent",
+      "id": "agent_haiku_writer",
+      "label": "haiku-writer",
+      "hasSchema": false
+    }
+  ],
+  "edges": [
+    {
+      "from": "root",
+      "to": "phase_write",
+      "kind": "sequence"
+    },
+    {
+      "from": "phase_write",
+      "to": "agent_haiku_writer",
+      "kind": "sequence"
+    }
+  ],
+  "warnings": []
+}
+"
+`;
+
+exports[`workflow graph terminal snapshots e2e > renders the haiku example as an ASCII screenshot > haiku ASCII graph screenshot 1`] = `
+"Workflow: haiku (copilot)
+
+◎ haiku
+└── [phase] Write
+    └── 🤖 haiku-writer
+"
+`;
+
+exports[`workflow graph terminal snapshots e2e > renders the haiku example as an SVG screenshot > haiku SVG graph screenshot 1`] = `
+"<svg data-command="dot" data-args="-Tsvg"><text>haiku graph</text></svg>
+"
+`;

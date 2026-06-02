@@ -8,12 +8,14 @@ import { resumeCommand } from "./commands/resume.js";
 import { stopCommand } from "./commands/stop.js";
 import { saveCommand } from "./commands/save.js";
 import { adaptersCommand } from "./commands/adapters.js";
+import { graphCommand } from "./commands/graph.js";
 import { resolveSavedWorkflow } from "./resolve.js";
 
 export const USAGE = `workflow — deterministic multi-agent workflow runner
 
 Usage:
   workflow run <script> [--args '{...}'] [--answers '{...}'] [--detach] [--yes] [--mock]
+  workflow graph <script-or-name> [--format ascii|dot|svg|json] [--output <path>]
   workflow watch <id>            attach the UI to a running/finished run
   workflow list                  list runs (status, tokens, elapsed)
   workflow resume <id>           replay the journal, run the rest live
@@ -41,6 +43,8 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
         detach: { type: "boolean" },
         yes: { type: "boolean" },
         mock: { type: "boolean" },
+        format: { type: "string" },
+        output: { type: "string" },
         help: { type: "boolean" },
       },
     });
@@ -78,6 +82,17 @@ export async function dispatch(argv: readonly string[], deps: AppDeps): Promise<
         return 1;
       }
       return runCommand({ script, ...runFlags }, deps);
+    }
+    case "graph": {
+      const target = positionals[1];
+      if (target === undefined) {
+        deps.ui.print("error: graph requires a workflow path or name\n");
+        return 1;
+      }
+      return graphCommand(
+        { target, format: str(values["format"]), output: str(values["output"]) },
+        deps,
+      );
     }
     case "__run-detached": {
       const id = requireId("__run-detached");

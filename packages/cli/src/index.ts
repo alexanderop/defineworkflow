@@ -35,5 +35,15 @@ export {
   parseJournalLine,
 } from "./jsonl.js";
 export { dispatch, USAGE } from "./dispatch.js";
+export {
+  buildWorkflowGraph,
+  type WorkflowGraph,
+  type WorkflowGraphEdge,
+  type WorkflowGraphNode,
+  type WorkflowGraphWarning,
+  type WorkflowGraphWarningCode,
+} from "./workflow-graph.js";
+export { renderWorkflowGraphAscii } from "./workflow-graph-ascii.js";
+export { renderWorkflowGraphDot } from "./workflow-graph-dot.js";
 export { buildNodeDeps } from "./node-deps.js";
 export { type AppDeps } from "./app.js";
