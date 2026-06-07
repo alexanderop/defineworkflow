@@ -209,8 +209,9 @@ TTY it renders a throttled (100ms) three-pane layout (phases / agents / detail) 
 
 The public package (npm name `defineworkflow`) that workflow files import from. It exports `defineWorkflow`,
 the runtime primitive stubs (`agent`/`parallel`/`pipeline`/`phase`/`log`/`workflow`/`askUserQuestion`),
-`z` (the engine's zod instance), `args`, `budget`, and types (`AgentOptions`, `AskUserQuestionOptions`,
-`HarnessId`, `WorkflowMeta`, …).
+`profile()`, `z` (the engine's zod instance), `args`, `budget`, and types (`AgentOptions`,
+`AskUserQuestionOptions`, `HarnessId`, `WorkflowMeta`, `WorkflowContext`, `WorkflowDefinition`,
+`Profile`, `ProfileConfig`, …).
 These imports exist purely for TypeScript/editor support — autocomplete and compile-time checks; the
 runner strips them and injects the live runtime values into the sandbox at execution time (see
 `transformScript()` above). It replaces the old ambient `workflow-globals.d.ts` as the source of editor
@@ -223,9 +224,12 @@ format; a non-zod schema reaching `agent()` fails fast with `SchemaValidation`).
 fixed-arity overloads (1–5 stages) infer each stage's `prev` from the prior stage's return, so workflow
 bodies need no casts; 6+ stages fall back to an untyped variadic. The sandbox also injects `URL` /
 `URLSearchParams` (deterministic host globals), so `new URL(u)` works in a workflow.
+`profile(config)` bundles reusable agent defaults — `adapter`, `model`, `agentType`, `isolation`,
+`instructions` — into a `Profile` that you pass as the first argument to `agent()` (e.g.
+`agent(reviewer, "Review src/index.ts", { label: "review" })`); per-call opts override the profile.
 `defineWorkflow` makes the metadata type-safe: e.g.
 `harness` only accepts `"claude" | "codex" | "copilot" | "raw-api"`, so tsc rejects typos. The
-metadata fields are `name`, `description`, `harness`, `phases`, the optional `whenToUse?: string`
+metadata fields are `name`, `description`, `harness`, the optional `whenToUse?: string`
 (a hint shown in the saved/bundled workflow list), and the optional `output?: string`. When `output`
 is set, a finished run's return value is persisted there — `result.json` holds the value verbatim and
 each top-level string field is also extracted to its own file (`<key>.<ext>`, extension sniffed from
