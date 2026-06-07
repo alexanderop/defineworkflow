@@ -54,13 +54,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.100.1",
+    "@anthropic-ai/sdk": "^0.101.0",
     "acorn": "^8.16.0",
     "ajv": "^8.17.0",
     "esbuild": "^0.28.0",
     "ink": "^7.0.5",
     "neverthrow": "^8.1.0",
-    "react": "^19.2.6",
+    "react": "^19.2.7",
     "zod": "^4.0.0"
   },
   "devDependencies": {
