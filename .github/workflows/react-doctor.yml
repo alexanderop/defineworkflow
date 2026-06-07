@@ -37,14 +37,14 @@ jobs:
       pull-requests: write # sticky summary comment + changed-files scoping
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0 # full history so a changed-files diff can resolve the base
           persist-credentials: false # don't leave the git token on disk
 
       - name: React Doctor
         # react-doctor publishes no release tags, so pin to the main-branch SHA.
-        uses: millionco/react-doctor@6448d5bfe1a920003a0d74d4080351d973dcbc0b # zizmor: ignore[stale-action-refs]
+        uses: millionco/react-doctor@15bd9d861703c6d3b0e2fd8ffad82b7b6a922b00 # zizmor: ignore[stale-action-refs]
         with:
           directory: packages/ui
           fail-on: error
