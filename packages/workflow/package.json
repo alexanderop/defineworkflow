@@ -57,7 +57,7 @@
     "@anthropic-ai/sdk": "^0.100.1",
     "acorn": "^8.16.0",
     "ajv": "^8.17.0",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.1",
     "ink": "^7.0.5",
     "neverthrow": "^8.1.0",
     "react": "^19.2.6",
